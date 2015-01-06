@@ -1285,6 +1285,13 @@ std::string OIIO_API computePixelHashSHA1 (const ImageBuf &src,
                                            int blocksize = 0, int nthreads=0);
 
 
+/// Transform src pixel values into dst as "prefiltered" coefficients that,
+/// when subsequently filtered using a cubic bspline, yield much nicer
+/// images that are not as blurry as naively applying a cubic filter.
+bool OIIO_API prefilter_cubic_bspline (ImageBuf &dst, const ImageBuf &src,
+                                       ROI roi=ROI::All(), int nthreads=0);
+
+
 /// Warp the src image using the supplied 3x3 transformation matrix.
 ///
 /// Only the pixels (and channels) of dst that are specified by roi will be
