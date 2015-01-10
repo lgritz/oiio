@@ -107,13 +107,13 @@ ImageBufAlgo::paste (ImageBuf &dst, int xbegin, int ybegin,
 
 template<class D, class S>
 static bool
-crop_ (ImageBuf &dst, const ImageBuf &src,
+copy_ (ImageBuf &dst, const ImageBuf &src,
        ROI roi, int nthreads=1)
 {
     if (nthreads != 1 && roi.npixels() >= 1000) {
         // Lots of pixels and request for multi threads? Parallelize.
         ImageBufAlgo::parallel_image (
-            OIIO::bind(crop_<D,S>, OIIO::ref(dst), OIIO::cref(src),
+            OIIO::bind(copy_<D,S>, OIIO::ref(dst), OIIO::cref(src),
                         _1 /*roi*/, 1 /*nthreads*/),
             roi, nthreads);
         return true;
@@ -148,6 +148,31 @@ crop_ (ImageBuf &dst, const ImageBuf &src,
 
 
 bool 
+ImageBufAlgo::copy (ImageBuf &dst, const ImageBuf &src, TypeDesc convert,
+                    ROI roi, int nthreads)
+{
+    if (&dst == &src)   // trivial copy to self
+        return true;
+
+    roi.chend = std::min (roi.chend, src.nchannels());
+    if (! dst.initialized()) {
+        ImageSpec newspec = src.spec();
+        set_roi (newspec, roi);
+        newspec.nchannels = roi.chend;
+        if (convert != TypeDesc::UNKNOWN)
+            newspec.set_format (convert);
+        dst.reset (newspec);
+    }
+    IBAprep (roi, &dst, &src);
+    bool ok;
+    OIIO_DISPATCH_TYPES2 (ok, "copy", copy_, dst.spec().format, src.spec().format,
+                          dst, src, roi, nthreads);
+    return ok;
+}
+
+
+
+bool
 ImageBufAlgo::crop (ImageBuf &dst, const ImageBuf &src,
                     ROI roi, int nthreads)
 {
@@ -164,7 +189,7 @@ ImageBufAlgo::crop (ImageBuf &dst, const ImageBuf &src,
     }
 
     bool ok;
-    OIIO_DISPATCH_TYPES2 (ok, "crop", crop_, dst.spec().format, src.spec().format,
+    OIIO_DISPATCH_TYPES2 (ok, "crop", copy_, dst.spec().format, src.spec().format,
                           dst, src, roi, nthreads);
     return ok;
 }
