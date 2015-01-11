@@ -541,69 +541,157 @@ ImageBufAlgo::resample (ImageBuf &dst, const ImageBuf &src,
 }
 
 
+#if 1
 
-#if 0
+template<typename FLOAT>
+inline FLOAT InitialCausalCoefficient (
+            FLOAT *c,          /* coefficients */
+            int    DataLength, /* number of coefficients */
+            int    stride,     /* stride to traverse c */
+            FLOAT  z,          /* actual pole */
+            FLOAT  Tolerance   /* admissible relative error */
+        )
+{
+    /* this initialization corresponds to mirror boundaries */
+    int Horizon = std::min (12, DataLength);
+    // if (Horizon < DataLength) {
+        /* accelerated loop */
+        FLOAT zn = z;
+        FLOAT Sum = c[0];
+        for (int n = 1; n < Horizon; n++) {
+            Sum += zn * c[stride*n];
+            zn *= z;
+        }
+        return Sum;
+    // } else {
+    //     /* full loop */
+    //     FLOAT zn = z;
+    //     FLOAT iz = FLOAT(1) / z;
+    //     FLOAT z2n = pow(z, FLOAT(DataLength - 1));
+    //     FLOAT Sum = c[0] + z2n * c[stride*(DataLength - 1)];
+    //     z2n *= z2n * iz;
+    //     for (int n = 1; n <= DataLength - 2; n++) {
+    //         Sum += (zn + z2n) * c[stride*n];
+    //         zn *= z;
+    //         z2n *= iz;
+    //     }
+    //     return Sum / (FLOAT(1) - zn * zn);
+    // }
+}
+
+
+template<typename FLOAT>
+inline FLOAT InitialAntiCausalCoefficient (
+            FLOAT  *c,         /* coefficients */
+            int    DataLength, /* number of samples or coefficients */
+            int    stride,     /* stride to traverse c */
+            FLOAT  z           /* actual pole */
+        )
+{
+    /* this initialization corresponds to mirror boundaries */
+    return((z / (z * z - FLOAT(1))) * (z * c[stride*(DataLength - 2)] + c[stride*(DataLength - 1)]));
+}
+
+
+template<typename FLOAT>
+static void ConvertToInterpolationCoefficients (
+            FLOAT *c,          /* input samples --> output coefficients */
+            int    DataLength, /* number of samples or coefficients */
+            int    stride,     /* stride to traverse c */
+            const FLOAT *z,          /* poles */
+            int    NbPoles,    /* number of poles */
+            FLOAT  Tolerance   /* admissible relative error */
+        )
+{
+    /* special case required by mirror boundaries */
+    if (DataLength == 1)
+        return;
+    /* compute the overall gain */
+    FLOAT Lambda (1);
+    for (int k = 0; k < NbPoles; k++)
+        Lambda = Lambda * (FLOAT(1) - z[k]) * (FLOAT(1) - FLOAT(1) / z[k]);
+    /* apply the gain */
+    for (int n = 0; n < DataLength; n++)
+        c[stride*n] *= Lambda;
+    /* loop over all poles */
+    for (int k = 0; k < NbPoles; k++) {
+        /* causal initialization */
+        c[0] = InitialCausalCoefficient(c, DataLength, stride, z[k], Tolerance);
+        /* causal recursion */
+        for (int n = 1; n < DataLength; n++)
+            c[stride*n] += z[k] * c[stride*(n - 1)];
+        /* anticausal initialization */
+        c[stride*(DataLength - 1)] = InitialAntiCausalCoefficient(c, DataLength, stride, z[k]);
+        /* anticausal recursion */
+        for (int n = DataLength - 2; 0 <= n; n--)
+            c[stride*n] = z[k] * (c[stride*(n + 1)] - c[stride*n]);
+    }
+}
+
+
 template<typename DSTTYPE, typename SRCTYPE>
 static bool
 prefilter_cubic_bspline_ (ImageBuf &dst, const ImageBuf &src,
+                          int direction,
                           ROI roi, int nthreads)
 {
     if (nthreads != 1 && roi.npixels() >= 1000) {
         // Lots of pixels and request for multi threads? Parallelize.
+        // When prefiltering columns, split vertically, when precomputing
+        // rows, split horizontally.
+        int paralleldir = 1-direction;
         ImageBufAlgo::parallel_image (
             boost::bind(prefilter_cubic_bspline_<DSTTYPE,SRCTYPE>, boost::ref(dst),
-                        boost::cref(src), interpolate,
+                        boost::cref(src), direction,
                         _1 /*roi*/, 1 /*nthreads*/),
-            roi, nthreads);
+            roi, nthreads, paralleldir);
         return true;
     }
 
     // Serial case
 
-    const ImageSpec &srcspec (src.spec());
     const ImageSpec &dstspec (dst.spec());
-    int nchannels = src.nchannels();
-
-    // Local copies of the source image window, converted to float
-    float srcfx = srcspec.full_x;
-    float srcfy = srcspec.full_y;
-    float srcfw = srcspec.full_width;
-    float srcfh = srcspec.full_height;
-
-    float dstfx = dstspec.full_x;
-    float dstfy = dstspec.full_y;
-    float dstfw = dstspec.full_width;
-    float dstfh = dstspec.full_height;
-    float dstpixelwidth = 1.0f / dstfw;
-    float dstpixelheight = 1.0f / dstfh;
-    float *pel = ALLOCA (float, nchannels);
-
-    ImageBuf::Iterator<DSTTYPE> out (dst, roi);
-    ImageBuf::ConstIterator<SRCTYPE> srcpel (src);
-    for (int y = roi.ybegin;  y < roi.yend;  ++y) {
-        // s,t are NDC space
-        float t = (y-dstfy+0.5f)*dstpixelheight;
-        // src_xf, src_xf are image space float coordinates
-        float src_yf = srcfy + t * srcfh - 0.5f;
-        // src_x, src_y are image space integer coordinates of the floor
-        int src_y;
-        (void) floorfrac (src_yf, &src_y);
+    int nchannels = dstspec.nchannels;
+    const int npoles = 1;
+    const float poles[npoles] = { sqrtf(3.0f) - 2.0f };
+    float tolerance = 0.0f;
+    if (direction == 0) {  // prefiltering rows
+        std::vector<float> buf (roi.width() * nchannels);
+        // Copy one scanline to temp buffer
+        for (int y = roi.ybegin;  y < roi.yend;  ++y) {
+            ImageBuf::ConstIterator<SRCTYPE> s (src, roi.xbegin, roi.xend, y, y+1,
+                                                roi.zbegin, roi.zbegin+1);
+            for (int offset = 0; !s.done(); ++s)
+                for (int c = 0; c < nchannels; ++c)
+                    buf[offset++] = s[c];
+            for (int c = roi.chbegin; c < roi.chend; ++c)
+                ConvertToInterpolationCoefficients ((float *)&buf[c], roi.width(),
+                                                    nchannels, poles, npoles,
+                                                    tolerance);
+            ImageBuf::Iterator<DSTTYPE> d (dst, roi.xbegin, roi.xend, y, y+1,
+                                           roi.zbegin, roi.zbegin+1);
+            for (int offset = 0; !d.done(); ++d)
+                for (int c = 0; c < nchannels; ++c)
+                    d[c] = buf[offset++];
+        }
+    } else {  // prefiltering columns
+        std::vector<float> buf (roi.height() * nchannels);
+        // Copy one row to temp buffer
         for (int x = roi.xbegin;  x < roi.xend;  ++x) {
-            float s = (x-dstfx+0.5f)*dstpixelwidth;
-            float src_xf = srcfx + s * srcfw - 0.5f;
-            int src_x;
-            (void) floorfrac (src_xf, &src_x);
-
-            if (interpolate) {
-                src.interppixel (src_xf, src_yf, pel);
-                for (int c = roi.chbegin; c < roi.chend; ++c)
-                    out[c] = pel[c];
-            } else {
-                srcpel.pos (src_x, src_y, 0);
-                for (int c = roi.chbegin; c < roi.chend; ++c)
-                    out[c] = srcpel[c];
-            }
-            ++out;
+            ImageBuf::ConstIterator<SRCTYPE> s (src, x, x+1, roi.ybegin, roi.yend,
+                                                roi.zbegin, roi.zbegin+1);
+            for (int offset = 0; !s.done(); ++s)
+                for (int c = 0; c < nchannels; ++c)
+                    buf[offset++] = s[c];
+            for (int c = roi.chbegin; c < roi.chend; ++c)
+                ConvertToInterpolationCoefficients (&buf[c], roi.height(),
+                                                    nchannels, poles, npoles,
+                                                    tolerance);
+            ImageBuf::Iterator<DSTTYPE> d (dst, x, x+1, roi.ybegin, roi.yend,
+                                           roi.zbegin, roi.zbegin+1);
+            for (int offset = 0; !d.done(); ++d)
+                for (int c = 0; c < nchannels; ++c)
+                    d[c] = buf[offset++];
         }
     }
 
@@ -621,11 +709,25 @@ ImageBufAlgo::prefilter_cubic_bspline (ImageBuf &dst, const ImageBuf &src,
             IBAprep_NO_COPY_ROI_FULL | IBAprep_DST_FLOAT_PIXELS))
         return false;
     bool ok;
-    OIIO_DISPATCH_TYPES2 (ok, "prefilter_cubic_bspline", prefilter_cubic_bspline_,
-                          dst.spec().format, src.spec().format,
-                          dst, src, roi, nthreads);
+    ImageBuf tmp;   // Temporary buffer, float
+    ImageBuf *tmpptr = (dst.initialized() ? &tmp : &dst);
+    ImageBufAlgo::copy (*tmpptr, src, TypeDesc::FLOAT, roi, nthreads);
+
+    ok =  prefilter_cubic_bspline_<float,float> (*tmpptr, *tmpptr, 0 /* horiz */,
+                                                 roi, nthreads);
+    ok &= prefilter_cubic_bspline_<float,float> (*tmpptr, *tmpptr, 1 /* vert */,
+                                                 roi, nthreads);
+    ImageBufAlgo::copy (dst, *tmpptr, TypeDesc::UNKNOWN, roi, nthreads);
+
+    // OIIO_DISPATCH_TYPES2 (ok, "prefilter_cubic_bspline", prefilter_cubic_bspline_,
+    //                       dst.spec().format, src.spec().format,
+    //                       dst, src, 0 /* horiz */, roi, nthreads);
+    // OIIO_DISPATCH_TYPES2 (ok, "prefilter_cubic_bspline", prefilter_cubic_bspline_,
+    //                       dst.spec().format, dst.spec().format,
+    //                       dst, dst, 1 /* vert */, roi, nthreads);
     return ok;
 }
+
 #endif
 
 
