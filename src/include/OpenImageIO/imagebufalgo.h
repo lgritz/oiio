@@ -1308,7 +1308,7 @@ std::string OIIO_API computePixelHashSHA1 (const ImageBuf &src,
 /// Transform src pixel values into dst as "prefiltered" coefficients that,
 /// when subsequently filtered using a cubic bspline, yield much nicer
 /// images that are not as blurry as naively applying a cubic filter.
-bool OIIO_API prefilter_cubic_bspline (ImageBuf &dst, const ImageBuf &src,
+bool OIIO_API cubic_bspline_prefilter (ImageBuf &dst, const ImageBuf &src,
                                        ROI roi=ROI::All(), int nthreads=0);
 
 

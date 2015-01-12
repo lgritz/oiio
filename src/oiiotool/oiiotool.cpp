@@ -3053,6 +3053,30 @@ public:
 OP_CUSTOMCLASS (convolve, OpConvolve, 2);
 
 
+static int
+action_cubic_prefilter (int argc, const char *argv[])
+{
+    if (ot.postpone_callback (1, action_cubic_prefilter, argc, argv))
+        return 0;
+    Timer timer (ot.enable_function_timing);
+
+    ImageRecRef A = ot.pop();
+    A->read();
+    ImageRecRef R (new ImageRec ("cubic_prefilter", ot.allsubimages ? A->subimages() : 1));
+    ot.push (R);
+
+    for (int s = 0, subimages = R->subimages();  s < subimages;  ++s) {
+        ImageBuf &Rib ((*R)(s));
+        bool ok = ImageBufAlgo::cubic_bspline_prefilter (Rib, (*A)(s));
+        R->update_spec_from_imagebuf (s);
+        if (! ok)
+            ot.error ("cubic_prefilter", Rib.geterror());
+    }
+
+    ot.function_times["cubic_prefilter"] += timer();
+    return 0;
+}
+
 
 
 class OpBlur : public OiiotoolOp {
@@ -4408,6 +4432,7 @@ getargs (int argc, char *argv[])
                     "Unsharp mask (options: kernel=gaussian, width=3, contrast=1, threshold=0)",
                 "--laplacian %@", action_laplacian, NULL,
                     "Laplacian filter the image",
+                "--cubic-prefilter %@", action_cubic_prefilter, NULL, "Cubic prefilter",
                 "--fft %@", action_fft, NULL,
                     "Take the FFT of the image",
                 "--ifft %@", action_ifft, NULL,

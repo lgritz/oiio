@@ -631,7 +631,7 @@ static void ConvertToInterpolationCoefficients (
 
 template<typename DSTTYPE, typename SRCTYPE>
 static bool
-prefilter_cubic_bspline_ (ImageBuf &dst, const ImageBuf &src,
+cubic_bspline_prefilter_ (ImageBuf &dst, const ImageBuf &src,
                           int direction,
                           ROI roi, int nthreads)
 {
@@ -641,7 +641,7 @@ prefilter_cubic_bspline_ (ImageBuf &dst, const ImageBuf &src,
         // rows, split horizontally.
         int paralleldir = 1-direction;
         ImageBufAlgo::parallel_image (
-            boost::bind(prefilter_cubic_bspline_<DSTTYPE,SRCTYPE>, boost::ref(dst),
+            boost::bind(cubic_bspline_prefilter_<DSTTYPE,SRCTYPE>, boost::ref(dst),
                         boost::cref(src), direction,
                         _1 /*roi*/, 1 /*nthreads*/),
             roi, nthreads, paralleldir);
@@ -701,28 +701,29 @@ prefilter_cubic_bspline_ (ImageBuf &dst, const ImageBuf &src,
 
 
 bool
-ImageBufAlgo::prefilter_cubic_bspline (ImageBuf &dst, const ImageBuf &src,
+ImageBufAlgo::cubic_bspline_prefilter (ImageBuf &dst, const ImageBuf &src,
                                        ROI roi, int nthreads)
 {
     if (! IBAprep (roi, &dst, &src,
             IBAprep_REQUIRE_SAME_NCHANNELS | IBAprep_NO_SUPPORT_VOLUME |
             IBAprep_NO_COPY_ROI_FULL | IBAprep_DST_FLOAT_PIXELS))
         return false;
+
     bool ok;
     ImageBuf tmp;   // Temporary buffer, float
     ImageBuf *tmpptr = (dst.initialized() ? &tmp : &dst);
     ImageBufAlgo::copy (*tmpptr, src, TypeDesc::FLOAT, roi, nthreads);
 
-    ok =  prefilter_cubic_bspline_<float,float> (*tmpptr, *tmpptr, 0 /* horiz */,
+    ok =  cubic_bspline_prefilter_<float,float> (*tmpptr, *tmpptr, 0 /* horiz */,
                                                  roi, nthreads);
-    ok &= prefilter_cubic_bspline_<float,float> (*tmpptr, *tmpptr, 1 /* vert */,
+    ok &= cubic_bspline_prefilter_<float,float> (*tmpptr, *tmpptr, 1 /* vert */,
                                                  roi, nthreads);
     ImageBufAlgo::copy (dst, *tmpptr, TypeDesc::UNKNOWN, roi, nthreads);
 
-    // OIIO_DISPATCH_TYPES2 (ok, "prefilter_cubic_bspline", prefilter_cubic_bspline_,
+    // OIIO_DISPATCH_TYPES2 (ok, "cubic_bspline_prefilter", cubic_bspline_prefilter_,
     //                       dst.spec().format, src.spec().format,
     //                       dst, src, 0 /* horiz */, roi, nthreads);
-    // OIIO_DISPATCH_TYPES2 (ok, "prefilter_cubic_bspline", prefilter_cubic_bspline_,
+    // OIIO_DISPATCH_TYPES2 (ok, "cubic_bspline_prefilter", cubic_bspline_prefilter_,
     //                       dst.spec().format, dst.spec().format,
     //                       dst, dst, 1 /* vert */, roi, nthreads);
     return ok;
