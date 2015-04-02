@@ -69,9 +69,21 @@ OIIO_NAMESPACE_ENTER
 namespace {  // anonymous
 
 static EightBitConverter<float> uchar2float;
+static simd::float4 one_over_255 (1.0f/255.0f);
 
-simd::float4 uchar2float4 (const unsigned char *c) {
-    return simd::float4(simd::int4(c[0],c[1],c[2],c[3])) * (1.0f/255.0f);
+
+inline simd::float4
+uchar2float4 (const unsigned char *c, int n)
+{
+    simd::int4 i;
+    switch (n) {
+    case 0: i.clear();                       break;
+    case 1: i.load (c[0],   0 ,   0 ,   0 ); break;
+    case 2: i.load (c[0], c[1],   0 ,   0 ); break;
+    case 3: i.load (c[0], c[1], c[2],   0 ); break;
+    case 4: i.load (c[0], c[1], c[2], c[3]); break;
+    }
+    return simd::float4(i) * one_over_255;
 }
 
 
@@ -1669,19 +1681,18 @@ TextureSystemImpl::sample_closest (int nsamples, const float *s_,
         simd::float4 texel_simd;
         if (channelsize == 1) {
             // special case for 8-bit tiles
-            texel_simd = uchar2float4 (tile->bytedata() + offset);
+            texel_simd = uchar2float4 (tile->bytedata() + offset, actualchannels);
         } else {
             // General case for float tiles
-            texel_simd.load (tile->data() + offset);
+            texel_simd.load (tile->data() + offset, actualchannels);
         }
 
         accum += weight * texel_simd;
     }
 
-    simd::mask4 channel_mask = channel_masks[actualchannels];
-    accum = blend0(accum, channel_mask);
     if (nonfill < 1.0f && nchannels_result > actualchannels && options.fill) {
         // Add the weighted fill color
+        simd::mask4 channel_mask = channel_masks[actualchannels];
         accum += blend0not(float4((1.0f - nonfill) * options.fill), channel_mask);
     }
 
@@ -1862,17 +1873,17 @@ TextureSystemImpl::sample_bilinear (int nsamples, const float *s_,
             int offset = pixelsize * (tile_st[T0] * spec.tile_width + tile_st[S0]);
             const unsigned char *p = tile->bytedata() + offset + channelsize * firstchannel;
             if (channelsize == 1) {
-                texel_simd[0][0] = uchar2float4 (p);
-                texel_simd[0][1] = uchar2float4 (p+pixelsize);
+                texel_simd[0][0] = uchar2float4 (p, actualchannels);
+                texel_simd[0][1] = uchar2float4 (p+pixelsize, actualchannels);
                 p += pixelsize * spec.tile_width;
-                texel_simd[1][0] = uchar2float4 (p);
-                texel_simd[1][1] = uchar2float4 (p+pixelsize);
+                texel_simd[1][0] = uchar2float4 (p, actualchannels);
+                texel_simd[1][1] = uchar2float4 (p+pixelsize, actualchannels);
             } else {
-                texel_simd[0][0].load ((const float *)p);
-                texel_simd[0][1].load ((const float *)(p+pixelsize));
+                texel_simd[0][0].load ((const float *)p, actualchannels);
+                texel_simd[0][1].load ((const float *)(p+pixelsize), actualchannels);
                 p += pixelsize * spec.tile_width;
-                texel_simd[1][0].load ((const float *)p);
-                texel_simd[1][1].load ((const float *)(p+pixelsize));
+                texel_simd[1][0].load ((const float *)p, actualchannels);
+                texel_simd[1][1].load ((const float *)(p+pixelsize), actualchannels);
             }
         } else {
             bool noreusetile = (options.swrap == TextureOpt::WrapMirror);
@@ -1909,9 +1920,9 @@ TextureSystemImpl::sample_bilinear (int nsamples, const float *s_,
                     int offset = pixelsize * (tile_t * spec.tile_width + tile_s);
                     DASSERT ((size_t)offset < spec.tile_width*spec.tile_height*spec.tile_depth*pixelsize);
                     if (channelsize == 1)
-                        texel_simd[j][i] = uchar2float4 ((const unsigned char *)(tile->bytedata() + offset + channelsize * firstchannel));
+                        texel_simd[j][i] = uchar2float4 ((const unsigned char *)(tile->bytedata() + offset + channelsize * firstchannel), actualchannels);
                     else
-                        texel_simd[j][i].load ((const float *)(tile->bytedata() + offset + channelsize * firstchannel));
+                        texel_simd[j][i].load ((const float *)(tile->bytedata() + offset + channelsize * firstchannel), actualchannels);
                 }
             }
         }
@@ -1953,17 +1964,16 @@ TextureSystemImpl::sample_bilinear (int nsamples, const float *s_,
         }
     }
 
-    simd::mask4 channel_mask = channel_masks[actualchannels];
-    accum = blend0(accum, channel_mask);
     if (use_fill) {
         // Add the weighted fill color
+        simd::mask4 channel_mask = channel_masks[actualchannels];
         accum += blend0not(float4((1.0f - nonfill) * options.fill), channel_mask);
     }
 
     *accum_ = accum;
     if (daccumds_) {
-        *daccumds_ = blend0(daccumds, channel_mask);
-        *daccumdt_ = blend0(daccumdt, channel_mask);
+        *daccumds_ = daccumds;
+        *daccumdt_ = daccumdt;
     }
     return true;
 }
@@ -2183,11 +2193,11 @@ TextureSystemImpl::sample_bicubic (int nsamples, const float *s_,
             if (channelsize == 1) {
                 for (int j = 0, j_offset = 0;  j < 4;  ++j, j_offset += pixelsize*spec.tile_width)
                     for (int i = 0, i_offset = j_offset;  i < 4;  ++i, i_offset += pixelsize)
-                        texel_simd[j][i] = uchar2float4 (base + i_offset);
+                        texel_simd[j][i] = uchar2float4 (base + i_offset, actualchannels);
             } else {
                 for (int j = 0, j_offset = 0;  j < 4;  ++j, j_offset += pixelsize*spec.tile_width)
                     for (int i = 0, i_offset = j_offset;  i < 4;  ++i, i_offset += pixelsize)
-                        texel_simd[j][i].load ((const float *)(base + i_offset));
+                        texel_simd[j][i].load ((const float *)(base + i_offset), actualchannels);
             }
         } else {
             simd::int4 tile_s, tile_t;   // texel offset WITHIN its tile
@@ -2228,9 +2238,9 @@ TextureSystemImpl::sample_bicubic (int nsamples, const float *s_,
                     int offset = row_offset_bytes + column_offset_bytes[i];
                     // const unsigned char *pixelptr = tile->bytedata() + offset[i];
                     if (channelsize == 1)
-                        texel_simd[j][i] = uchar2float4 (tile->bytedata() + offset);
+                        texel_simd[j][i] = uchar2float4 (tile->bytedata() + offset, actualchannels);
                     else
-                        texel_simd[j][i].load ((const float *)(tile->bytedata() + offset));
+                        texel_simd[j][i].load ((const float *)(tile->bytedata() + offset), actualchannels);
                 }
             }
         }
@@ -2340,17 +2350,16 @@ TextureSystemImpl::sample_bicubic (int nsamples, const float *s_,
         }
     }
 
-    simd::mask4 channel_mask = channel_masks[actualchannels];
-    accum = blend0(accum, channel_mask);
     if (use_fill) {
         // Add the weighted fill color
+        simd::mask4 channel_mask = channel_masks[actualchannels];
         accum += blend0not(float4((1.0f - nonfill) * options.fill), channel_mask);
     }
 
     *accum_ = accum;
     if (daccumds_) {
-        *daccumds_ = blend0(daccumds, channel_mask);
-        *daccumdt_ = blend0(daccumdt, channel_mask);
+        *daccumds_ = daccumds;
+        *daccumdt_ = daccumdt;
      }
     return true;
 }
