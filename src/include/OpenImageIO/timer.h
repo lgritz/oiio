@@ -351,6 +351,41 @@ double time_trial (FUNC func, int ntrials, double *range) {
 
 
 
+/// Helper function for timing benchmarks: opt_escape(ptr) means "you can't
+/// optimize away the the placement of data in *ptr". See Chandler Carruth's
+/// CppCon 2015 talk for more detailed explanation of why this is helpful.
+/// For benchmarks only, do not use in production code! May not work on all
+/// platforms.
+inline void opt_escape (void *p) {
+#if defined(__GNUC__) || defined(__clang__) || defined(__INTEL_COMPILER)
+    asm volatile ("" : : "g"(p) : "memory");
+    // Means: *p needs to be in memory (can't be at this point merely a
+    // register, or moved to some elidable global variable), and then
+    // assume unknoown side effects to anything in memory (including *p).
+#else
+    // FIXME: does anybody know the equivalent for MSVC?
+    // Somebody else should fix before this is reliable on Windows.
+#endif
+}
+
+
+/// Helper function for timing benchmarks: opt_clobber(ptr) means "you can't
+/// optimize away any data written before this call". See Chandler Carruth's
+/// CppCon 2015 talk for more detailed explanation of why this is helpful.
+/// For benchmarks only, do not use in production code!
+inline void opt_clobber() {
+#if defined(__GNUC__) || defined(__clang__) || defined(__INTEL_COMPILER)
+    asm volatile ("" : : : "memory");
+    // Means: assume unknown side effects to anything in memory.
+#else
+    // FIXME: does anybody know the equivalent for MSVC?
+    // I think this is simply equivalent to a full memory fence.
+    // But somebody else should confirm before this is reliable on Windows.
+    MemoryBarrier ();
+#endif
+}
+
+
 OIIO_NAMESPACE_END
 
 #endif // OPENIMAGEIO_TIMER_H
