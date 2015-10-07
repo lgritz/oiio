@@ -198,6 +198,38 @@ OIIO_FORCEINLINE uint64_t rotl64 (uint64_t x, int k) {
 }
 
 
+
+/// Fast replacement for integer %, for cases where it's reasonably likely
+/// that x/y == 0 is 0 and there is no "wrap". Mod is EXPENSIVE, so as
+/// documented in Chandler Carruth's CppCon 2015 talk, if there's even a
+/// small chance that 0 <= x < y, it's faster to test for this condition and
+/// just return x, only calculating the mod when outside this range.
+OIIO_FORCEINLINE int fast_mod (int x, int y)
+{
+#if 1
+    return OIIO_UNLIKELY((unsigned int)x >= (unsigned int)y) ? (x % y) : x;
+    // equivalent to: return OIIO_UNLIKELY(x < 0 || x >= y) ? (x % y) : x;
+#else
+    // Placeholder... for future compilers that use this optimization
+    // automatically, or for other architectures where this is slower than
+    // regular mod.
+    return x % y;
+#endif
+}
+
+OIIO_FORCEINLINE unsigned int fast_mod (unsigned int x, unsigned int y)
+{
+#if 1
+    return OIIO_UNLIKELY(x >= y) ? (x % y) : x;
+#else
+    // Placeholder... for future compilers that use this optimization
+    // automatically, or for other architectures where this is slower than
+    // regular mod.
+    return x % y;
+#endif
+}
+
+
 // (end of integer helper functions)
 ////////////////////////////////////////////////////////////////////////////
 

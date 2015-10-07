@@ -1403,6 +1403,44 @@ OIIO_FORCEINLINE int4 andnot (const int4& a, const int4& b) {
 }
 
 
+namespace pvt {
+OIIO_FORCEINLINE int fast_mod (int x, int y)
+{
+#if 1
+    return OIIO_UNLIKELY((unsigned int)x >= (unsigned int)y) ? (x % y) : x;
+    // equivalent to: return OIIO_UNLIKELY(x < 0 || x >= y) ? (x % y) : x;
+#else
+    // Placeholder... for future compilers that use this optimization
+    // automatically, or for other architectures where this is slower than
+    // regular mod.
+    return x % y;
+#endif
+}
+}
+
+OIIO_FORCEINLINE int4 fast_mod (const int4& a, const int4& b) {
+    // NO INTEGER MODULUS in SSE!
+    return int4 (pvt::fast_mod (a[0], b[0]),
+                 pvt::fast_mod (a[1], b[1]),
+                 pvt::fast_mod (a[2], b[2]),
+                 pvt::fast_mod (a[3], b[3]));
+}
+OIIO_FORCEINLINE int4 fast_mod (const int4& a, int w) {
+    // NO INTEGER MODULUS in SSE!
+    return int4 (pvt::fast_mod (a[0], w),
+                 pvt::fast_mod (a[1], w),
+                 pvt::fast_mod (a[2], w),
+                 pvt::fast_mod (a[3], w));
+}
+OIIO_FORCEINLINE int4 fast_mod (int a, const int4& b) {
+    // NO INTEGER MODULUS in SSE!
+    return int4 (pvt::fast_mod (a, b[0]),
+                 pvt::fast_mod (a, b[1]),
+                 pvt::fast_mod (a, b[2]),
+                 pvt::fast_mod (a, b[3]));
+}
+
+
 
 
 /// Floating point 4-vector, accelerated by SIMD instructions when
