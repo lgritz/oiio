@@ -182,7 +182,7 @@ TextureSystemImpl::wrap_periodic_sharedborder (int &coord, int origin, int width
         coord = origin;  // special case -- just 1 pixel wide
     } else {
         coord -= origin;
-        coord %= (width-1);
+        coord = fast_mod (coord, width-1);
         if (coord < 0)       // Fix negative values
             coord += width;
         coord += origin;
@@ -226,7 +226,7 @@ wrap_periodic_simd (simd::int4 &coord_, const simd::int4& origin,
 {
     simd::int4 coord (coord_);
     coord = coord - origin;
-    coord = coord % width;
+    coord = fast_mod (coord, width);
     coord = simd::blend (coord, coord+width, coord < 0);
     coord = coord + origin;
     coord_ = coord;
@@ -276,7 +276,7 @@ wrap_periodic_sharedborder_simd (simd::int4 &coord_, const simd::int4& origin,
     // column in the next cycle.
     simd::int4 coord (coord_);
     coord = coord - origin;
-    coord = coord % (width-1);
+    coord = fast_mod (coord, (width-1));
     coord += blend (simd::int4(origin), width+origin, coord < 0); // Fix negative values
     coord = blend (coord, origin, width <= 2);  // special case -- just 1 pixel wide
     coord_ = coord;
@@ -1753,8 +1753,8 @@ TextureSystemImpl::sample_closest (int nsamples, const float *s_,
             continue;
         }
     
-        int tile_s = (stex - spec.x) % spec.tile_width;
-        int tile_t = (ttex - spec.y) % spec.tile_height;
+        int tile_s = fast_mod (stex - spec.x, spec.tile_width);
+        int tile_t = fast_mod (ttex - spec.y, spec.tile_height);
         id.xy (stex - tile_s, ttex - tile_t);
         bool ok = find_tile (id, thread_info);
         if (! ok)
@@ -1960,7 +1960,7 @@ TextureSystemImpl::sample_bilinear (int nsamples, const float *s_,
         if (tilepow2)
             tile_st &= tilewhmask;
         else
-            tile_st %= tilewh;
+            tile_st = fast_mod (tile_st, tilewh);
         bool s_onetile = (tile_st[S0] != tilewhmask[S0]) & (sttex[S0]+1 == sttex[S1]);
         bool t_onetile = (tile_st[T0] != tilewhmask[T0]) & (sttex[T0]+1 == sttex[T1]);
         bool onetile = (s_onetile & t_onetile);
@@ -2005,7 +2005,7 @@ TextureSystemImpl::sample_bilinear (int nsamples, const float *s_,
             }
         } else {
             bool noreusetile = (options.swrap == TextureOpt::WrapMirror);
-            simd::int4 tile_st = (sttex - xy) % tilewh;
+            simd::int4 tile_st = fast_mod (sttex - xy, tilewh);
             simd::int4 tile_edge = sttex - tile_st;
             for (int j = 0;  j < 2;  ++j) {
                 if (! stvalid[T0+j]) {
@@ -2301,8 +2301,8 @@ TextureSystemImpl::sample_bicubic (int nsamples, const float *s_,
             tile_s &= tilewidthmask;
             tile_t &= tileheightmask;
         } else {
-            tile_s %= spec.tile_width;
-            tile_t %= spec.tile_height;
+            tile_s = fast_mod (tile_s, spec.tile_width);
+            tile_t = fast_mod (tile_t, spec.tile_height);
         }
         bool s_onetile = (tile_s <= tilewidthmask-3);
         bool t_onetile = (tile_t <= tileheightmask-3);
@@ -2348,8 +2348,8 @@ TextureSystemImpl::sample_bicubic (int nsamples, const float *s_,
         } else {
             simd::int4 tile_s, tile_t;   // texel offset WITHIN its tile
             simd::int4 tile_s_edge, tile_t_edge;  // coordinate of the tile edge
-            tile_s = (stex - spec_x_simd) % spec.tile_width;
-            tile_t = (ttex - spec_y_simd) % spec.tile_height;
+            tile_s = fast_mod (stex - spec_x_simd, spec.tile_width);
+            tile_t = fast_mod (ttex - spec_y_simd, spec.tile_height);
             tile_s_edge = stex - tile_s;
             tile_t_edge = ttex - tile_t;
             simd::int4 column_offset_bytes = tile_s * pixelsize + firstchannel_offset_bytes;

@@ -2636,9 +2636,9 @@ ImageCacheImpl::get_pixels (ImageCacheFile *file,
             continue;
         }
         int old_tx = -100000, old_ty = -100000, old_tz = -100000;
-        int tz = z - ((z - spec.z) % spec.tile_depth);
+        int tz = z - fast_mod((z - spec.z), spec.tile_depth);
         char *yptr = zptr;
-        int ty = ybegin - ((ybegin - spec.y) % spec.tile_height);
+        int ty = ybegin - fast_mod((ybegin - spec.y), spec.tile_height);
         int tyend = ty + spec.tile_height;
         for (int y = ybegin;  y < yend;  ++y, yptr += ystride) {
             if (y == tyend) {
@@ -2658,7 +2658,7 @@ ImageCacheImpl::get_pixels (ImageCacheFile *file,
                 }
                 continue;
             }
-            // int ty = y - ((y - spec.y) % spec.tile_height);
+            // int ty = y - fast_mod((y - spec.y), spec.tile_height);
             char *xptr = yptr;
             const char *data = NULL;
             for (int x = xbegin;  x < xend;  ++x, xptr += xstride) {
@@ -2667,7 +2667,7 @@ ImageCacheImpl::get_pixels (ImageCacheFile *file,
                     memset (xptr, 0, result_pixelsize);
                     continue;
                 }
-                int tx = x - ((x - spec.x) % spec.tile_width);
+                int tx = x - fast_mod((x - spec.x), spec.tile_width);
                 if (old_tx != tx || old_ty != ty || old_tz != tz) {
                     // Only do a find_tile and re-setup of the data
                     // pointer when we move across a tile boundary.
