@@ -550,4 +550,14 @@ DeepData::get_pointers (std::vector<void*> &pointers) const
 
 
 
+size_t
+DeepData::memory () const
+{
+    return sizeof(DeepData) + channeltypes.size() * sizeof(TypeDesc)
+                            + nsamples.size() * sizeof(unsigned int)
+                            + pointers.size() * sizeof(void*)
+                            + data.size() * sizeof(char);
+}
+
+
 OIIO_NAMESPACE_END

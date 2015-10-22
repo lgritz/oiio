@@ -1271,7 +1271,7 @@ ImageCacheImpl::set_min_cache_size (long long newsize)
 {
     long long oldsize = m_max_memory_bytes;
     while (newsize > oldsize) {
-	if (atomic_compare_and_exchange ((long long *)&m_max_memory_bytes,
+        if (atomic_compare_and_exchange ((long long *)&m_max_memory_bytes,
                                          oldsize, newsize))
             return;
         oldsize = m_max_memory_bytes;
@@ -1283,7 +1283,7 @@ ImageCacheImpl::set_min_cache_size (long long newsize)
 ImageCacheTile::ImageCacheTile (const TileID &id,
                                 ImageCachePerThreadInfo *thread_info,
                                 bool read_now)
-    : m_id (id), m_valid(true) // , m_used(true)
+    : m_id (id), m_valid(true), m_deep(false) // , m_used(true)
 {
     m_used = true;
     m_pixels_ready = false;
@@ -1299,7 +1299,7 @@ ImageCacheTile::ImageCacheTile (const TileID &id,
 ImageCacheTile::ImageCacheTile (const TileID &id, const void *pels,
                     TypeDesc format,
                     stride_t xstride, stride_t ystride, stride_t zstride)
-    : m_id (id) // , m_used(true)
+    : m_id (id), m_deep(false) // , m_used(true)
 {
     m_used = true;
     m_pixels_size = 0;
@@ -1323,6 +1323,34 @@ ImageCacheTile::ImageCacheTile (const TileID &id, const void *pels,
 
 
 
+ImageCacheTile::ImageCacheTile (const TileID &id, const DeepData &deepdata)
+    : m_id (id), m_deep(true) // , m_used(true)
+{
+    m_used = true;
+    m_pixels_size = 0;
+#if 0 XXX
+    ImageCacheFile &file (m_id.file ());
+    const ImageSpec &spec (file.spec(id.subimage(), id.miplevel()));
+
+    m_channelsize = file.datatype(id.subimage()).size();
+    m_pixelsize = id.nchannels() * m_channelsize;
+    size_t size = memsize_needed ();
+    ASSERT_MSG (size > 0 && memsize() == 0, "size was %llu, memsize = %llu",
+                (unsigned long long)size, (unsigned long long)memsize());
+    m_pixels.reset (new char [m_pixels_size = size]);
+    m_valid = convert_image (id.nchannels(), spec.tile_width, spec.tile_height,
+                             spec.tile_depth, pels, format, xstride, ystride,
+                             zstride, &m_pixels[0], file.datatype(id.subimage()),
+                             m_pixelsize, m_pixelsize * spec.tile_width,
+                             m_pixelsize * spec.tile_width * spec.tile_height);
+    id.file().imagecache().incr_tiles (size);
+#endif
+    m_pixels_ready = true;  // Caller sent us the pixels, no read necessary
+    // FIXME -- for shadow, fill in mindepth, maxdepth
+}
+
+
+
 ImageCacheTile::~ImageCacheTile ()
 {
     m_id.file().imagecache().decr_tiles (memsize ());
@@ -1333,6 +1361,7 @@ ImageCacheTile::~ImageCacheTile ()
 size_t
 ImageCacheTile::memsize_needed () const
 {
+    DASSERT (!deep());
     const ImageSpec &spec (file().spec(m_id.subimage(),m_id.miplevel()));
     size_t s = spec.tile_pixels() * pixelsize();
     // N.B. Round up so we can use a SIMD fetch for the last pixel and

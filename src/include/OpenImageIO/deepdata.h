@@ -130,6 +130,9 @@ public:
     /// channel for each pixel.
     void get_pointers (std::vector<void*> &pointers) const;
 
+    /// What's the memory cost of this DeepData?
+    size_t memory () const;
+
 private:
     class Impl;
     Impl *m_impl;  // holds all the nontrivial stuff

@@ -522,6 +522,8 @@ public:
     ///
     ImageCacheTile (const TileID &id, const void *pels, TypeDesc format,
                     stride_t xstride, stride_t ystride, stride_t zstride);
+    /// Construct a new tile out of the deep pixels supplied.
+    ImageCacheTile (const TileID &id, const DeepData &deepdata);
 
     ~ImageCacheTile ();
 
@@ -555,6 +557,9 @@ public:
     const half *halfdata (void) const {
         return (half *) &m_pixels[0];
     }
+
+    /// Return pointer to the raw deep data
+    const DeepData& deepdata (void) const { return *m_deepdata; }
 
     /// Return the id for this tile.
     ///
@@ -592,6 +597,9 @@ public:
 
     bool valid (void) const { return m_valid; }
 
+    /// Is this a deep tile?
+    bool deep (void) const { return m_deep; }
+
     /// Are the pixels ready for use?  If false, they're still being
     /// read from disk.
     bool pixels_ready () const { return m_pixels_ready; }
@@ -600,8 +608,8 @@ public:
     ///
     void wait_pixels_ready () const;
 
-    int channelsize () const { return m_channelsize; }
-    int pixelsize () const { return m_pixelsize; }
+    int channelsize () const { DASSERT(!deep()); return m_channelsize; }
+    int pixelsize () const { DASSERT(!deep()); return m_pixelsize; }
 
 private:
     TileID m_id;                  ///< ID of this tile
@@ -610,8 +618,10 @@ private:
     int m_channelsize;            ///< How big is each channel (bytes)
     int m_pixelsize;              ///< How big is each pixel (bytes)
     bool m_valid;                 ///< Valid pixels
+    bool m_deep;
     volatile bool m_pixels_ready; ///< The pixels have been read from disk
     atomic_int m_used;            ///< Used recently
+    boost::scoped_ptr<DeepData> m_deepdata; ///< For a deep tile
 };
 
 
