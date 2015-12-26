@@ -136,6 +136,7 @@ if (CMAKE_COMPILER_IS_CLANG OR CMAKE_COMPILER_IS_APPLECLANG)
         APPLECLANG_VERSION_STRING VERSION_GREATER 6.1)
         add_definitions ("-Wno-unused-local-typedefs")
     endif ()
+    add_definitions ("-Wno-deprecated-declarations")
 endif ()
 
 # gcc specific options

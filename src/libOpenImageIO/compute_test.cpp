@@ -50,6 +50,10 @@
 #include <OpenImageIO/simd.h>
 #include <OpenImageIO/unittest.h>
 
+#if USE_BOOST_COMPUTE
+# include <boost/compute.hpp>
+#endif
+
 OIIO_NAMESPACE_USING;
 
 static int iterations = 100;
@@ -195,6 +199,101 @@ test_IBA (ROI roi, int threads)
 
 
 
+#if USE_BOOST_COMPUTE
+namespace compute = boost::compute;
+compute::device compute_device = compute::system::default_device();
+compute::context compute_ctx;
+compute::command_queue compute_queue;
+
+
+static void
+print_compute_info (compute::device device)
+{
+    std::cout << "  device: \"" << device.name() << "\"\n";
+    std::cout << "    vendor \"" << device.vendor() << "\"";
+    std::cout << ", profile \"" << device.profile() << "\"\n";
+    std::cout << "    version \"" << device.version() << "\"";
+    std::cout << ", driver_version \"" << device.driver_version() << "\"\n";
+    std::cout << "    memory:  global "
+              << Strutil::memformat (device.get_info<cl_ulong>(CL_DEVICE_GLOBAL_MEM_SIZE));
+    std::cout << ", local "
+              << Strutil::memformat (device.get_info<cl_ulong>(CL_DEVICE_LOCAL_MEM_SIZE));
+    std::cout << ", constant "
+              << Strutil::memformat (device.get_info<cl_ulong>(CL_DEVICE_MAX_CONSTANT_BUFFER_SIZE));
+    std::cout << "\n";
+    std::cout << "    " << device.compute_units() << " compute units, "
+              << "clock freq = " << device.clock_frequency() << ", ";
+    std::cout << "float vec width = " << device.preferred_vector_width<float>() << "\n";
+    std::cout << "  extensions: " << Strutil::join(device.extensions(), ", ") << "\n";
+}
+
+
+
+static void
+test_boost_compute_with_copy (ROI roi)
+{
+    namespace compute = boost::compute;
+    const float *a = (const float *)imgA.localpixels(); ASSERT(a);
+    const float *b = (const float *)imgB.localpixels(); ASSERT(b);
+    float *r = (float *)imgR.localpixels(); ASSERT(r);
+    compute::vector<float> d_a (size, compute_ctx);
+    compute::vector<float> d_b (size, compute_ctx);
+    compute::vector<float> d_r (size, compute_ctx);
+    compute::copy (a, a+size, d_a.begin(), compute_queue);
+    compute::copy (b, b+size, d_b.begin(), compute_queue);
+    compute::transform (d_a.begin(), d_a.end(), d_a.begin(), d_r.begin(),
+                        compute::multiplies<float>(), compute_queue);
+    compute::transform (d_r.begin(), d_r.end(), d_b.begin(), d_r.begin(),
+                        compute::plus<float>(), compute_queue);
+    compute::copy (d_r.begin(), d_r.end(), r, compute_queue);
+    compute_queue.finish();
+}
+
+
+static void
+test_boost_compute_mapped (ROI roi)
+{
+    namespace compute = boost::compute;
+    const float *a = (const float *)imgA.localpixels(); ASSERT(a);
+    const float *b = (const float *)imgB.localpixels(); ASSERT(b);
+    float *r = (float *)imgR.localpixels(); ASSERT(r);
+    compute::mapped_view<float> d_a (a, size, compute_ctx);
+    compute::mapped_view<float> d_b (b, size, compute_ctx);
+    compute::mapped_view<float> d_r (r, size, compute_ctx);
+    compute::transform (d_a.begin(), d_a.end(), d_a.begin(), d_r.begin(),
+                        compute::multiplies<float>(), compute_queue);
+    compute::transform (d_r.begin(), d_r.end(), d_b.begin(), d_r.begin(),
+                        compute::plus<float>(), compute_queue);
+    compute_queue.finish();
+}
+
+
+static void
+test_boost_compute_math_only (compute::vector<float> &d_a,
+                              compute::vector<float> &d_b,
+                              compute::vector<float> &d_r,
+                              ROI roi)
+{
+    namespace compute = boost::compute;
+    // const float *a = (const float *)imgA.localpixels(); ASSERT(a);
+    // const float *b = (const float *)imgB.localpixels(); ASSERT(b);
+    // float *r = (float *)imgR.localpixels(); ASSERT(r);
+    // compute::vector<float> d_a (size, compute_ctx);
+    // compute::vector<float> d_b (size, compute_ctx);
+    // compute::vector<float> d_r (size, compute_ctx);
+    // compute::copy (a, a+size, d_a.begin(), compute_queue);
+    // compute::copy (b, b+size, d_b.begin(), compute_queue);
+    compute::transform (d_a.begin(), d_a.end(), d_a.begin(), d_r.begin(),
+                        compute::multiplies<float>(), compute_queue);
+    compute::transform (d_r.begin(), d_r.end(), d_b.begin(), d_r.begin(),
+                        compute::plus<float>(), compute_queue);
+    // compute::copy (d_r.begin(), d_r.end(), r, compute_queue);
+    compute_queue.finish();
+}
+
+
+#endif
+
 
 
 void
@@ -270,6 +369,64 @@ test_compute ()
     OIIO_CHECK_EQUAL_THRESH (imgR.getchannel(xres/2,yres/2,0,0), 0.25, 0.001);
     OIIO_CHECK_EQUAL_THRESH (imgR.getchannel(xres/2,yres/2,0,1), 0.25, 0.001);
     OIIO_CHECK_EQUAL_THRESH (imgR.getchannel(xres/2,yres/2,0,2), 0.50, 0.001);
+
+#if USE_BOOST_COMPUTE
+    std::cout << "OpenCL via Boost.Compute info: \n";
+    std::cout << "Platforms:";
+    for (size_t i = 0; i < compute::system::platform_count(); ++i)
+        std::cout << " " << compute::system::platforms()[i].name();
+    std::cout << "\n";
+    for (size_t d = 0; d < compute::system().device_count(); ++d) {
+        compute_device = compute::system::devices()[d];
+        if (! allgpus && compute_device != compute::system::default_device())
+            continue;
+        compute_ctx = compute::context(compute_device);
+        compute_queue = compute::command_queue (compute_ctx, compute_device);
+        std::cout << "Device " << d << " " << compute_device.name();
+        if (compute_device == compute::system::default_device())
+            std::cout << " (DEFAULT)";
+        std::cout << "\n";
+        print_compute_info (compute_device);
+        compute::vector<float> d_a (size, compute_ctx);
+        compute::vector<float> d_b (size, compute_ctx);
+        compute::vector<float> d_r (size, compute_ctx);
+        compute::copy ((const float *)imgA.localpixels(),
+                       (const float *)imgA.localpixels()+size, d_a.begin(),
+                       compute_queue);
+        compute::copy ((const float *)imgB.localpixels(),
+                       (const float *)imgB.localpixels()+size, d_b.begin(),
+                       compute_queue);
+
+        std::cout << "    Test OpenCL via Boost.Compute, with copy in/out: ";
+        ImageBufAlgo::zero (imgR);
+        time = time_trial (OIIO::bind (test_boost_compute_with_copy, roi),
+                           ntrials, iterations) / iterations;
+        std::cout << Strutil::format ("%.1f Mvals/sec", (size/1.0e6)/time) << std::endl;
+        OIIO_CHECK_EQUAL_THRESH (imgR.getchannel(xres/2,yres/2,0,0), 0.25, 0.001);
+        OIIO_CHECK_EQUAL_THRESH (imgR.getchannel(xres/2,yres/2,0,1), 0.25, 0.001);
+        OIIO_CHECK_EQUAL_THRESH (imgR.getchannel(xres/2,yres/2,0,2), 0.50, 0.001);
+
+        std::cout << "    Test OpenCL via Boost.Compute, with mapped view: ";
+        ImageBufAlgo::zero (imgR);
+        time = time_trial (OIIO::bind (test_boost_compute_mapped, roi),
+                                       ntrials, iterations) / iterations;
+        std::cout << Strutil::format ("%.1f Mvals/sec", (size/1.0e6)/time) << std::endl;
+        OIIO_CHECK_EQUAL_THRESH (imgR.getchannel(xres/2,yres/2,0,0), 0.25, 0.001);
+        OIIO_CHECK_EQUAL_THRESH (imgR.getchannel(xres/2,yres/2,0,1), 0.25, 0.001);
+        OIIO_CHECK_EQUAL_THRESH (imgR.getchannel(xres/2,yres/2,0,2), 0.50, 0.001);
+
+        std::cout << "    Test OpenCL via Boost.Compute, math only: ";
+        ImageBufAlgo::zero (imgR);
+        time = time_trial (OIIO::bind (test_boost_compute_math_only,
+                                       OIIO::ref(d_a), OIIO::ref(d_b),
+                                       OIIO::ref(d_r), roi),
+                           ntrials, iterations) / iterations;
+        std::cout << Strutil::format ("%.1f Mvals/sec", (size/1.0e6)/time) << std::endl;
+        // OIIO_CHECK_EQUAL_THRESH (imgR.getchannel(xres/2,yres/2,0,0), 0.25, 0.001);
+        // OIIO_CHECK_EQUAL_THRESH (imgR.getchannel(xres/2,yres/2,0,1), 0.25, 0.001);
+        // OIIO_CHECK_EQUAL_THRESH (imgR.getchannel(xres/2,yres/2,0,2), 0.50, 0.001);
+    }
+#endif
 }
 
 

@@ -2,6 +2,7 @@
 # Boost.Compute setup
 
 find_path (Boost_Compute_INCLUDE_DIR boost/compute.hpp
+           ${BOOST_COMPUTE_PATH}
            ${Boost_INCLUDE_DIRS}
            "${THIRD_PARTY_TOOLS}/include"
            "${PROJECT_SOURCE_DIR}/include"
