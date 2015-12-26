@@ -157,6 +157,14 @@ ifneq (${USE_PTEX},)
 MY_CMAKE_FLAGS += -DUSE_PTEX:BOOL=${USE_PTEX}
 endif
 
+ifneq (${USE_BOOST_COMPUTE},)
+MY_CMAKE_FLAGS += -DUSE_BOOST_COMPUTE:BOOL=${USE_BOOST_COMPUTE}
+endif
+
+ifneq (${BOOST_COMPUTE_PATH},)
+MY_CMAKE_FLAGS += -DBOOST_COMPUTE_PATH:STRING=${BOOST_COMPUTE_PATH}
+endif
+
 ifneq (${USE_EXTERNAL_PUGIXML},)
 MY_CMAKE_FLAGS += -DUSE_EXTERNAL_PUGIXML:BOOL=${USE_EXTERNAL_PUGIXML} -DPUGIXML_HOME=${PUGIXML_HOME}
 endif
@@ -456,6 +464,8 @@ help:
 	@echo "      LIBRAW_PATH=path         Custom LibRaw installation"
 	@echo "      USE_OPENCV=0             Skip anything that needs OpenCV"
 	@echo "      USE_PTEX=0               Skip anything that needs PTex"
+	@echo "      USE_BOOST_COMPUTE=1      Enable Boost.Compute"
+	@echo "      BOOST_COMPUTE_PATH=...   Give a path for Boost.Compute"
 	@echo "  OIIO build-time options:"
 	@echo "      NAMESPACE=name           Wrap everything in another namespace"
 	@echo "      EMBEDPLUGINS=0           Don't compile the plugins into libOpenImageIO"

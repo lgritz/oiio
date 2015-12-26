@@ -4,6 +4,7 @@
 # When not in VERBOSE mode, try to make things as quiet as possible
 if (NOT VERBOSE)
     set (Boost_FIND_QUIETLY true)
+    set (Boost_Compute_FIND_QUIETLY true)
     set (FFmpeg_FIND_QUIETLY true)
     set (Field3D_FIND_QUIETLY true)
     set (Freetype_FIND_QUIETLY true)
@@ -15,6 +16,7 @@ if (NOT VERBOSE)
     set (LibRaw_FIND_QUIETLY true)
     set (Nuke_FIND_QUIETLY true)
     set (OpenColorIO_FIND_QUIETLY true)
+    set (OpenCL_FIND_QUIETLY true)
     set (OpenCV_FIND_QUIETLY true)
     set (OpenEXR_FIND_QUIETLY true)
     set (OpenGL_FIND_QUIETLY true)
@@ -193,6 +195,26 @@ link_directories ("${Boost_LIBRARY_DIRS}")
 
 # end Boost setup
 ###########################################################################
+
+
+###########################################################################
+# Boost.Compute setup
+
+if (USE_BOOST_COMPUTE)
+    find_package (OpenCL)
+    find_package (BoostCompute)
+    if (Boost_Compute_FOUND)
+        include_directories (${Boost_Compute_INCLUDE_DIRS})
+    endif ()
+else ()
+    if (NOT Boost_Compute_FIND_QUIETLY)
+        message (STATUS "Not using Boost_Compute")
+    endif ()
+endif ()
+
+# end OpenCV setup
+###########################################################################
+
 
 ###########################################################################
 # OpenGL setup

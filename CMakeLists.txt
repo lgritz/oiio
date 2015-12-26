@@ -205,6 +205,8 @@ set (OIIO_BUILD_CPP14 OFF CACHE BOOL "Compile in C++14 mode")
 set (OIIO_BUILD_LIBCPLUSPLUS OFF CACHE BOOL "Compile with clang libc++")
 set (EXTRA_CPP_ARGS "" CACHE STRING "Extra C++ command line definitions")
 set (USE_SIMD "" CACHE STRING "Use SIMD directives (0, sse2, sse3, ssse3, sse4.1, sse4.2)")
+set (USE_BOOST_COMPUTE OFF CACHE BOOL "Use Boost.Compute if found")
+set (BOOST_COMPUTE_PATH "" CACHE STRING "Optional Boost.Compute location")
 set (USE_CCACHE ON CACHE BOOL "Use ccache if found")
 set (CODECOV OFF CACHE BOOL "Build code coverage tests")
 
