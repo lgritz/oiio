@@ -2472,6 +2472,24 @@ template<> struct VecType<float,4> { typedef float4 type; };
 template<> struct VecType<bool,4>  { typedef mask4 type; };
 
 
-} // end namespace
+} // end namespace simd
+
+
+
+OIIO_FORCEINLINE void prefetch (const void *p)
+{
+#if defined(__GNUC__) || defined(__clang__) || defined(__INTEL_COMPILER)
+    __builtin_prefetch (p, 0);
+#endif
+}
+
+
+OIIO_FORCEINLINE void prefetchw (const void *p)
+{
+#if defined(__GNUC__) || defined(__clang__) || defined(__INTEL_COMPILER)
+    __builtin_prefetch (p, 1);
+#endif
+}
+
 
 OIIO_NAMESPACE_END
