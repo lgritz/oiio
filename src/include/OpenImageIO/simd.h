@@ -45,6 +45,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #pragma once
 
+#include <limits>
+
 #include <OpenImageIO/dassert.h>
 #include <OpenImageIO/platform.h>
 #include <OpenEXR/ImathVec.h>
@@ -1716,6 +1718,29 @@ public:
     }
 #endif /* _HALF_H_ */
 
+
+    /// Load values form a pointer, normalized (for integers, scaled so
+    /// that the int's maximum maps to 1.0f).
+    template <typename T>
+    OIIO_FORCEINLINE void load_normalized (const T *values) {
+        load (values);
+        if (std::numeric_limits<T>::is_integer) {
+            OIIO_SIMD_FLOAT4_CONST (scale, ((T)1.0)/std::numeric_limits<T>::max());
+            (*this) *= scale;
+        }
+    }
+
+    /// Load values form a pointer, normalized (for integers, scaled so
+    /// that the int's maximum maps to 1.0f).
+    template <typename T>
+    OIIO_FORCEINLINE void load_normalized (const T *values, int n) {
+        load (values, n);
+        if (std::numeric_limits<T>::is_integer) {
+            OIIO_SIMD_FLOAT4_CONST (scale, ((T)1.0)/std::numeric_limits<T>::max());
+            (*this) *= float4(scale);
+        }
+    }
+
     OIIO_FORCEINLINE void store (float *values) const {
 #if defined(OIIO_SIMD_SSE)
         // Use an unaligned store -- it's just as fast when the memory turns
@@ -1753,9 +1778,10 @@ public:
             //   _mm_store_ss (values + 2, _mm_movehl_ps(m_vec,m_vec));
             break;
         case 4:
+        default:
             store (values);
             break;
-        default:
+        case 0:
             break;
         }
 #elif defined(OIIO_SIMD_NEON)
@@ -1792,6 +1818,23 @@ public:
         for (int i = 0; i < elements; ++i)
             values[i] = m_val[i];
 #endif
+    }
+#endif
+
+#if 0
+    /// Store normalized values into memory.
+    template <typename T>
+    OIIO_FORCEINLINE void store_normalized (T *values) const {
+        if (std::numeric_limits<T>::is_integer) {
+            OIIO_SIMD_FLOAT4_CONST (scaleconst, T(std::numeric_limits<T>::max()));
+            simd::float4 scale(scaleconst);
+            simd::float4 scaled = simd::round ((*this) * scale);
+            simd::float4 clamped = clamp (scaled, Zero(), scale);
+            simd::int4 i (clamped);
+            i.store (dst);
+        } else {
+            store (values);
+        }
     }
 #endif
 
