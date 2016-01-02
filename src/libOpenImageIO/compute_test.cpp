@@ -144,6 +144,24 @@ test_arrays_simd4 (ROI roi)
 
 
 static void
+test_arrays_simd8 (ROI roi)
+{
+    const float *a = (const float *)imgA.localpixels(); ASSERT(a);
+    const float *b = (const float *)imgB.localpixels(); ASSERT(b);
+    float *r = (float *)imgR.localpixels(); ASSERT(r);
+    int x, end8 = size - (size&7);
+    for (x = 0; x < end8; x += 8, a += 8, b += 8, r += 8) {
+        simd::float8 a_simd(a), b_simd(b);
+        *(simd::float8 *)r = a_simd * a_simd + b_simd;
+    }
+    for ( ; x < size; ++x, ++a, ++b, ++r) {
+        *r = a[0]*a[0] + b[0];
+    }
+}
+
+
+
+static void
 test_arrays_like_image_simd (ROI roi)
 {
     const float *a = (const float *)imgA.localpixels(); ASSERT(a);
@@ -331,6 +349,14 @@ test_compute ()
     std::cout << "Test array as 1D, using SIMD: ";
     ImageBufAlgo::zero (imgR);
     time = time_trial (OIIO::bind (test_arrays_simd4, roi), ntrials, iterations) / iterations;
+    std::cout << Strutil::format ("%.1f Mvals/sec", (size/1.0e6)/time) << std::endl;
+    OIIO_CHECK_EQUAL_THRESH (imgR.getchannel(xres/2,yres/2,0,0), 0.25, 0.001);
+    OIIO_CHECK_EQUAL_THRESH (imgR.getchannel(xres/2,yres/2,0,1), 0.25, 0.001);
+    OIIO_CHECK_EQUAL_THRESH (imgR.getchannel(xres/2,yres/2,0,2), 0.50, 0.001);
+
+    std::cout << "Test array as 1D, using SIMD 8: ";
+    ImageBufAlgo::zero (imgR);
+    time = time_trial (OIIO::bind (test_arrays_simd8, roi), ntrials, iterations) / iterations;
     std::cout << Strutil::format ("%.1f Mvals/sec", (size/1.0e6)/time) << std::endl;
     OIIO_CHECK_EQUAL_THRESH (imgR.getchannel(xres/2,yres/2,0,0), 0.25, 0.001);
     OIIO_CHECK_EQUAL_THRESH (imgR.getchannel(xres/2,yres/2,0,1), 0.25, 0.001);

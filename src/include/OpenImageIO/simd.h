@@ -111,6 +111,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #  define OIIO_SIMD 0
 #  define OIIO_SIMD_ALIGN
 #  define OIIO_SIMD4_ALIGN
+#  define OIIO_SIMD8_ALIGN
 #  define OIIO_SIMD_MAX_SIZE_BYTES 16
 #endif
 
@@ -124,6 +125,9 @@ namespace simd {
 class int4;
 class float4;
 class mask4;
+class int8;
+class float8;
+class mask8;
 
 
 # define OIIO_SIMD_FLOAT4_CONST(name,val) \
@@ -2464,12 +2468,430 @@ OIIO_FORCEINLINE int4 AxBxCxDx (const int4& a, const int4& b,
 
 
 
+
+/// Floating point 8-vector, accelerated by SIMD instructions when
+/// available.
+class float8 {
+public:
+    static const char* type_name() { return "float8"; }
+    typedef float value_t;    ///< Underlying equivalent scalar value type
+    typedef mask4 mask_t;     ///< SIMD mask type
+    enum { elements = 8 };    ///< Number of scalar elements
+    enum { bits = 256 };      ///< Total number of bits
+    /// simd_t is the native SIMD type used
+#if defined(OIIO_SIMD_AVX)
+    typedef __m256   simd_t;
+#else
+     typedef float    simd_t[elements];
+#endif
+
+    /// Default constructor (contents undefined)
+    OIIO_FORCEINLINE float8 () { }
+
+    /// Destructor
+    OIIO_FORCEINLINE ~float8 () { }
+
+    /// Construct from a single value (store it in all slots)
+    OIIO_FORCEINLINE float8 (float a) { load(a); }
+
+    /// Construct from two float4's
+    OIIO_FORCEINLINE float8 (const float4& lo, const float4& hi) { load(lo,hi); }
+
+    /// Construct from individual values
+    OIIO_FORCEINLINE float8 (float a, float b, float c, float d,
+                             float e, float f, float g, float h) {
+        load(a,b,c,d,e,f,g,h);
+    }
+
+    /// Construct from a pointer to values
+    template<typename T>
+    OIIO_FORCEINLINE float8 (const T *f) { load(f); }
+
+    /// Copy construct from another float8
+    OIIO_FORCEINLINE float8 (const float8 &other) {
+#ifdef OIIO_SIMD_AVX
+        m_vec = other.m_vec;
+#else
+        for (int i = 0; i < elements; ++i)
+            m_val[i] = other.m_val[i];
+#endif
+    }
+
+#if 0 /* haven't done this yet */
+    /// Construct from an int8 (promoting all components to float)
+    OIIO_FORCEINLINE explicit float8 (const int8& ival) {
+#if defined(OIIO_SIMD_SSE)
+        m_vec = _mm256_cvtepi32_ps (ival.simd());
+#else
+        for (int i = 0; i < elements; ++i)
+            m_val[i] = float(ival[i]);
+#endif
+    }
+#endif
+
+#if OIIO_SIMD_AVX
+    /// Construct from the underlying SIMD type
+    OIIO_FORCEINLINE float8 (const simd_t& m) : m_vec(m) { }
+
+    /// Return the raw SIMD type
+    OIIO_FORCEINLINE operator simd_t () const { return m_vec; }
+    OIIO_FORCEINLINE simd_t simd () const { return m_vec; }
+#endif
+
+    /// Assign a single value to all components
+    OIIO_FORCEINLINE const float8 & operator= (float a) { load(a); return *this; }
+
+    /// Assign a float8
+    OIIO_FORCEINLINE const float8 & operator= (float8 other) {
+#if defined(OIIO_SIMD_AVX)
+        m_vec = other.m_vec;
+#else
+        for (int i = 0; i < elements; ++i)
+            m_val[i] = other.m_val[i];
+#endif
+        return *this;
+    }
+
+    /// Return a float8 with all components set to 0.0
+    static OIIO_FORCEINLINE const float8 Zero () {
+#if defined(OIIO_SIMD_AVX)
+        return _mm256_setzero_ps();
+#else
+        return float8(0.0f);
+#endif
+    }
+
+    /// Return a float8 with all components set to 1.0
+    static OIIO_FORCEINLINE const float8 One () { return float8(1.0f); }
+
+    /// Return a float8 with incremented components (e.g., 0.0,1.0,2.0,3.0).
+    /// Optional argument can give a non-zero starting point.
+    static OIIO_FORCEINLINE const float8 Iota (float value=0.0f) {
+        return float8(value+0.0f,value+1.0f,value+2.0f,value+3.0f,
+                      value+4.0f,value+5.0f,value+6.0f,value+7.0f);
+    }
+
+    /// Set all components to 0.0
+    OIIO_FORCEINLINE void clear () {
+#if defined(OIIO_SIMD_AVX)
+        m_vec = _mm256_setzero_ps();
+#else
+        load (0.0f);
+#endif
+    }
+
+    /// Component access (set)
+    OIIO_FORCEINLINE float& operator[] (int i) {
+        DASSERT(i<elements);
+        return m_val[i];
+    }
+    /// Component access (get)
+    OIIO_FORCEINLINE float operator[] (int i) const {
+        DASSERT(i<elements);
+        return m_val[i];
+    }
+
+    /// Extract the first 4 floats
+    OIIO_FORCEINLINE float4 lo () const {
+#if OIIO_SIMD_AVX
+        return _mm256_extractf128_ps (m_vec, 0);
+#else
+        return float4(m_val+0);
+#endif
+    }
+
+    /// Extract the second 4 floats
+    OIIO_FORCEINLINE float4 hi () const {
+#if OIIO_SIMD_AVX
+        return _mm256_extractf128_ps (m_vec, 1);
+#else
+        return float4(m_val+4);
+#endif
+    }
+
+    /// Reference the first 4 floats
+    OIIO_FORCEINLINE float4& lo () { return *(float4 *)&m_val[0]; }
+
+    /// Reference the second 4 floats
+    OIIO_FORCEINLINE float4& hi () { return *(float4 *)&m_val[4]; }
+
+    /// Helper: load a single value into all components
+    OIIO_FORCEINLINE void load (float val) {
+#if OIIO_SIMD_AVX
+        m_vec = _mm256_set1_ps (val);
+#else
+        for (int i = 0; i < elements; ++i)
+            m_val[i] = val;
+#endif
+    }
+
+    /// Helper: load individual values.
+    OIIO_FORCEINLINE void load (float a, float b, float c, float d,
+                                float e, float f, float g, float h) {
+#if OIIO_SIMD_AVX
+        m_vec = _mm256_set_ps (h, g, f, e, d, c, b, a);
+#else
+        m_val[0] = a; m_val[1] = b; m_val[2] = c; m_val[3] = d;
+        m_val[4] = e; m_val[5] = f; m_val[6] = g; m_val[7] = h;
+#endif
+    }
+
+    /// Construct from two float4's
+    OIIO_FORCEINLINE void load (const float4& loval, const float4& hival) {
+#ifdef OIIO_SIMD_AVX
+        // m_vec = _mm256_set_m128i (hival, loval);
+        m_vec = __builtin_shufflevector(loval.simd(), hival.simd(),
+                                        0, 1, 2, 3, 4, 5, 6, 7);
+#else
+        loval.store (m_val+0);
+        hival.store (m_val+4);
+#endif
+    }
+
+    /// Load from an array of values
+    OIIO_FORCEINLINE void load (const float *values) {
+#if OIIO_SIMD_AVX
+        m_vec = _mm256_loadu_ps (values);
+#else
+        for (int i = 0; i < elements; ++i)
+            m_val[i] = values[i];
+#endif
+    }
+
+    /// Load from a partial array of values. Unassigned values are
+    /// undefined.
+    OIIO_FORCEINLINE void load (const float *values, int n) {
+#if OIIO_SIMD_AVX
+        switch (n) {
+        case 8:
+            m_vec = _mm256_loadu_ps (values);
+            return;
+        // TODO: other cases
+        default:
+            for (int i = 0; i < n; ++i)
+                m_val[i] = values[i];
+            for (int i = n; i < elements; ++i)
+                m_val[i] = 0;
+            return;
+        }
+#else
+        for (int i = 0; i < n; ++i)
+            m_val[i] = values[i];
+#endif
+    }
+
+    /// Store into an array of values
+    OIIO_FORCEINLINE void store (float *values) const {
+#if OIIO_SIMD_AVX
+        _mm256_store_ps (values, m_vec);
+#else
+        for (int i = 0; i < elements; ++i)
+            values[i] = m_val[i];
+#endif
+    }
+
+    /// Store into an array of values
+    OIIO_FORCEINLINE void store (float *values, int n) const {
+#if OIIO_SIMD_AVX
+        switch (n) {
+        case 8:
+            _mm256_store_ps (values, m_vec);
+            return;
+        // TODO: other cases
+        default:
+            for (int i = 0; i < n; ++i)
+                values[i] = m_val[i];
+            for (int i = n; i < elements; ++i)
+                values[i] = 0;
+            return;
+        }
+#else
+        for (int i = 0; i < n; ++i)
+            values[i] = m_val[i];
+#endif
+    }
+
+    friend OIIO_FORCEINLINE float8 operator+ (const float8& a, const float8& b) {
+#if OIIO_SIMD_AVX
+        return _mm256_add_ps (a.m_vec, b.m_vec);
+#else
+        return float8 (a.lo()+b.lo(), a.hi()+b.hi());
+#endif
+    }
+
+    OIIO_FORCEINLINE const float8 & operator+= (const float8& a) {
+#if OIIO_SIMD_AVX
+        m_vec = _mm256_add_ps (m_vec, a.m_vec);
+#else
+        lo() += a.lo();
+        hi() += a.hi();
+#endif
+        return *this;
+    }
+
+    OIIO_FORCEINLINE float8 operator- () const {
+#if OIIO_SIMD_AVX
+        return _mm256_sub_ps (_mm256_setzero_ps(), m_vec);
+#else
+        return float8 (-lo(), -hi());
+#endif
+    }
+
+    friend OIIO_FORCEINLINE float8 operator- (const float8& a, const float8& b) {
+#if OIIO_SIMD_AVX
+        return _mm256_sub_ps (a.m_vec, b.m_vec);
+#else
+        return float8 (a.lo()-b.lo(), a.hi()-b.hi());
+#endif
+    }
+
+    OIIO_FORCEINLINE const float8& operator-= (const float8& a) {
+#if OIIO_SIMD_AVX
+        m_vec = _mm256_sub_ps (m_vec, a.m_vec);
+#else
+        lo() -= a.lo();
+        hi() -= a.hi();
+#endif
+        return *this;
+    }
+
+    friend OIIO_FORCEINLINE float8 operator* (const float8& a, const float8& b) {
+#if OIIO_SIMD_AVX
+        return _mm256_mul_ps (a.m_vec, b.m_vec);
+#else
+        return float8 (a.lo()*b.lo(), a.hi()*b.hi());
+#endif
+    }
+
+    OIIO_FORCEINLINE const float8& operator*= (const float8& a) {
+#if OIIO_SIMD_AVX
+        m_vec = _mm256_mul_ps (m_vec, a.m_vec);
+#else
+        lo() *= a.lo();
+        hi() *= a.hi();
+#endif
+        return *this;
+    }
+
+    OIIO_FORCEINLINE const float8& operator*= (const float a) {
+#if OIIO_SIMD_AVX
+        m_vec = _mm256_mul_ps (m_vec, _mm256_set1_ps(a));
+#else
+        lo() *= a;
+        hi() *= a;
+#endif
+        return *this;
+    }
+
+    friend OIIO_FORCEINLINE float8 operator/ (const float8& a, const float8& b) {
+#if OIIO_SIMD_AVX
+        return _mm256_div_ps (a.m_vec, b.m_vec);
+#else
+        return float8 (a.lo()/b.lo(), a.hi()/b.hi());
+#endif
+    }
+
+    OIIO_FORCEINLINE const float8& operator/= (const float8& a) {
+#if OIIO_SIMD_AVX
+        m_vec = _mm256_div_ps (m_vec, a.m_vec);
+#else
+        lo() /= a.lo();
+        hi() /= a.hi();
+#endif
+        return *this;
+    }
+
+    OIIO_FORCEINLINE const float8& operator/= (const float a) {
+#if OIIO_SIMD_AVX
+        m_vec = _mm256_div_ps (m_vec, _mm256_set1_ps(a));
+#else
+        lo() /= a;
+        hi() /= a;
+#endif
+        return *this;
+    }
+
+#if 0 /* haven't done this yet */
+
+    friend OIIO_FORCEINLINE mask_t operator== (const float8& a, const float8& b) {
+#if defined(OIIO_SIMD_SSE)
+        return _mm_cmpeq_ps (a.m_vec, b.m_vec);
+#else
+        return mask_t (a[0] == b[0], a[1] == b[1], a[2] == b[2], a[3] == b[3]);
+#endif
+    }
+
+    friend OIIO_FORCEINLINE mask_t operator!= (const float8& a, const float8& b) {
+#if defined(OIIO_SIMD_SSE)
+        return _mm_cmpneq_ps (a.m_vec, b.m_vec);
+#else
+        return mask_t (a[0] != b[0], a[1] != b[1], a[2] != b[2], a[3] != b[3]);
+#endif
+    }
+
+    friend OIIO_FORCEINLINE mask_t operator< (const float8& a, const float8& b) {
+#if defined(OIIO_SIMD_SSE)
+        return _mm_cmplt_ps (a.m_vec, b.m_vec);
+#else
+        return mask_t (a[0] < b[0], a[1] < b[1], a[2] < b[2], a[3] < b[3]);
+#endif
+    }
+
+    friend OIIO_FORCEINLINE mask_t operator>  (const float8& a, const float8& b) {
+#if defined(OIIO_SIMD_SSE)
+        return _mm_cmpgt_ps (a.m_vec, b.m_vec);
+#else
+        return mask_t (a[0] > b[0], a[1] > b[1], a[2] > b[2], a[3] > b[3]);
+#endif
+    }
+
+    friend OIIO_FORCEINLINE mask_t operator>= (const float8& a, const float8& b) {
+#if defined(OIIO_SIMD_SSE)
+        return _mm_cmpge_ps (a.m_vec, b.m_vec);
+#else
+        return mask_t (a[0] >= b[0], a[1] >= b[1], a[2] >= b[2], a[3] >= b[3]);
+#endif
+    }
+
+    friend OIIO_FORCEINLINE mask_t operator<= (const float8& a, const float8& b) {
+#if defined(OIIO_SIMD_SSE)
+        return _mm_cmple_ps (a.m_vec, b.m_vec);
+#else
+        return mask_t (a[0] <= b[0], a[1] <= b[1], a[2] <= b[2], a[3] <= b[3]);
+#endif
+    }
+#endif
+
+
+    /// Stream output
+    friend inline std::ostream& operator<< (std::ostream& cout, const float8& val) {
+        return cout << val[0] << ' ' << val[1] << ' ' << val[2] << ' ' << val[3] << ' '
+                    << val[4] << ' ' << val[5] << ' ' << val[6] << ' ' << val[7];
+    }
+
+private:
+    // The actual data representation
+    union {
+#if defined(OIIO_SIMD_AVX)
+        simd_t  m_vec;
+#endif
+        value_t m_val[elements];
+    };
+};
+
+
+
+
+
 /// Template to retrieve the vector type from the scalar. For example,
 /// simd::VecType<int,4> will be float4.
 template<typename T,int elements> struct VecType {};
 template<> struct VecType<int,4>   { typedef int4 type; };
 template<> struct VecType<float,4> { typedef float4 type; };
 template<> struct VecType<bool,4>  { typedef mask4 type; };
+template<> struct VecType<int,8>   { typedef int8 type; };
+template<> struct VecType<float,8> { typedef float8 type; };
+template<> struct VecType<bool,8>  { typedef mask8 type; };
 
 
 } // end namespace simd
