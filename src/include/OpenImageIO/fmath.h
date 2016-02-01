@@ -1728,6 +1728,39 @@ T invert (Func &func, T y, T xmin=0.0, T xmax=1.0,
     return x;
 }
 
+
+
+/// Kahan Sum implemenatation. This lets you add a large number of values
+/// without accumulating inaccuracy.
+/// Kahan, William. "Further remarks on reducing truncation errors,"
+/// Communications of the ACM 8(1):40 (Jan. 1965).
+///
+/// Use like this:
+///     KahanSum<float> sum;
+///     for (i = 0; i < large; ++i)
+///         sum += value[i];
+///     std::cout << "Sum is " << sum() << "\n";
+///
+template<class T>
+class KahanSum {
+public:
+    KahanSum (T init = T(0.0f)) : sum(init), c(T(0.0f)) { }
+    const T& operator= (const T& val) { sum = val; c = T(0.0f); }
+    T operator() () const { return sum; }
+    operator T() const { return sum; }
+    const T& operator+= (const T& val) {
+        T y = val - c;
+        T t = sum + y;
+        c = (t - sum) - y;
+        sum = t;
+        return sum;
+    }
+    const T& operator-= (const T& val) { return (*this) += (-val); }
+private:
+    T sum;           // Running sum
+    T c;             // Leftover compensation not included in sum
+};
+
 // (end miscellaneous numerical methods)
 ////////////////////////////////////////////////////////////////////////////
 

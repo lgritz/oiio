@@ -219,6 +219,22 @@ void test_bit_range_convert ()
 
 
 
+void test_kahansum ()
+{
+    std::cout << "\ntest KahanSum\n";
+    float s = 0;
+    KahanSum<float> k = 0;
+    for (int i = 0; i < 100000; ++i) {
+        s += 0.01f;
+        k += 0.01f;
+    }
+    std::cout << "regular sum = " << s << "\n";
+    std::cout << "Kahan sum = " << k << "\n";
+    OIIO_CHECK_EQUAL (k(), 1000.0f);
+}
+
+
+
 int main (int argc, char *argv[])
 {
 #if !defined(NDEBUG) || defined(OIIO_TRAVIS) || defined(OIIO_CODECOV)
@@ -272,6 +288,7 @@ int main (int argc, char *argv[])
 //    test_convert_type<float,unsigned short> ();
 
     test_bit_range_convert();
+    test_kahansum();
 
     return unit_test_failures != 0;
 }
