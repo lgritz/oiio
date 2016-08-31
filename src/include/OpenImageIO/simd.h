@@ -149,13 +149,15 @@ namespace simd {
 
 class int4;
 class float4;
-class bool4;
+//class bool4;
+template<int N> class vbool;
+typedef vbool<4> bool4;
+typedef vbool<8> bool8;
 class float3;
 class matrix44;
 typedef bool4 mask4;    // old name
 class int8;
 class float8;
-class bool8;
 
 
 //////////////////////////////////////////////////////////////////////////
@@ -286,38 +288,42 @@ template<> struct SimdElements<float3>   { static const int size = 3; };
 //////////////////////////////////////////////////////////////////////////
 
 
-/// bool4: A 4-vector whose elements act mostly like bools, accelerated by
+/// vbool: An N-vector whose elements act mostly like bools, accelerated by
 /// SIMD instructions when available. This is what is naturally produced by
 /// SIMD comparison operators on the float4 and int4 types.
-class bool4 {
+template <int N>
+class vbool {
 public:
-    static const char* type_name() { return "bool4"; }
+    static const char* type_name() { return "vbool"; }
     typedef bool value_t;     ///< Underlying equivalent scalar value type
-    enum { elements = 4 };    ///< Number of scalar elements
-    enum { paddedelements = 4 }; ///< Number of scalar elements for full pad
-    enum { bits = 128 };      ///< Total number of bits
-    typedef simd_bool_t<4>::type simd_t;  ///< the native SIMD type used
+    enum { elements = N };    ///< Number of scalar elements
+    enum { paddedelements = N }; ///< Number of scalar elements for full pad
+    enum { bits = N*32 };     ///< Total number of bits
+    typedef typename simd_bool_t<N>::type simd_t;  ///< the native SIMD type used
 
     /// Default constructor (contents undefined)
-    bool4 () { }
+    vbool () { }
 
     /// Destructor
-    ~bool4 () { }
+    ~vbool () { }
 
     /// Construct from a single value (store it in all slots)
-    bool4 (bool a) { load(a); }
+    vbool (bool a);
 
     /// Construct from 4 values
-    bool4 (bool a, bool b, bool c, bool d) { load(a,b,c,d); }
+    vbool (bool a, bool b, bool c, bool d);
 
-    /// Copy construct from another bool4
-    bool4 (const bool4 &other) { m_vec = other.m_vec; }
+    /// Construct from 8 values
+    vbool (bool a, bool b, bool c, bool d, bool e, bool f, bool g, bool h);
+
+    /// Copy construct from another vbool
+    vbool (const vbool &other) { m_vec = other.m_vec; }
 
     /// Construct from an int4 (is each element nonzero?)
-    bool4 (const int4 &i);
+    vbool (const int4 &i);
 
     /// Construct from the underlying SIMD type
-    bool4 (const simd_t& m) : m_vec(m) { }
+    vbool (const simd_t& m) : m_vec(m) { }
 
     /// Return the raw SIMD type
     operator simd_t () const { return m_vec; }
@@ -326,17 +332,17 @@ public:
     /// Set all components to false
     void clear ();
 
-    /// Return a bool4 the is 'false' for all values
-    static const bool4 False ();
+    /// Return a vbool the is 'false' for all values
+    static const vbool False ();
 
-    /// Return a bool4 the is 'true' for all values
-    static const bool4 True ();
+    /// Return a vbool the is 'true' for all values
+    static const vbool True ();
 
     /// Assign one value to all components
-    const bool4 & operator= (bool a);
+    const vbool & operator= (bool a);
 
-    /// Assignment of another bool4
-    const bool4 & operator= (const bool4 & other);
+    /// Assignment of another vbool
+    const vbool & operator= (const vbool & other);
 
     /// Component access (get)
     bool operator[] (int i) const ;
@@ -352,6 +358,8 @@ public:
 
     /// Helper: load separate values into each component.
     void load (bool a, bool b, bool c, bool d);
+    void load (bool a, bool b, bool c, bool d,
+               bool e, bool f, bool g, bool h);
 
     /// Helper: store the values into memory as bools.
     void store (bool *values) const;
@@ -360,21 +368,18 @@ public:
     void store (bool *values, int n) const;
 
     /// Logical/bitwise operators, component-by-component
-    friend bool4 operator! (const bool4 & a);
-    friend bool4 operator& (const bool4 & a, const bool4 & b);
-    const bool4& operator&= (const bool4 & b);
-    friend bool4 operator| (const bool4 & a, const bool4 & b);
-    const bool4& operator|= (const bool4 & a);
-    friend bool4 operator^ (const bool4& a, const bool4& b);
-    const bool4 & operator^= (const bool4& a);
-    bool4 operator~ ();
+    friend vbool operator! (const vbool & a);
+    friend vbool operator& (const vbool & a, const vbool & b);
+    const vbool& operator&= (const vbool & b);
+    friend vbool operator| (const vbool & a, const vbool & b);
+    const vbool& operator|= (const vbool & a);
+    friend vbool operator^ (const vbool& a, const vbool& b);
+    const vbool & operator^= (const vbool& a);
+    vbool operator~ ();
 
     /// Comparison operators, component by component
-    friend const bool4 operator== (const bool4 & a, const bool4 & b);
-    friend const bool4 operator!= (const bool4 & a, const bool4 & b);
-
-    /// Stream output
-    friend inline std::ostream& operator<< (std::ostream& cout, const bool4 & a);
+    friend const vbool operator== (const vbool & a, const vbool & b);
+    friend const vbool operator!= (const vbool & a, const vbool & b);
 
 private:
     // The actual data representation
@@ -386,36 +391,49 @@ private:
 
 
 
+
+/// Stream output
+template<int N>
+std::ostream& operator<< (std::ostream& cout, const vbool<N> & a);
+
 /// Helper: shuffle/swizzle with constant (templated) indices.
 /// Example: shuffle<1,1,2,2>(bool4(a,b,c,d)) returns (b,b,c,c)
 template<int i0, int i1, int i2, int i3> bool4 shuffle (const bool4& a);
+template<int i0, int i1, int i2, int i3,
+         int i4, int i5, int i6, int i7> bool4 shuffle (const bool8& a);
 
 /// shuffle<i>(a) is the same as shuffle<i,i,i,i>(a)
 template<int i> bool4 shuffle (const bool4& a);
+template<int i> bool8 shuffle (const bool8& a);
 
 /// Helper: as rapid as possible extraction of one component, when the
 /// index is fixed.
 template<int i> bool extract (const bool4& a);
+template<int i> bool extract (const bool8& a);
 
 /// Helper: substitute val for a[i]
 template<int i> bool4 insert (const bool4& a, bool val);
+template<int i> bool8 insert (const bool8& a, bool val);
 
-/// Logical "and" reduction, i.e., 'and' all components together, resulting
-/// in a single bool.
-bool reduce_and (const bool4& v);
+/// Logical "and" reduction across all components.
+template<int N>
+bool reduce_and (const vbool<N>& v);
 
-/// Logical "or" reduction, i.e., 'or' all components together, resulting
-/// in a single bool.
-bool reduce_or (const bool4& v);
+/// Logical "or" reduction across all components.
+template<int N>
+bool reduce_or (const vbool<N>& v);
 
 /// Are all components true?
-OIIO_FORCEINLINE bool all  (const bool4& v) { return reduce_and(v) == true; }
+template<int N>
+bool all  (const vbool<N>& v);
 
 /// Are any components true?
-OIIO_FORCEINLINE bool any  (const bool4& v) { return reduce_or(v) == true; }
+template<int N>
+bool any  (const vbool<N>& v);
 
 /// Are all components false:
-OIIO_FORCEINLINE bool none (const bool4& v) { return reduce_or(v) == false; }
+template<int N>
+bool none (const vbool<N>& v);
 
 
 
@@ -1260,24 +1278,49 @@ float3 transformvT (const Imath::M44f &M, const float3 &V);
 // bool4 implementation
 
 
-OIIO_FORCEINLINE void bool4::clear () {
-#if defined(OIIO_SIMD_SSE)
-    m_vec = _mm_setzero_ps();
-#else
+template<int N>
+OIIO_FORCEINLINE void vbool<N>::clear () {
     *this = false;
-#endif
 }
 
-OIIO_FORCEINLINE const bool4 bool4::False () {
-#if defined(OIIO_SIMD_SSE)
+#if OIIO_SIMD_SSE
+template<> OIIO_FORCEINLINE void vbool<4>::clear () {
+    m_vec = _mm_setzero_ps();
+}
+#endif
+
+#if OIIO_SIMD_AVX
+template<> OIIO_FORCEINLINE void vbool<8>::clear () {
+    m_vec = _mm256_setzero_ps();
+}
+#endif
+
+
+template<int N>
+OIIO_FORCEINLINE const vbool<N> vbool<N>::False () {
+    return vbool<N>(false);
+}
+
+#if OIIO_SIMD_SSE
+template<> OIIO_FORCEINLINE const vbool<4> vbool<4>::False () {
     return _mm_setzero_ps();
-#else
-    return bool4(false);
+}
 #endif
+
+#if OIIO_SIMD_AVX
+template<> OIIO_FORCEINLINE const vbool<8> vbool<8>::False () {
+    return _mm256_setzero_ps();
+}
+#endif
+
+
+template<int N>
+OIIO_FORCEINLINE const vbool<N> vbool<N>::True () {
+    return vbool<N>(true);
 }
 
-OIIO_FORCEINLINE const bool4 bool4::True () {
-#if defined(OIIO_SIMD_SSE)
+#if OIIO_SIMD_SSE
+template<> OIIO_FORCEINLINE const vbool<4> vbool<4>::True () {
     // Fastest way to fill an __m128 with all 1 bits is to cmpeq_epi8
     // any value to itself.
 # if defined(OIIO_SIMD_AVX) && (OIIO_GNUC_VERSION > 50000)
@@ -1286,46 +1329,72 @@ OIIO_FORCEINLINE const bool4 bool4::True () {
     __m128i anyval = _mm_castps_si128 (_mm_setzero_ps());
 # endif
     return _mm_castsi128_ps (_mm_cmpeq_epi8 (anyval, anyval));
-#else
-    return bool4(true);
-#endif
 }
-
-OIIO_FORCEINLINE const bool4 & bool4::operator= (bool a) { load(a); return *this; }
-
-OIIO_FORCEINLINE const bool4 & bool4::operator= (const bool4 & other) {
-#if defined(OIIO_SIMD_SSE)
-    m_vec = other.m_vec;
-#else
-    SIMD_CONSTRUCT (other.m_val[i]);
 #endif
-    return *this;
-}
 
-OIIO_FORCEINLINE bool bool4::operator[] (int i) const {
-    DASSERT(i >= 0 && i < 4);
-#if defined(OIIO_SIMD_SSE)
-    return (_mm_movemask_ps(m_vec) >> i) & 1;
-#else
+#if OIIO_SIMD_AVX
+template<> OIIO_FORCEINLINE const vbool<8> vbool<8>::True () {
+    // Fastest way to fill an __m128 with all 1 bits is to cmpeq_epi8
+    // any value to itself.
+# if OIIO_GNUC_VERSION > 50000
+    __m256i anyval = _mm256_undefined_si256();
+# else
+    __m256i anyval = _mm256_castps_si256 (_mm256_setzero_ps());
+# endif
+    return _mm256_castsi256_ps (_mm256_cmpeq_epi8 (anyval, anyval));
+}
+#endif
+
+
+template<int N>
+OIIO_FORCEINLINE bool vbool<N>::operator[] (int i) const {
+    DASSERT(i >= 0 && i < elements);
     return bool(m_val[i]);
-#endif
 }
 
-OIIO_FORCEINLINE int& bool4::operator[] (int i) {
-    DASSERT(i >= 0 && i < 4);
+#if OIIO_SIMD_SSE
+template<> OIIO_FORCEINLINE bool vbool<4>::operator[] (int i) const {
+    DASSERT(i >= 0 && i < elements);
+    return (_mm_movemask_ps(m_vec) >> i) & 1;
+}
+#endif
+
+#if OIIO_SIMD_AVX
+template<> OIIO_FORCEINLINE bool vbool<8>::operator[] (int i) const {
+    DASSERT(i >= 0 && i < elements);
+    return (_mm256_movemask_ps(m_vec) >> i) & 1;
+}
+#endif
+
+
+template<int N>
+OIIO_FORCEINLINE int& vbool<N>::operator[] (int i) {
+    DASSERT(i >= 0 && i < elements);
     return m_val[i];
 }
 
-OIIO_FORCEINLINE void bool4::load (bool a) {
-#if defined(OIIO_SIMD_SSE)
-    m_vec = _mm_castsi128_ps(_mm_set1_epi32(a ? -1 : 0));
-#else
+
+template<int N>
+OIIO_FORCEINLINE void vbool<N>::load (bool a) {
     int val = a ? -1 : 0;
     SIMD_CONSTRUCT (val);
-#endif
 }
 
-OIIO_FORCEINLINE void bool4::load (bool a, bool b, bool c, bool d) {
+#if OIIO_SIMD_SSE
+template<> OIIO_FORCEINLINE void vbool<4>::load (bool a) {
+    m_vec = _mm_castsi128_ps(_mm_set1_epi32(a ? -1 : 0));
+}
+#endif
+
+#if OIIO_SIMD_AVX
+template<> OIIO_FORCEINLINE void vbool<8>::load (bool a) {
+    m_vec = _mm256_castsi256_ps(_mm256_set1_epi32(a ? -1 : 0));
+}
+#endif
+
+
+template<>
+OIIO_FORCEINLINE void vbool<4>::load (bool a, bool b, bool c, bool d) {
 #if defined(OIIO_SIMD_SSE)
     // N.B. -- we need to reverse the order because of our convention
     // of storing a,b,c,d in the same order in memory.
@@ -1341,15 +1410,72 @@ OIIO_FORCEINLINE void bool4::load (bool a, bool b, bool c, bool d) {
 #endif
 }
 
-OIIO_FORCEINLINE void bool4::store (bool *values) const {
-#if 0 && defined(OIIO_SIMD_SSE)
-    // FIXME: is there a more efficient way to do this?
+template<>
+OIIO_FORCEINLINE void vbool<8>::load (bool a, bool b, bool c, bool d,
+                                      bool e, bool f, bool g, bool h) {
+#if defined(OIIO_SIMD_AVX)
+    // N.B. -- we need to reverse the order because of our convention
+    // of storing a,b,c,d in the same order in memory.
+    m_vec = _mm256_castsi256_ps(_mm256_set_epi32(h ? -1 : 0,
+                                                 g ? -1 : 0,
+                                                 f ? -1 : 0,
+                                                 e ? -1 : 0,
+                                                 d ? -1 : 0,
+                                                 c ? -1 : 0,
+                                                 b ? -1 : 0,
+                                                 a ? -1 : 0));
 #else
-    SIMD_DO (values[i] = m_val[i] ? true : false);
+    m_val[0] = a ? -1 : 0;
+    m_val[1] = b ? -1 : 0;
+    m_val[2] = c ? -1 : 0;
+    m_val[3] = d ? -1 : 0;
+    m_val[4] = e ? -1 : 0;
+    m_val[5] = f ? -1 : 0;
+    m_val[6] = g ? -1 : 0;
+    m_val[7] = h ? -1 : 0;
 #endif
 }
 
-OIIO_FORCEINLINE void bool4::store (bool *values, int n) const {
+template<int N>
+OIIO_FORCEINLINE vbool<N>::vbool (bool a) {
+    load (a);
+}
+
+template<>
+OIIO_FORCEINLINE vbool<4>::vbool (bool a, bool b, bool c, bool d) {
+    load (a, b, c, d);
+}
+
+template<>
+OIIO_FORCEINLINE vbool<8>::vbool (bool a, bool b, bool c, bool d,
+                                  bool e, bool f, bool g, bool h) {
+    load (a, b, c, d, e, f, g, h);
+}
+
+
+template<int N>
+OIIO_FORCEINLINE const vbool<N> & vbool<N>::operator= (bool a) {
+    load(a);
+    return *this;
+}
+
+template<>
+OIIO_FORCEINLINE const vbool<4> & vbool<4>::operator= (const vbool<4> & other) {
+#if defined(OIIO_SIMD_SSE)
+    m_vec = other.m_vec;
+#else
+    SIMD_CONSTRUCT (other.m_val[i]);
+#endif
+    return *this;
+}
+
+template<int N>
+OIIO_FORCEINLINE void vbool<N>::store (bool *values) const {
+    SIMD_DO (values[i] = m_val[i] ? true : false);
+}
+
+template<int N>
+OIIO_FORCEINLINE void vbool<N>::store (bool *values, int n) const {
     DASSERT (n >= 0 && n <= elements);
     for (int i = 0; i < n; ++i)
         values[i] = m_val[i] ? true : false;
@@ -1371,20 +1497,12 @@ OIIO_FORCEINLINE bool4 operator& (const bool4 & a, const bool4 & b) {
 #endif
 }
 
-OIIO_FORCEINLINE const bool4& bool4::operator&= (const bool4 & b) {
-    return *this = *this & b;
-}
-
 OIIO_FORCEINLINE bool4 operator| (const bool4 & a, const bool4 & b) {
 #if defined(OIIO_SIMD_SSE)
     return _mm_or_ps (a.m_vec, b.m_vec);
 #else
     SIMD_RETURN (bool4, a.m_val[i] | b.m_val[i]);
 #endif
-}
-
-OIIO_FORCEINLINE const bool4& bool4::operator|= (const bool4 & a) {
-    return *this = *this | a;
 }
 
 OIIO_FORCEINLINE bool4 operator^ (const bool4& a, const bool4& b) {
@@ -1395,10 +1513,22 @@ OIIO_FORCEINLINE bool4 operator^ (const bool4& a, const bool4& b) {
 #endif
 }
 
-OIIO_FORCEINLINE const bool4 & bool4::operator^= (const bool4& a) {
+template<int N>
+OIIO_FORCEINLINE const vbool<N>& vbool<N>::operator&= (const vbool<N> & b) {
+    return *this = *this & b;
+}
+
+template<int N>
+OIIO_FORCEINLINE const vbool<N>& vbool<N>::operator|= (const vbool<N> & a) {
+    return *this = *this | a;
+}
+
+template<int N>
+OIIO_FORCEINLINE const vbool<N> & vbool<N>::operator^= (const vbool<N>& a) {
     return *this = *this ^ a;
 }
 
+template<>
 OIIO_FORCEINLINE bool4 bool4::operator~ () {
 #if defined(OIIO_SIMD_SSE)
     // Fastest way to bit-complement in SSE is to xor with 0xffffffff.
@@ -1424,6 +1554,14 @@ OIIO_FORCEINLINE const bool4 operator== (const bool4 & a, const bool4 & b) {
 #endif
 }
 
+OIIO_FORCEINLINE const bool8 operator== (const bool8 & a, const bool8 & b) {
+#if OIIO_SIMD_AVX
+    return _mm256_castsi256_ps (_mm256_cmpeq_epi32 (_mm256_castps_si256 (a.m_vec), _mm256_castps_si256(b.m_vec)));
+#else
+    SIMD_RETURN (bool8, a.m_val[i] == b.m_val[i] ? -1 : 0);
+#endif
+}
+
 OIIO_FORCEINLINE const bool4 operator!= (const bool4 & a, const bool4 & b) {
 #if defined(OIIO_SIMD_SSE)
     return _mm_xor_ps (a.m_vec, b.m_vec);
@@ -1432,7 +1570,16 @@ OIIO_FORCEINLINE const bool4 operator!= (const bool4 & a, const bool4 & b) {
 #endif
 }
 
-inline std::ostream& operator<< (std::ostream& cout, const bool4 & a) {
+OIIO_FORCEINLINE const bool8 operator!= (const bool8 & a, const bool8 & b) {
+#if OIIO_SIMD_AVX
+    return _mm256_xor_ps (a.m_vec, b.m_vec);
+#else
+    SIMD_RETURN (bool8, a.m_val[i] != b.m_val[i] ? -1 : 0);
+#endif
+}
+
+template<int N>
+OIIO_FORCEINLINE std::ostream& operator<< (std::ostream& cout, const vbool<N> & a) {
     cout << a[0];
     for (int i = 1; i < a.elements; ++i)
         cout << ' ' << a[i];
@@ -1502,8 +1649,17 @@ template<int i> OIIO_FORCEINLINE bool4 shuffle (const bool4& a) { return shuffle
 /// index is fixed.
 template<int i>
 OIIO_FORCEINLINE bool extract (const bool4& a) {
-#if defined(OIIO_SIMD_SSE) && OIIO_SIMD_SSE >= 4
+#if OIIO_SIMD_SSE >= 4
     return _mm_extract_epi32(_mm_castps_si128(a.simd()), i);  // SSE4.1 only
+#else
+    return a[i];
+#endif
+}
+
+template<int i>
+OIIO_FORCEINLINE bool extract (const bool8& a) {
+#if OIIO_SIMD_AVX
+    return _mm256_extract_epi32(_mm256_castps_si256(a.simd()), i);  // SSE4.1 only
 #else
     return a[i];
 #endif
@@ -1512,7 +1668,7 @@ OIIO_FORCEINLINE bool extract (const bool4& a) {
 /// Helper: substitute val for a[i]
 template<int i>
 OIIO_FORCEINLINE bool4 insert (const bool4& a, bool val) {
-#if defined(OIIO_SIMD_SSE) && OIIO_SIMD_SSE >= 4
+#if OIIO_SIMD_SSE >= 4
     int ival = val ? -1 : 0;
     return _mm_castsi128_ps (_mm_insert_epi32 (_mm_castps_si128(a), ival, i));
 #else
@@ -1522,23 +1678,54 @@ OIIO_FORCEINLINE bool4 insert (const bool4& a, bool val) {
 #endif
 }
 
+template<int i>
+OIIO_FORCEINLINE bool8 insert (const bool8& a, bool val) {
+#if OIIO_SIMD_AVX
+    int ival = val ? -1 : 0;
+    return _mm256_castsi256_ps (_mm256_insert_epi32 (_mm256_castps_si256(a), ival, i));
+#else
+    bool8 tmp = a;
+    tmp[i] = val ? -1 : 0;
+    return tmp;
+#endif
+}
 
-OIIO_FORCEINLINE bool reduce_and (const bool4& v) {
+
+template<int N>
+OIIO_FORCEINLINE bool reduce_and (const vbool<N>& v) {
+    bool r = v[0];
+    for (int i = 1; i < v.elements; ++i)
+        r &= v[i];
+    return r;
+}
+
+template<int N>
+OIIO_FORCEINLINE bool reduce_or (const vbool<N>& v) {
+    bool r = v[0];
+    for (int i = 1; i < v.elements; ++i)
+        r |= v[i];
+    return r;
+}
+
 #if defined(OIIO_SIMD_SSE)
+template<> OIIO_FORCEINLINE bool reduce_and (const vbool<4>& v) {
     return _mm_movemask_ps(v.simd()) == 0xf;
-#else
-    return v[0] & v[1] & v[2] & v[3];
-#endif
 }
 
-
-OIIO_FORCEINLINE bool reduce_or (const bool4& v) {
-#if defined(OIIO_SIMD_SSE)
+template<> OIIO_FORCEINLINE bool reduce_or (const vbool<4>& v) {
     return _mm_movemask_ps(v) != 0;
-#else
-    return v[0] | v[1] | v[2] | v[3];
-#endif
 }
+#endif
+
+
+template<int N>
+OIIO_FORCEINLINE bool all  (const vbool<N>& v) { return reduce_and(v) == true; }
+
+template<int N>
+OIIO_FORCEINLINE bool any  (const vbool<N>& v) { return reduce_or(v) == true; }
+
+template<int N>
+OIIO_FORCEINLINE bool none (const vbool<N>& v) { return reduce_or(v) == false; }
 
 
 
@@ -2227,7 +2414,8 @@ OIIO_FORCEINLINE int4 andnot (const int4& a, const int4& b) {
 
 
 // Implementation had to be after the definition of int4.
-OIIO_FORCEINLINE bool4::bool4 (const int4& ival)
+template<>
+OIIO_FORCEINLINE vbool<4>::vbool (const int4& ival)
 {
 #if defined(OIIO_SIMD_SSE)
     m_vec = (ival != int4::Zero());

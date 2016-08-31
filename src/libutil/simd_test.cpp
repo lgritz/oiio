@@ -315,6 +315,50 @@ void test_component_access<bool4> ()
 
 
 
+template<>
+void test_component_access<bool8> ()
+{
+    typedef bool8 VEC;
+    typedef VEC::value_t ELEM;
+    std::cout << "test_component_access " << VEC::type_name() << "\n";
+
+    VEC a (false, true, true, true, false, false, true, true);
+    OIIO_CHECK_EQUAL (bool(a[0]), false);
+    OIIO_CHECK_EQUAL (bool(a[1]), true);
+    OIIO_CHECK_EQUAL (bool(a[2]), true);
+    OIIO_CHECK_EQUAL (bool(a[3]), true);
+    OIIO_CHECK_EQUAL (bool(a[4]), false);
+    OIIO_CHECK_EQUAL (bool(a[5]), false);
+    OIIO_CHECK_EQUAL (bool(a[6]), true);
+    OIIO_CHECK_EQUAL (bool(a[7]), true);
+    OIIO_CHECK_EQUAL (extract<0>(a), false);
+    OIIO_CHECK_EQUAL (extract<1>(a), true);
+    OIIO_CHECK_EQUAL (extract<2>(a), true);
+    OIIO_CHECK_EQUAL (extract<3>(a), true);
+    OIIO_CHECK_EQUAL (extract<4>(a), false);
+    OIIO_CHECK_EQUAL (extract<5>(a), false);
+    OIIO_CHECK_EQUAL (extract<6>(a), true);
+    OIIO_CHECK_EQUAL (extract<7>(a), true);
+    OIIO_CHECK_SIMD_EQUAL (insert<0>(a, ELEM(true)),
+                           VEC(true, true, true, true, false, false, true, true));
+    OIIO_CHECK_SIMD_EQUAL (insert<1>(a, ELEM(false)),
+                           VEC(false, false, true, true, false, false, true, true));
+    OIIO_CHECK_SIMD_EQUAL (insert<2>(a, ELEM(false)),
+                           VEC(false, true, false, true, false, false, true, true));
+    OIIO_CHECK_SIMD_EQUAL (insert<3>(a, ELEM(false)),
+                           VEC(false, true, true, false, false, false, true, true));
+    OIIO_CHECK_SIMD_EQUAL (insert<4>(a, ELEM(true)),
+                           VEC(false, true, true, true, true, false, true, true));
+    OIIO_CHECK_SIMD_EQUAL (insert<5>(a, ELEM(true)),
+                           VEC(false, true, true, true, false, true, true, true));
+    OIIO_CHECK_SIMD_EQUAL (insert<6>(a, ELEM(false)),
+                           VEC(false, true, true, true, false, false, false, true));
+    OIIO_CHECK_SIMD_EQUAL (insert<7>(a, ELEM(false)),
+                           VEC(false, true, true, true, false, false, true, false));
+}
+
+
+
 template<typename VEC>
 void test_arithmetic ()
 {
@@ -390,19 +434,22 @@ void test_bitwise_int4 ()
 
 
 
-void test_bitwise_bool4 ()
+template<typename VEC>
+void test_bitwise_bool ()
 {
-    typedef bool4 VEC;
     typedef int ELEM;
     std::cout << "test_bitwise " << VEC::type_name() << "\n";
 
-    OIIO_CHECK_SIMD_EQUAL (VEC(true, true, false, false) & VEC(true, false, true, false),
-                           VEC(true, false, false, false));
-    OIIO_CHECK_SIMD_EQUAL (VEC(true, true, false, false) | VEC(true, false, true, false),
-                           VEC(true, true, true, false));
-    OIIO_CHECK_SIMD_EQUAL (VEC(true, true, false, false) ^ VEC(true, false, true, false),
-                           VEC(false, true, true, false));
-    OIIO_CHECK_SIMD_EQUAL (~(VEC(true, true, false, false)), VEC(false, false, true, true));
+    bool A[]   = { true,  true,  false, false, false, false, true,  true  };
+    bool B[]   = { true,  false, true,  false, true,  false, true,  false };
+    bool AND[] = { true,  false, false, false, false, false, true,  false };
+    bool OR[]  = { true,  true,  true,  false, true,  false, true,  true  };
+    bool XOR[] = { false, true,  true,  false, true,  false, false, true  };
+    bool NOT[] = { false, false, true,  true,  true,  true,  false, false  };
+    OIIO_CHECK_SIMD_EQUAL (VEC((bool *)&A) & VEC((bool *)&B), VEC((bool *)&AND));
+    OIIO_CHECK_SIMD_EQUAL (VEC((bool *)&A) | VEC((bool *)&B), VEC((bool *)&OR));
+    OIIO_CHECK_SIMD_EQUAL (VEC((bool *)&A) ^ VEC((bool *)&B), VEC((bool *)&XOR));
+    OIIO_CHECK_SIMD_EQUAL (~(VEC((bool *)&A)), VEC((bool *)&NOT));
 }
 
 
@@ -1021,7 +1068,7 @@ main (int argc, char *argv[])
     std::cout << "\n";
     test_shuffle<bool4> ();
     test_component_access<bool4> ();
-    test_bitwise_bool4 ();
+    test_bitwise_bool<bool4> ();
 
     test_constants();
     test_special();
