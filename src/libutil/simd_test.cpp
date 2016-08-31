@@ -292,9 +292,9 @@ void test_component_access ()
 
 
 template<>
-void test_component_access<mask4> ()
+void test_component_access<bool4> ()
 {
-    typedef mask4 VEC;
+    typedef bool4 VEC;
     typedef VEC::value_t ELEM;
     std::cout << "test_component_access " << VEC::type_name() << "\n";
 
@@ -390,9 +390,9 @@ void test_bitwise_int4 ()
 
 
 
-void test_bitwise_mask4 ()
+void test_bitwise_bool4 ()
 {
-    typedef mask4 VEC;
+    typedef bool4 VEC;
     typedef int ELEM;
     std::cout << "test_bitwise " << VEC::type_name() << "\n";
 
@@ -413,12 +413,12 @@ void test_comparisons ()
     std::cout << "test_comparisons " << VEC::type_name() << "\n";
 
     VEC a (0, 1, 2, 3);
-    OIIO_CHECK_SIMD_EQUAL (a < 2, mask4(1,1,0,0));
-    OIIO_CHECK_SIMD_EQUAL (a > 2, mask4(0,0,0,1));
-    OIIO_CHECK_SIMD_EQUAL (a <= 2, mask4(1,1,1,0));
-    OIIO_CHECK_SIMD_EQUAL (a >= 2, mask4(0,0,1,1));
-    OIIO_CHECK_SIMD_EQUAL (a == 2, mask4(0,0,1,0));
-    OIIO_CHECK_SIMD_EQUAL (a != 2, mask4(1,1,0,1));
+    OIIO_CHECK_SIMD_EQUAL (a < 2, bool4(1,1,0,0));
+    OIIO_CHECK_SIMD_EQUAL (a > 2, bool4(0,0,0,1));
+    OIIO_CHECK_SIMD_EQUAL (a <= 2, bool4(1,1,1,0));
+    OIIO_CHECK_SIMD_EQUAL (a >= 2, bool4(0,0,1,1));
+    OIIO_CHECK_SIMD_EQUAL (a == 2, bool4(0,0,1,0));
+    OIIO_CHECK_SIMD_EQUAL (a != 2, bool4(1,1,0,1));
 }
 
 
@@ -460,17 +460,17 @@ void test_blend ()
     VEC a (1, 2, 3, 4);
     VEC b (10, 11, 12, 13);
 
-    OIIO_CHECK_SIMD_EQUAL (blend (a, b, mask4(false,false,false,false)), a);
-    OIIO_CHECK_SIMD_EQUAL (blend (a, b, mask4(true,true,true,true)), b);
-    OIIO_CHECK_SIMD_EQUAL (blend (a, b, mask4(true,false,true,false)), VEC (10, 2, 12, 4));
+    OIIO_CHECK_SIMD_EQUAL (blend (a, b, bool4(false,false,false,false)), a);
+    OIIO_CHECK_SIMD_EQUAL (blend (a, b, bool4(true,true,true,true)), b);
+    OIIO_CHECK_SIMD_EQUAL (blend (a, b, bool4(true,false,true,false)), VEC (10, 2, 12, 4));
 
-    OIIO_CHECK_SIMD_EQUAL (blend0 (a, mask4(false,false,false,false)), VEC(0,0,0,0));
-    OIIO_CHECK_SIMD_EQUAL (blend0 (a, mask4(true,true,true,true)), a);
-    OIIO_CHECK_SIMD_EQUAL (blend0 (a, mask4(true,false,true,false)), VEC (1, 0, 3, 0));
+    OIIO_CHECK_SIMD_EQUAL (blend0 (a, bool4(false,false,false,false)), VEC(0,0,0,0));
+    OIIO_CHECK_SIMD_EQUAL (blend0 (a, bool4(true,true,true,true)), a);
+    OIIO_CHECK_SIMD_EQUAL (blend0 (a, bool4(true,false,true,false)), VEC (1, 0, 3, 0));
 
-    OIIO_CHECK_SIMD_EQUAL (blend0not (a, mask4(false,false,false,false)), a);
-    OIIO_CHECK_SIMD_EQUAL (blend0not (a, mask4(true,true,true,true)), VEC(0,0,0,0));
-    OIIO_CHECK_SIMD_EQUAL (blend0not (a, mask4(true,false,true,false)), VEC (0, 2, 0, 4));
+    OIIO_CHECK_SIMD_EQUAL (blend0not (a, bool4(false,false,false,false)), a);
+    OIIO_CHECK_SIMD_EQUAL (blend0not (a, bool4(true,true,true,true)), VEC(0,0,0,0));
+    OIIO_CHECK_SIMD_EQUAL (blend0not (a, bool4(true,false,true,false)), VEC (0, 2, 0, 4));
 }
 
 
@@ -572,8 +572,8 @@ void test_constants ()
 {
     std::cout << "test_constants\n";
 
-    OIIO_CHECK_SIMD_EQUAL (mask4::False(), mask4(false));
-    OIIO_CHECK_SIMD_EQUAL (mask4::True(), mask4(true));
+    OIIO_CHECK_SIMD_EQUAL (bool4::False(), bool4(false));
+    OIIO_CHECK_SIMD_EQUAL (bool4::True(), bool4(true));
 
     OIIO_CHECK_SIMD_EQUAL (int4::Zero(), int4(0));
     OIIO_CHECK_SIMD_EQUAL (int4::One(), int4(1));
@@ -648,25 +648,25 @@ void test_metaprogramming ()
     OIIO_CHECK_EQUAL (SimdSize<float4>::size, 4);
     OIIO_CHECK_EQUAL (SimdSize<float3>::size, 4);
     OIIO_CHECK_EQUAL (SimdSize<int4>::size, 4);
-    OIIO_CHECK_EQUAL (SimdSize<mask4>::size, 4);
+    OIIO_CHECK_EQUAL (SimdSize<bool4>::size, 4);
     OIIO_CHECK_EQUAL (SimdSize<float>::size, 1);
     OIIO_CHECK_EQUAL (SimdSize<int>::size, 1);
 
     OIIO_CHECK_EQUAL (SimdElements<float4>::size, 4);
     OIIO_CHECK_EQUAL (SimdElements<float3>::size, 3);
     OIIO_CHECK_EQUAL (SimdElements<int4>::size, 4);
-    OIIO_CHECK_EQUAL (SimdElements<mask4>::size, 4);
+    OIIO_CHECK_EQUAL (SimdElements<bool4>::size, 4);
     OIIO_CHECK_EQUAL (SimdElements<float>::size, 1);
     OIIO_CHECK_EQUAL (SimdElements<int>::size, 1);
 
     OIIO_CHECK_EQUAL (float4::elements, 4);
     OIIO_CHECK_EQUAL (float3::elements, 3);
     OIIO_CHECK_EQUAL (int4::elements, 4);
-    OIIO_CHECK_EQUAL (mask4::elements, 4);
+    OIIO_CHECK_EQUAL (bool4::elements, 4);
     // OIIO_CHECK_EQUAL (is_same<float4::value_t,float>::value, true);
     // OIIO_CHECK_EQUAL (is_same<float3::value_t,float>::value, true);
     // OIIO_CHECK_EQUAL (is_same<int4::value_t,int>::value, true);
-    // OIIO_CHECK_EQUAL (is_same<mask4::value_t,int>::value, true);
+    // OIIO_CHECK_EQUAL (is_same<bool4::value_t,int>::value, true);
 }
 
 
@@ -1019,9 +1019,9 @@ main (int argc, char *argv[])
     test_shift ();
 
     std::cout << "\n";
-    test_shuffle<mask4> ();
-    test_component_access<mask4> ();
-    test_bitwise_mask4 ();
+    test_shuffle<bool4> ();
+    test_component_access<bool4> ();
+    test_bitwise_bool4 ();
 
     test_constants();
     test_special();
