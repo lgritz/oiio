@@ -153,6 +153,9 @@ class bool4;
 class float3;
 class matrix44;
 typedef bool4 mask4;    // old name
+class int8;
+class float8;
+class bool8;
 
 
 //////////////////////////////////////////////////////////////////////////
@@ -194,6 +197,9 @@ template<> struct VecType<int,4>   { typedef int4 type; };
 template<> struct VecType<float,4> { typedef float4 type; };
 template<> struct VecType<float,3> { typedef float3 type; };
 template<> struct VecType<bool,4>  { typedef bool4 type; };
+template<> struct VecType<int,8>   { typedef int8 type; };
+template<> struct VecType<float,8> { typedef float8 type; };
+template<> struct VecType<bool,8>  { typedef bool8 type; };
 
 /// Template to retrieve the SIMD size of a SIMD type. Rigged to be 1 for
 /// anything but our SIMD types.
@@ -202,6 +208,9 @@ template<> struct SimdSize<int4>     { static const int size = 4; };
 template<> struct SimdSize<float4>   { static const int size = 4; };
 template<> struct SimdSize<float3>   { static const int size = 4; };
 template<> struct SimdSize<bool4>    { static const int size = 4; };
+template<> struct SimdSize<int8>     { static const int size = 8; };
+template<> struct SimdSize<float8>   { static const int size = 8; };
+template<> struct SimdSize<bool8>    { static const int size = 8; };
 
 /// Template to retrieve the number of elements size of a SIMD type. Rigged
 /// to be 1 for anything but our SIMD types.
@@ -225,6 +234,25 @@ template<> struct SimdElements<float3>   { static const int size = 3; };
     static const OIIO_SIMD4_ALIGN uint32_t name[4] = { (val), (val), (val), (val) }
 # define OIIO_SIMD_UINT4_CONST4(name,v0,v1,v2,v3) \
     static const OIIO_SIMD4_ALIGN uint32_t name[4] = { (v0), (v1), (v2), (v3) }
+
+# define OIIO_SIMD_FLOAT8_CONST(name,val) \
+    static const OIIO_SIMD8_ALIGN float name[8] = { (val), (val), (val), (val), \
+                                                    (val), (val), (val), (val) }
+# define OIIO_SIMD_FLOAT8_CONST8(name,v0,v1,v2,v3,v4,v5,v6,v7) \
+    static const OIIO_SIMD8_ALIGN float name[8] = { (v0), (v1), (v2), (v3), \
+                                                    (v4), (v5), (v6), (v7) }
+# define OIIO_SIMD_INT8_CONST(name,val) \
+    static const OIIO_SIMD8_ALIGN int name[8] = { (val), (val), (val), (val), \
+                                                  (val), (val), (val), (val) }
+# define OIIO_SIMD_INT8_CONST8(name,v0,v1,v2,v3,v4,v5,v6,v7) \
+    static const OIIO_SIMD8_ALIGN int name[8] = { (v0), (v1), (v2), (v3), \
+                                                  (v4), (v5), (v6), (v7) }
+# define OIIO_SIMD_UINT8_CONST(name,val) \
+    static const OIIO_SIMD8_ALIGN uint32_t name[8] = { (val), (val), (val), (val), \
+                                                       (val), (val), (val), (val) }
+# define OIIO_SIMD_UINT8_CONST8(name,v0,v1,v2,v3,v4,v5,v6,v7) \
+    static const OIIO_SIMD8_ALIGN uint32_t name[8] = { (v0), (v1), (v2), (v3), \
+                                                       (v4), (v5), (v6), (v7) }
 
 
 
