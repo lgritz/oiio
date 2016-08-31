@@ -95,16 +95,24 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #  define OIIO_SSE_ALIGN OIIO_ALIGN(16)
 #endif
 
-// FIXME Future: support AVX
 #if defined(__AVX__) && !defined(OIIO_NO_AVX)
    // N.B. Any machine with AVX will also have SSE
-#  define OIIO_SIMD_AVX 1
-// #  define OIIO_SIMD_MASK_BYTE_WIDTH 4
-// #  undef OIIO_SIMD_MAX_SIZE_BYTES
-// #  define OIIO_SIMD_MAX_SIZE_BYTES 32
-// #  undef OIIO_SIMD_ALIGN
-// #  define OIIO_SIMD_ALIGN OIIO_ALIGN(32)
-// #  define OIIO_AVX_ALIGN OIIO_ALIGN(32)
+#  if defined(__AVX2__) && !defined(OIIO_NO_AVX2)
+#    define OIIO_SIMD_AVX 2
+#  else
+#    define OIIO_SIMD_AVX 1
+#  endif
+#  undef OIIO_SIMD_MAX_SIZE_BYTES
+#  define OIIO_SIMD_MAX_SIZE_BYTES 32
+#  define OIIO_SIMD8_ALIGN OIIO_ALIGN(32)
+#  define OIIO_AVX_ALIGN OIIO_ALIGN(32)
+#  if defined(__AVX512__) && !defined(OIIO_NO_AVX512)
+#    define OIIO_SIMD_AVX 512
+#    undef OIIO_SIMD_MAX_SIZE_BYTES
+#    define OIIO_SIMD_MAX_SIZE_BYTES 64
+#    define OIIO_SIMD16_ALIGN OIIO_ALIGN(64)
+#    define OIIO_AVX512_ALIGN OIIO_ALIGN(64)
+#  endif
 #endif
 
 #if defined(__FMA__) || defined(__AVX2__)
