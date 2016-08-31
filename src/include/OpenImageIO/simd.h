@@ -88,7 +88,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #    define OIIO_SIMD_SSE 2
 #  endif
 #  define OIIO_SIMD 1
-#  define OIIO_SIMD_MASK_BYTE_WIDTH 4
 #  define OIIO_SIMD_MAX_SIZE_BYTES 16
 #  define OIIO_SIMD_ALIGN OIIO_ALIGN(16)
 #  define OIIO_SIMD4_ALIGN OIIO_ALIGN(16)
@@ -125,7 +124,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #  include <arm_neon.h>
 #  define OIIO_SIMD 1
 #  define OIIO_SIMD_NEON 1
-#  define OIIO_SIMD_MASK_BYTE_WIDTH 4
 #  define OIIO_SIMD_MAX_SIZE_BYTES 16
 #  define OIIO_SIMD_ALIGN OIIO_ALIGN(16)
 #  define OIIO_SIMD4_ALIGN OIIO_ALIGN(16)
@@ -151,9 +149,10 @@ namespace simd {
 
 class int4;
 class float4;
-class mask4;
+class bool4;
 class float3;
 class matrix44;
+typedef bool4 mask4;    // old name
 
 
 //////////////////////////////////////////////////////////////////////////
@@ -194,7 +193,7 @@ template<typename T,int elements> struct VecType {};
 template<> struct VecType<int,4>   { typedef int4 type; };
 template<> struct VecType<float,4> { typedef float4 type; };
 template<> struct VecType<float,3> { typedef float3 type; };
-template<> struct VecType<bool,4>  { typedef mask4 type; };
+template<> struct VecType<bool,4>  { typedef bool4 type; };
 
 /// Template to retrieve the SIMD size of a SIMD type. Rigged to be 1 for
 /// anything but our SIMD types.
@@ -202,7 +201,7 @@ template<typename T> struct SimdSize { static const int size = 1; };
 template<> struct SimdSize<int4>     { static const int size = 4; };
 template<> struct SimdSize<float4>   { static const int size = 4; };
 template<> struct SimdSize<float3>   { static const int size = 4; };
-template<> struct SimdSize<mask4>    { static const int size = 4; };
+template<> struct SimdSize<bool4>    { static const int size = 4; };
 
 /// Template to retrieve the number of elements size of a SIMD type. Rigged
 /// to be 1 for anything but our SIMD types.
@@ -243,7 +242,7 @@ template<> struct SimdElements<float3>   { static const int size = 3; };
 
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
-// The public declarations of the main SIMD classes follow: maskN, intN,
+// The public declarations of the main SIMD classes follow: boolN, intN,
 // floatN, matrix44.
 //
 // These class declarations are intended to be brief and self-documenting,
@@ -259,13 +258,12 @@ template<> struct SimdElements<float3>   { static const int size = 3; };
 //////////////////////////////////////////////////////////////////////////
 
 
-/// mask4: A mask 4-vector, whose elements act mostly like bools,
-/// accelerated by SIMD instructions when available. This is what is
-/// naturally produced by SIMD comparison operators on the float4 and int4
-/// types.
-class mask4 {
+/// bool4: A 4-vector whose elements act mostly like bools, accelerated by
+/// SIMD instructions when available. This is what is naturally produced by
+/// SIMD comparison operators on the float4 and int4 types.
+class bool4 {
 public:
-    static const char* type_name() { return "mask4"; }
+    static const char* type_name() { return "bool4"; }
     typedef bool value_t;     ///< Underlying equivalent scalar value type
     enum { elements = 4 };    ///< Number of scalar elements
     enum { paddedelements = 4 }; ///< Number of scalar elements for full pad
@@ -273,25 +271,25 @@ public:
     typedef simd_bool_t<4>::type simd_t;  ///< the native SIMD type used
 
     /// Default constructor (contents undefined)
-    mask4 () { }
+    bool4 () { }
 
     /// Destructor
-    ~mask4 () { }
+    ~bool4 () { }
 
     /// Construct from a single value (store it in all slots)
-    mask4 (bool a) { load(a); }
+    bool4 (bool a) { load(a); }
 
     /// Construct from 4 values
-    mask4 (bool a, bool b, bool c, bool d) { load(a,b,c,d); }
+    bool4 (bool a, bool b, bool c, bool d) { load(a,b,c,d); }
 
-    /// Copy construct from another mask4
-    mask4 (const mask4 &other) { m_vec = other.m_vec; }
+    /// Copy construct from another bool4
+    bool4 (const bool4 &other) { m_vec = other.m_vec; }
 
     /// Construct from an int4 (is each element nonzero?)
-    mask4 (const int4 &i);
+    bool4 (const int4 &i);
 
     /// Construct from the underlying SIMD type
-    mask4 (const simd_t& m) : m_vec(m) { }
+    bool4 (const simd_t& m) : m_vec(m) { }
 
     /// Return the raw SIMD type
     operator simd_t () const { return m_vec; }
@@ -300,17 +298,17 @@ public:
     /// Set all components to false
     void clear ();
 
-    /// Return a mask4 the is 'false' for all values
-    static const mask4 False ();
+    /// Return a bool4 the is 'false' for all values
+    static const bool4 False ();
 
-    /// Return a mask4 the is 'true' for all values
-    static const mask4 True ();
+    /// Return a bool4 the is 'true' for all values
+    static const bool4 True ();
 
     /// Assign one value to all components
-    const mask4 & operator= (bool a);
+    const bool4 & operator= (bool a);
 
-    /// Assignment of another mask4
-    const mask4 & operator= (const mask4 & other);
+    /// Assignment of another bool4
+    const bool4 & operator= (const bool4 & other);
 
     /// Component access (get)
     bool operator[] (int i) const ;
@@ -334,21 +332,21 @@ public:
     void store (bool *values, int n) const;
 
     /// Logical/bitwise operators, component-by-component
-    friend mask4 operator! (const mask4 & a);
-    friend mask4 operator& (const mask4 & a, const mask4 & b);
-    const mask4& operator&= (const mask4 & b);
-    friend mask4 operator| (const mask4 & a, const mask4 & b);
-    const mask4& operator|= (const mask4 & a);
-    friend mask4 operator^ (const mask4& a, const mask4& b);
-    const mask4 & operator^= (const mask4& a);
-    mask4 operator~ ();
+    friend bool4 operator! (const bool4 & a);
+    friend bool4 operator& (const bool4 & a, const bool4 & b);
+    const bool4& operator&= (const bool4 & b);
+    friend bool4 operator| (const bool4 & a, const bool4 & b);
+    const bool4& operator|= (const bool4 & a);
+    friend bool4 operator^ (const bool4& a, const bool4& b);
+    const bool4 & operator^= (const bool4& a);
+    bool4 operator~ ();
 
     /// Comparison operators, component by component
-    friend const mask4 operator== (const mask4 & a, const mask4 & b);
-    friend const mask4 operator!= (const mask4 & a, const mask4 & b);
+    friend const bool4 operator== (const bool4 & a, const bool4 & b);
+    friend const bool4 operator!= (const bool4 & a, const bool4 & b);
 
     /// Stream output
-    friend inline std::ostream& operator<< (std::ostream& cout, const mask4 & a);
+    friend inline std::ostream& operator<< (std::ostream& cout, const bool4 & a);
 
 private:
     // The actual data representation
@@ -361,35 +359,35 @@ private:
 
 
 /// Helper: shuffle/swizzle with constant (templated) indices.
-/// Example: shuffle<1,1,2,2>(mask4(a,b,c,d)) returns (b,b,c,c)
-template<int i0, int i1, int i2, int i3> mask4 shuffle (const mask4& a);
+/// Example: shuffle<1,1,2,2>(bool4(a,b,c,d)) returns (b,b,c,c)
+template<int i0, int i1, int i2, int i3> bool4 shuffle (const bool4& a);
 
 /// shuffle<i>(a) is the same as shuffle<i,i,i,i>(a)
-template<int i> mask4 shuffle (const mask4& a);
+template<int i> bool4 shuffle (const bool4& a);
 
 /// Helper: as rapid as possible extraction of one component, when the
 /// index is fixed.
-template<int i> bool extract (const mask4& a);
+template<int i> bool extract (const bool4& a);
 
 /// Helper: substitute val for a[i]
-template<int i> mask4 insert (const mask4& a, bool val);
+template<int i> bool4 insert (const bool4& a, bool val);
 
 /// Logical "and" reduction, i.e., 'and' all components together, resulting
 /// in a single bool.
-bool reduce_and (const mask4& v);
+bool reduce_and (const bool4& v);
 
 /// Logical "or" reduction, i.e., 'or' all components together, resulting
 /// in a single bool.
-bool reduce_or (const mask4& v);
+bool reduce_or (const bool4& v);
 
 /// Are all components true?
-OIIO_FORCEINLINE bool all  (const mask4& v) { return reduce_and(v) == true; }
+OIIO_FORCEINLINE bool all  (const bool4& v) { return reduce_and(v) == true; }
 
 /// Are any components true?
-OIIO_FORCEINLINE bool any  (const mask4& v) { return reduce_or(v) == true; }
+OIIO_FORCEINLINE bool any  (const bool4& v) { return reduce_or(v) == true; }
 
 /// Are all components false:
-OIIO_FORCEINLINE bool none (const mask4& v) { return reduce_or(v) == false; }
+OIIO_FORCEINLINE bool none (const bool4& v) { return reduce_or(v) == false; }
 
 
 
@@ -559,12 +557,12 @@ public:
     friend int4 srl (const int4& val, const unsigned int bits);
 
     // Comparison operators (component-by-component)
-    friend mask4 operator== (const int4& a, const int4& b);
-    friend mask4 operator!= (const int4& a, const int4& b);
-    friend mask4 operator< (const int4& a, const int4& b);
-    friend mask4 operator>  (const int4& a, const int4& b);
-    friend mask4 operator>= (const int4& a, const int4& b);
-    friend mask4 operator<= (const int4& a, const int4& b);
+    friend bool4 operator== (const int4& a, const int4& b);
+    friend bool4 operator!= (const int4& a, const int4& b);
+    friend bool4 operator< (const int4& a, const int4& b);
+    friend bool4 operator>  (const int4& a, const int4& b);
+    friend bool4 operator>= (const int4& a, const int4& b);
+    friend bool4 operator<= (const int4& a, const int4& b);
 
     /// Stream output
     friend inline std::ostream& operator<< (std::ostream& cout, const int4& val);
@@ -580,7 +578,7 @@ private:
 
 
 /// Helper: shuffle/swizzle with constant (templated) indices.
-/// Example: shuffle<1,1,2,2>(mask4(a,b,c,d)) returns (b,b,c,c)
+/// Example: shuffle<1,1,2,2>(bool4(a,b,c,d)) returns (b,b,c,c)
 template<int i0, int i1, int i2, int i3> int4 shuffle (const int4& a);
 
 /// shuffle<i>(a) is the same as shuffle<i,i,i,i>(a)
@@ -605,22 +603,22 @@ int reduce_and (const int4& v);
 /// Bitwise "or" of all components.
 int reduce_or (const int4& v);
 
-/// Use a mask to select between components of a (if mask[i] is false) and
-/// b (if mask[i] is true).
-int4 blend (const int4& a, const int4& b, const mask4& mask);
+/// Use a bool mask to select between components of a (if mask[i] is false)
+/// and b (if mask[i] is true).
+int4 blend (const int4& a, const int4& b, const bool4& mask);
 
-/// Use a mask to select between components of a (if mask[i] is true) or
-/// 0 (if mask[i] is true).
-int4 blend0 (const int4& a, const mask4& mask);
+/// Use a bool mask to select between components of a (if mask[i] is true)
+/// or 0 (if mask[i] is true).
+int4 blend0 (const int4& a, const bool4& mask);
 
-/// Use a mask to select between components of a (if mask[i] is FALSE) or
-/// 0 (if mask[i] is TRUE).
-int4 blend0not (const int4& a, const mask4& mask);
+/// Use a bool mask to select between components of a (if mask[i] is FALSE)
+/// or 0 (if mask[i] is TRUE).
+int4 blend0not (const int4& a, const bool4& mask);
 
 /// Select 'a' where mask is true, 'b' where mask is false. Sure, it's a
 /// synonym for blend with arguments rearranged, but this is more clear
 /// because the arguments are symmetric to scalar (cond ? a : b).
-int4 select (const mask4& mask, const int4& a, const int4& b);
+int4 select (const bool4& mask, const int4& a, const int4& b);
 
 /// Per-element absolute value.
 int4 abs (const int4& a);
@@ -638,7 +636,7 @@ int4 rotl32 (const int4& x, const unsigned int k);
 int4 andnot (const int4& a, const int4& b);
 
 /// Bitcast back and forth int4 (not a convert -- move the bits!)
-int4 bitcast_to_int4 (const mask4& x);
+int4 bitcast_to_int4 (const bool4& x);
 int4 bitcast_to_int4 (const float4& x);
 float4 bitcast_to_float4 (const int4& x);
 
@@ -657,7 +655,7 @@ class float4 {
 public:
     static const char* type_name() { return "float4"; }
     typedef float value_t;    ///< Underlying equivalent scalar value type
-    typedef mask4 mask_t;     ///< SIMD mask type
+    typedef bool4 bool_t;     ///< SIMD bool type
     enum { elements = 4 };    ///< Number of scalar elements
     enum { paddedelements = 4 }; ///< Number of scalar elements for full pad
     enum { bits = 128 };      ///< Total number of bits
@@ -820,12 +818,12 @@ public:
     const float4 & operator/= (float val);
 
     // Comparison operations
-    friend mask_t operator== (const float4& a, const float4& b);
-    friend mask_t operator!= (const float4& a, const float4& b);
-    friend mask_t operator< (const float4& a, const float4& b);
-    friend mask_t operator>  (const float4& a, const float4& b);
-    friend mask_t operator>= (const float4& a, const float4& b);
-    friend mask_t operator<= (const float4& a, const float4& b);
+    friend bool_t operator== (const float4& a, const float4& b);
+    friend bool_t operator!= (const float4& a, const float4& b);
+    friend bool_t operator< (const float4& a, const float4& b);
+    friend bool_t operator>  (const float4& a, const float4& b);
+    friend bool_t operator>= (const float4& a, const float4& b);
+    friend bool_t operator<= (const float4& a, const float4& b);
 
     // Some oddball items that are handy
 
@@ -856,7 +854,7 @@ protected:
 
 
 /// Helper: shuffle/swizzle with constant (templated) indices.
-/// Example: shuffle<1,1,2,2>(mask4(a,b,c,d)) returns (b,b,c,c)
+/// Example: shuffle<1,1,2,2>(bool4(a,b,c,d)) returns (b,b,c,c)
 template<int i0, int i1, int i2, int i3> float4 shuffle (const float4& a);
 
 /// shuffle<i>(a) is the same as shuffle<i,i,i,i>(a)
@@ -889,17 +887,17 @@ float4 vdot3 (const float4 &a, const float4 &b);
 /// Return the float 3-component dot (inner) product of a and b.
 float dot3 (const float4 &a, const float4 &b);
 
-/// Use a mask to select between components of a (if mask[i] is false) and
-/// b (if mask[i] is true).
-float4 blend (const float4& a, const float4& b, const mask4& mask);
+/// Use a bool mask to select between components of a (if mask[i] is false)
+/// and b (if mask[i] is true).
+float4 blend (const float4& a, const float4& b, const bool4& mask);
 
-/// Use a mask to select between components of a (if mask[i] is true) or
-/// 0 (if mask[i] is true).
-float4 blend0 (const float4& a, const mask4& mask);
+/// Use a bool mask to select between components of a (if mask[i] is true)
+/// or 0 (if mask[i] is true).
+float4 blend0 (const float4& a, const bool4& mask);
 
-/// Use a mask to select between components of a (if mask[i] is FALSE) or
-/// 0 (if mask[i] is TRUE).
-float4 blend0not (const float4& a, const mask4& mask);
+/// Use a bool mask to select between components of a (if mask[i] is FALSE)
+/// or 0 (if mask[i] is TRUE).
+float4 blend0not (const float4& a, const bool4& mask);
 
 /// "Safe" divide of float4/float4 -- for any component of the divisor
 /// that is 0, return 0 rather than Inf.
@@ -911,7 +909,7 @@ float3 hdiv (const float4 &a);
 /// Select 'a' where mask is true, 'b' where mask is false. Sure, it's a
 /// synonym for blend with arguments rearranged, but this is more clear
 /// because the arguments are symmetric to scalar (cond ? a : b).
-float4 select (const mask4& mask, const float4& a, const float4& b);
+float4 select (const bool4& mask, const float4& a, const float4& b);
 
 // Per-element math
 float4 abs (const float4& a);    ///< absolute value (float)
@@ -1231,10 +1229,10 @@ float3 transformvT (const Imath::M44f &M, const float3 &V);
 
 
 //////////////////////////////////////////////////////////////////////
-// mask4 implementation
+// bool4 implementation
 
 
-OIIO_FORCEINLINE void mask4::clear () {
+OIIO_FORCEINLINE void bool4::clear () {
 #if defined(OIIO_SIMD_SSE)
     m_vec = _mm_setzero_ps();
 #else
@@ -1242,15 +1240,15 @@ OIIO_FORCEINLINE void mask4::clear () {
 #endif
 }
 
-OIIO_FORCEINLINE const mask4 mask4::False () {
+OIIO_FORCEINLINE const bool4 bool4::False () {
 #if defined(OIIO_SIMD_SSE)
     return _mm_setzero_ps();
 #else
-    return mask4(false);
+    return bool4(false);
 #endif
 }
 
-OIIO_FORCEINLINE const mask4 mask4::True () {
+OIIO_FORCEINLINE const bool4 bool4::True () {
 #if defined(OIIO_SIMD_SSE)
     // Fastest way to fill an __m128 with all 1 bits is to cmpeq_epi8
     // any value to itself.
@@ -1261,13 +1259,13 @@ OIIO_FORCEINLINE const mask4 mask4::True () {
 # endif
     return _mm_castsi128_ps (_mm_cmpeq_epi8 (anyval, anyval));
 #else
-    return mask4(true);
+    return bool4(true);
 #endif
 }
 
-OIIO_FORCEINLINE const mask4 & mask4::operator= (bool a) { load(a); return *this; }
+OIIO_FORCEINLINE const bool4 & bool4::operator= (bool a) { load(a); return *this; }
 
-OIIO_FORCEINLINE const mask4 & mask4::operator= (const mask4 & other) {
+OIIO_FORCEINLINE const bool4 & bool4::operator= (const bool4 & other) {
 #if defined(OIIO_SIMD_SSE)
     m_vec = other.m_vec;
 #else
@@ -1276,7 +1274,7 @@ OIIO_FORCEINLINE const mask4 & mask4::operator= (const mask4 & other) {
     return *this;
 }
 
-OIIO_FORCEINLINE bool mask4::operator[] (int i) const {
+OIIO_FORCEINLINE bool bool4::operator[] (int i) const {
     DASSERT(i >= 0 && i < 4);
 #if defined(OIIO_SIMD_SSE)
     return (_mm_movemask_ps(m_vec) >> i) & 1;
@@ -1285,12 +1283,12 @@ OIIO_FORCEINLINE bool mask4::operator[] (int i) const {
 #endif
 }
 
-OIIO_FORCEINLINE int& mask4::operator[] (int i) {
+OIIO_FORCEINLINE int& bool4::operator[] (int i) {
     DASSERT(i >= 0 && i < 4);
     return m_val[i];
 }
 
-OIIO_FORCEINLINE void mask4::load (bool a) {
+OIIO_FORCEINLINE void bool4::load (bool a) {
 #if defined(OIIO_SIMD_SSE)
     m_vec = _mm_castsi128_ps(_mm_set1_epi32(a ? -1 : 0));
 #else
@@ -1299,7 +1297,7 @@ OIIO_FORCEINLINE void mask4::load (bool a) {
 #endif
 }
 
-OIIO_FORCEINLINE void mask4::load (bool a, bool b, bool c, bool d) {
+OIIO_FORCEINLINE void bool4::load (bool a, bool b, bool c, bool d) {
 #if defined(OIIO_SIMD_SSE)
     // N.B. -- we need to reverse the order because of our convention
     // of storing a,b,c,d in the same order in memory.
@@ -1315,7 +1313,7 @@ OIIO_FORCEINLINE void mask4::load (bool a, bool b, bool c, bool d) {
 #endif
 }
 
-OIIO_FORCEINLINE void mask4::store (bool *values) const {
+OIIO_FORCEINLINE void bool4::store (bool *values) const {
 #if 0 && defined(OIIO_SIMD_SSE)
     // FIXME: is there a more efficient way to do this?
 #else
@@ -1323,57 +1321,57 @@ OIIO_FORCEINLINE void mask4::store (bool *values) const {
 #endif
 }
 
-OIIO_FORCEINLINE void mask4::store (bool *values, int n) const {
+OIIO_FORCEINLINE void bool4::store (bool *values, int n) const {
     DASSERT (n >= 0 && n <= elements);
     for (int i = 0; i < n; ++i)
         values[i] = m_val[i] ? true : false;
 }
 
-OIIO_FORCEINLINE mask4 operator! (const mask4 & a) {
+OIIO_FORCEINLINE bool4 operator! (const bool4 & a) {
 #if defined(OIIO_SIMD_SSE)
-    return _mm_xor_ps (a.m_vec, mask4::True());
+    return _mm_xor_ps (a.m_vec, bool4::True());
 #else
-    SIMD_RETURN (mask4, a.m_val[i] ^ (-1));
+    SIMD_RETURN (bool4, a.m_val[i] ^ (-1));
 #endif
 }
 
-OIIO_FORCEINLINE mask4 operator& (const mask4 & a, const mask4 & b) {
+OIIO_FORCEINLINE bool4 operator& (const bool4 & a, const bool4 & b) {
 #if defined(OIIO_SIMD_SSE)
     return _mm_and_ps (a.m_vec, b.m_vec);
 #else
-    SIMD_RETURN (mask4, a.m_val[i] & b.m_val[i]);
+    SIMD_RETURN (bool4, a.m_val[i] & b.m_val[i]);
 #endif
 }
 
-OIIO_FORCEINLINE const mask4& mask4::operator&= (const mask4 & b) {
+OIIO_FORCEINLINE const bool4& bool4::operator&= (const bool4 & b) {
     return *this = *this & b;
 }
 
-OIIO_FORCEINLINE mask4 operator| (const mask4 & a, const mask4 & b) {
+OIIO_FORCEINLINE bool4 operator| (const bool4 & a, const bool4 & b) {
 #if defined(OIIO_SIMD_SSE)
     return _mm_or_ps (a.m_vec, b.m_vec);
 #else
-    SIMD_RETURN (mask4, a.m_val[i] | b.m_val[i]);
+    SIMD_RETURN (bool4, a.m_val[i] | b.m_val[i]);
 #endif
 }
 
-OIIO_FORCEINLINE const mask4& mask4::operator|= (const mask4 & a) {
+OIIO_FORCEINLINE const bool4& bool4::operator|= (const bool4 & a) {
     return *this = *this | a;
 }
 
-OIIO_FORCEINLINE mask4 operator^ (const mask4& a, const mask4& b) {
+OIIO_FORCEINLINE bool4 operator^ (const bool4& a, const bool4& b) {
 #if defined(OIIO_SIMD_SSE)
     return _mm_xor_ps (a.m_vec, b.m_vec);
 #else
-    SIMD_RETURN (mask4, a.m_val[i] ^ b.m_val[i]);
+    SIMD_RETURN (bool4, a.m_val[i] ^ b.m_val[i]);
 #endif
 }
 
-OIIO_FORCEINLINE const mask4 & mask4::operator^= (const mask4& a) {
+OIIO_FORCEINLINE const bool4 & bool4::operator^= (const bool4& a) {
     return *this = *this ^ a;
 }
 
-OIIO_FORCEINLINE mask4 mask4::operator~ () {
+OIIO_FORCEINLINE bool4 bool4::operator~ () {
 #if defined(OIIO_SIMD_SSE)
     // Fastest way to bit-complement in SSE is to xor with 0xffffffff.
     // Fastest way to fill an __m128 with all 1 bits is to cmpeq_epi8
@@ -1386,27 +1384,27 @@ OIIO_FORCEINLINE mask4 mask4::operator~ () {
     __m128 all_one_bits = _mm_castsi128_ps (_mm_cmpeq_epi8 (anyval, anyval));
     return _mm_xor_ps (m_vec, all_one_bits);
 #else
-    SIMD_RETURN (mask4, ~m_val[i]);
+    SIMD_RETURN (bool4, ~m_val[i]);
 #endif
 }
 
-OIIO_FORCEINLINE const mask4 operator== (const mask4 & a, const mask4 & b) {
+OIIO_FORCEINLINE const bool4 operator== (const bool4 & a, const bool4 & b) {
 #if defined(OIIO_SIMD_SSE)
     return _mm_castsi128_ps (_mm_cmpeq_epi32 (_mm_castps_si128 (a.m_vec), _mm_castps_si128(b.m_vec)));
 #else
-    SIMD_RETURN (mask4, a.m_val[i] == b.m_val[i] ? -1 : 0);
+    SIMD_RETURN (bool4, a.m_val[i] == b.m_val[i] ? -1 : 0);
 #endif
 }
 
-OIIO_FORCEINLINE const mask4 operator!= (const mask4 & a, const mask4 & b) {
+OIIO_FORCEINLINE const bool4 operator!= (const bool4 & a, const bool4 & b) {
 #if defined(OIIO_SIMD_SSE)
     return _mm_xor_ps (a.m_vec, b.m_vec);
 #else
-    SIMD_RETURN (mask4, a.m_val[i] != b.m_val[i] ? -1 : 0);
+    SIMD_RETURN (bool4, a.m_val[i] != b.m_val[i] ? -1 : 0);
 #endif
 }
 
-inline std::ostream& operator<< (std::ostream& cout, const mask4 & a) {
+inline std::ostream& operator<< (std::ostream& cout, const bool4 & a) {
     cout << a[0];
     for (int i = 1; i < a.elements; ++i)
         cout << ' ' << a[i];
@@ -1458,24 +1456,24 @@ template<> OIIO_FORCEINLINE __m128 shuffle_sse<0, 1, 0, 1> (__m128 a) {
 
 
 /// Helper: shuffle/swizzle with constant (templated) indices.
-/// Example: shuffle<1,1,2,2>(mask4(a,b,c,d)) returns (b,b,c,c)
+/// Example: shuffle<1,1,2,2>(bool4(a,b,c,d)) returns (b,b,c,c)
 template<int i0, int i1, int i2, int i3>
-OIIO_FORCEINLINE mask4 shuffle (const mask4& a) {
+OIIO_FORCEINLINE bool4 shuffle (const bool4& a) {
 #if defined(OIIO_SIMD_SSE)
     return shuffle_sse<i0,i1,i2,i3> (a.simd());
 #else
-    return mask4(a[i0], a[i1], a[i2], a[i3]);
+    return bool4(a[i0], a[i1], a[i2], a[i3]);
 #endif
 }
 
 /// shuffle<i>(a) is the same as shuffle<i,i,i,i>(a)
-template<int i> OIIO_FORCEINLINE mask4 shuffle (const mask4& a) { return shuffle<i,i,i,i>(a); }
+template<int i> OIIO_FORCEINLINE bool4 shuffle (const bool4& a) { return shuffle<i,i,i,i>(a); }
 
 
 /// Helper: as rapid as possible extraction of one component, when the
 /// index is fixed.
 template<int i>
-OIIO_FORCEINLINE bool extract (const mask4& a) {
+OIIO_FORCEINLINE bool extract (const bool4& a) {
 #if defined(OIIO_SIMD_SSE) && OIIO_SIMD_SSE >= 4
     return _mm_extract_epi32(_mm_castps_si128(a.simd()), i);  // SSE4.1 only
 #else
@@ -1485,19 +1483,19 @@ OIIO_FORCEINLINE bool extract (const mask4& a) {
 
 /// Helper: substitute val for a[i]
 template<int i>
-OIIO_FORCEINLINE mask4 insert (const mask4& a, bool val) {
+OIIO_FORCEINLINE bool4 insert (const bool4& a, bool val) {
 #if defined(OIIO_SIMD_SSE) && OIIO_SIMD_SSE >= 4
     int ival = val ? -1 : 0;
     return _mm_castsi128_ps (_mm_insert_epi32 (_mm_castps_si128(a), ival, i));
 #else
-    mask4 tmp = a;
+    bool4 tmp = a;
     tmp[i] = val ? -1 : 0;
     return tmp;
 #endif
 }
 
 
-OIIO_FORCEINLINE bool reduce_and (const mask4& v) {
+OIIO_FORCEINLINE bool reduce_and (const bool4& v) {
 #if defined(OIIO_SIMD_SSE)
     return _mm_movemask_ps(v.simd()) == 0xf;
 #else
@@ -1506,7 +1504,7 @@ OIIO_FORCEINLINE bool reduce_and (const mask4& v) {
 }
 
 
-OIIO_FORCEINLINE bool reduce_or (const mask4& v) {
+OIIO_FORCEINLINE bool reduce_or (const bool4& v) {
 #if defined(OIIO_SIMD_SSE)
     return _mm_movemask_ps(v) != 0;
 #else
@@ -1954,39 +1952,39 @@ OIIO_FORCEINLINE int4 srl (const int4& val, const unsigned int bits) {
 }
 
 
-OIIO_FORCEINLINE mask4 operator== (const int4& a, const int4& b) {
+OIIO_FORCEINLINE bool4 operator== (const int4& a, const int4& b) {
 #if defined(OIIO_SIMD_SSE)
     return _mm_castsi128_ps(_mm_cmpeq_epi32 (a.m_vec, b.m_vec));
 #else
-    SIMD_RETURN (mask4, a[i] == b[i] ? -1 : 0);
+    SIMD_RETURN (bool4, a[i] == b[i] ? -1 : 0);
 #endif
 }
 
-OIIO_FORCEINLINE mask4 operator!= (const int4& a, const int4& b) {
+OIIO_FORCEINLINE bool4 operator!= (const int4& a, const int4& b) {
         return ! (a == b);
 }
 
-OIIO_FORCEINLINE mask4 operator< (const int4& a, const int4& b) {
+OIIO_FORCEINLINE bool4 operator< (const int4& a, const int4& b) {
 #if defined(OIIO_SIMD_SSE)
     return _mm_castsi128_ps(_mm_cmplt_epi32 (a.m_vec, b.m_vec));
 #else
-    SIMD_RETURN (mask4, a[i] < b[i] ? -1 : 0);
+    SIMD_RETURN (bool4, a[i] < b[i] ? -1 : 0);
 #endif
 }
 
-OIIO_FORCEINLINE mask4 operator>  (const int4& a, const int4& b) {
+OIIO_FORCEINLINE bool4 operator>  (const int4& a, const int4& b) {
 #if defined(OIIO_SIMD_SSE)
     return _mm_castsi128_ps(_mm_cmpgt_epi32 (a.m_vec, b.m_vec));
 #else
-    SIMD_RETURN (mask4, a[i] > b[i] ? -1 : 0);
+    SIMD_RETURN (bool4, a[i] > b[i] ? -1 : 0);
 #endif
 }
 
-OIIO_FORCEINLINE mask4 operator>= (const int4& a, const int4& b) {
+OIIO_FORCEINLINE bool4 operator>= (const int4& a, const int4& b) {
     return !(a < b);
 }
 
-OIIO_FORCEINLINE mask4 operator<= (const int4& a, const int4& b) {
+OIIO_FORCEINLINE bool4 operator<= (const int4& a, const int4& b) {
     return !(a > b);
 }
 
@@ -2044,7 +2042,7 @@ OIIO_FORCEINLINE void int4::set_z (int val) { *this = insert<2>(*this, val); }
 OIIO_FORCEINLINE void int4::set_w (int val) { *this = insert<3>(*this, val); }
 
 
-OIIO_FORCEINLINE int4 bitcast_to_int4 (const mask4& x)
+OIIO_FORCEINLINE int4 bitcast_to_int4 (const bool4& x)
 {
 #if defined(OIIO_SIMD_SSE)
     return _mm_castps_si128 (x.simd());
@@ -2114,7 +2112,7 @@ OIIO_FORCEINLINE int reduce_or (const int4& v) {
 #endif
 }
 
-OIIO_FORCEINLINE int4 blend (const int4& a, const int4& b, const mask4& mask)
+OIIO_FORCEINLINE int4 blend (const int4& a, const int4& b, const bool4& mask)
 {
 #if defined(OIIO_SIMD_SSE) && OIIO_SIMD_SSE >= 4 /* SSE >= 4.1 */
     return _mm_blendv_epi8 (a.simd(), b.simd(), _mm_castps_si128(mask));
@@ -2128,7 +2126,7 @@ OIIO_FORCEINLINE int4 blend (const int4& a, const int4& b, const mask4& mask)
 
 
 
-OIIO_FORCEINLINE int4 blend0 (const int4& a, const mask4& mask)
+OIIO_FORCEINLINE int4 blend0 (const int4& a, const bool4& mask)
 {
 #if defined(OIIO_SIMD_SSE)
     return _mm_and_si128(_mm_castps_si128(mask), a.simd());
@@ -2139,7 +2137,7 @@ OIIO_FORCEINLINE int4 blend0 (const int4& a, const mask4& mask)
 
 
 
-OIIO_FORCEINLINE int4 blend0not (const int4& a, const mask4& mask)
+OIIO_FORCEINLINE int4 blend0not (const int4& a, const bool4& mask)
 {
 #if defined(OIIO_SIMD_SSE)
     return _mm_andnot_si128(_mm_castps_si128(mask), a.simd());
@@ -2149,7 +2147,7 @@ OIIO_FORCEINLINE int4 blend0not (const int4& a, const mask4& mask)
 }
 
 
-OIIO_FORCEINLINE int4 select (const mask4& mask, const int4& a, const int4& b)
+OIIO_FORCEINLINE int4 select (const bool4& mask, const int4& a, const int4& b)
 {
     return blend (b, a, mask);
 }
@@ -2201,7 +2199,7 @@ OIIO_FORCEINLINE int4 andnot (const int4& a, const int4& b) {
 
 
 // Implementation had to be after the definition of int4.
-OIIO_FORCEINLINE mask4::mask4 (const int4& ival)
+OIIO_FORCEINLINE bool4::bool4 (const int4& ival)
 {
 #if defined(OIIO_SIMD_SSE)
     m_vec = (ival != int4::Zero());
@@ -2614,51 +2612,51 @@ OIIO_FORCEINLINE const float4 & float4::operator/= (float val) {
     return *this;
 }
 
-OIIO_FORCEINLINE mask4 operator== (const float4& a, const float4& b) {
+OIIO_FORCEINLINE bool4 operator== (const float4& a, const float4& b) {
 #if defined(OIIO_SIMD_SSE)
     return _mm_cmpeq_ps (a.m_vec, b.m_vec);
 #else
-    SIMD_RETURN (mask4, a[i] == b[i] ? -1 : 0);
+    SIMD_RETURN (bool4, a[i] == b[i] ? -1 : 0);
 #endif
 }
 
-OIIO_FORCEINLINE mask4 operator!= (const float4& a, const float4& b) {
+OIIO_FORCEINLINE bool4 operator!= (const float4& a, const float4& b) {
 #if defined(OIIO_SIMD_SSE)
     return _mm_cmpneq_ps (a.m_vec, b.m_vec);
 #else
-    SIMD_RETURN (mask4, a[i] != b[i] ? -1 : 0);
+    SIMD_RETURN (bool4, a[i] != b[i] ? -1 : 0);
 #endif
 }
 
-OIIO_FORCEINLINE mask4 operator< (const float4& a, const float4& b) {
+OIIO_FORCEINLINE bool4 operator< (const float4& a, const float4& b) {
 #if defined(OIIO_SIMD_SSE)
     return _mm_cmplt_ps (a.m_vec, b.m_vec);
 #else
-    SIMD_RETURN (mask4, a[i] < b[i] ? -1 : 0);
+    SIMD_RETURN (bool4, a[i] < b[i] ? -1 : 0);
 #endif
 }
 
-OIIO_FORCEINLINE mask4 operator>  (const float4& a, const float4& b) {
+OIIO_FORCEINLINE bool4 operator>  (const float4& a, const float4& b) {
 #if defined(OIIO_SIMD_SSE)
     return _mm_cmpgt_ps (a.m_vec, b.m_vec);
 #else
-    SIMD_RETURN (mask4, a[i] > b[i] ? -1 : 0);
+    SIMD_RETURN (bool4, a[i] > b[i] ? -1 : 0);
 #endif
 }
 
-OIIO_FORCEINLINE mask4 operator>= (const float4& a, const float4& b) {
+OIIO_FORCEINLINE bool4 operator>= (const float4& a, const float4& b) {
 #if defined(OIIO_SIMD_SSE)
     return _mm_cmpge_ps (a.m_vec, b.m_vec);
 #else
-    SIMD_RETURN (mask4, a[i] >= b[i] ? -1 : 0);
+    SIMD_RETURN (bool4, a[i] >= b[i] ? -1 : 0);
 #endif
 }
 
-OIIO_FORCEINLINE mask4 operator<= (const float4& a, const float4& b) {
+OIIO_FORCEINLINE bool4 operator<= (const float4& a, const float4& b) {
 #if defined(OIIO_SIMD_SSE)
     return _mm_cmple_ps (a.m_vec, b.m_vec);
 #else
-    SIMD_RETURN (mask4, a[i] <= b[i] ? -1 : 0);
+    SIMD_RETURN (bool4, a[i] <= b[i] ? -1 : 0);
 #endif
 }
 
@@ -2872,7 +2870,7 @@ OIIO_FORCEINLINE float dot3 (const float4 &a, const float4 &b) {
 }
 
 
-OIIO_FORCEINLINE float4 blend (const float4& a, const float4& b, const mask4& mask)
+OIIO_FORCEINLINE float4 blend (const float4& a, const float4& b, const bool4& mask)
 {
 #if defined(OIIO_SIMD_SSE) && OIIO_SIMD_SSE >= 4
     // SSE >= 4.1 only
@@ -2890,7 +2888,7 @@ OIIO_FORCEINLINE float4 blend (const float4& a, const float4& b, const mask4& ma
 }
 
 
-OIIO_FORCEINLINE float4 blend0 (const float4& a, const mask4& mask)
+OIIO_FORCEINLINE float4 blend0 (const float4& a, const bool4& mask)
 {
 #if defined(OIIO_SIMD_SSE)
     return _mm_and_ps(mask.simd(), a.simd());
@@ -2903,7 +2901,7 @@ OIIO_FORCEINLINE float4 blend0 (const float4& a, const mask4& mask)
 }
 
 
-OIIO_FORCEINLINE float4 blend0not (const float4& a, const mask4& mask)
+OIIO_FORCEINLINE float4 blend0not (const float4& a, const bool4& mask)
 {
 #if defined(OIIO_SIMD_SSE)
     return _mm_andnot_ps(mask.simd(), a.simd());
@@ -2940,7 +2938,7 @@ OIIO_FORCEINLINE float3 hdiv (const float4 &a)
 
 
 
-OIIO_FORCEINLINE float4 select (const mask4& mask, const float4& a, const float4& b)
+OIIO_FORCEINLINE float4 select (const bool4& mask, const float4& a, const float4& b)
 {
     return blend (b, a, mask);
 }
@@ -3233,7 +3231,7 @@ OIIO_FORCEINLINE float4 log (const float4& v)
     int4 emm0;
     float4 zero (float4::Zero());
     float4 one (1.0f);
-    mask4 invalid_mask = (x <= zero);
+    bool4 invalid_mask = (x <= zero);
     OIIO_SIMD_INT4_CONST (min_norm_pos, (int)0x00800000);
     OIIO_SIMD_INT4_CONST (inv_mant_mask, (int)~0x7f800000);
     x = max(x, bitcast_to_float4(int4(min_norm_pos)));  /* cut off denormalized stuff */
@@ -3245,7 +3243,7 @@ OIIO_FORCEINLINE float4 log (const float4& v)
     float4 e (emm0);
     e = e + one;
     OIIO_SIMD_FLOAT4_CONST (cephes_SQRTHF, 0.707106781186547524f);
-    mask4 mask = (x < float4(cephes_SQRTHF));
+    bool4 mask = (x < float4(cephes_SQRTHF));
     float4 tmp = bitcast_to_float4 (bitcast_to_int4(x) & bitcast_to_int4(mask));
     x = x - one;
     e = e - bitcast_to_float4 (bitcast_to_int4(one) & bitcast_to_int4(mask));
@@ -3653,10 +3651,10 @@ OIIO_FORCEINLINE float3 matrix44::transformvT (const float3 &V) const {
 
 OIIO_FORCEINLINE bool matrix44::operator== (const matrix44& m) const {
 #if OIIO_SIMD_SSE
-    mask4 b0 = (m_row[0] == m[0]);
-    mask4 b1 = (m_row[1] == m[1]);
-    mask4 b2 = (m_row[2] == m[2]);
-    mask4 b3 = (m_row[3] == m[3]);
+    bool4 b0 = (m_row[0] == m[0]);
+    bool4 b1 = (m_row[1] == m[1]);
+    bool4 b2 = (m_row[2] == m[2]);
+    bool4 b3 = (m_row[3] == m[3]);
     return simd::all (b0 & b1 & b2 & b3);
 #else
     return memcmp(this, &m, 16*sizeof(float)) == 0;
@@ -3673,10 +3671,10 @@ OIIO_FORCEINLINE bool operator== (const Imath::M44f& a, const matrix44 &b) {
 
 OIIO_FORCEINLINE bool matrix44::operator!= (const matrix44& m) const {
 #if OIIO_SIMD_SSE
-    mask4 b0 = (m_row[0] != m[0]);
-    mask4 b1 = (m_row[1] != m[1]);
-    mask4 b2 = (m_row[2] != m[2]);
-    mask4 b3 = (m_row[3] != m[3]);
+    bool4 b0 = (m_row[0] != m[0]);
+    bool4 b1 = (m_row[1] != m[1]);
+    bool4 b2 = (m_row[2] != m[2]);
+    bool4 b3 = (m_row[3] != m[3]);
     return simd::any (b0 | b1 | b2 | b3);
 #else
     return memcmp(this, &m, 16*sizeof(float)) != 0;
