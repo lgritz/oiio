@@ -446,10 +446,11 @@ void test_bitwise_bool ()
     bool OR[]  = { true,  true,  true,  false, true,  false, true,  true  };
     bool XOR[] = { false, true,  true,  false, true,  false, false, true  };
     bool NOT[] = { false, false, true,  true,  true,  true,  false, false  };
-    OIIO_CHECK_SIMD_EQUAL (VEC((bool *)&A) & VEC((bool *)&B), VEC((bool *)&AND));
-    OIIO_CHECK_SIMD_EQUAL (VEC((bool *)&A) | VEC((bool *)&B), VEC((bool *)&OR));
-    OIIO_CHECK_SIMD_EQUAL (VEC((bool *)&A) ^ VEC((bool *)&B), VEC((bool *)&XOR));
-    OIIO_CHECK_SIMD_EQUAL (~(VEC((bool *)&A)), VEC((bool *)&NOT));
+    VEC a(A), b(B), rand(AND), ror(OR), rxor(XOR), rnot(NOT);
+    OIIO_CHECK_SIMD_EQUAL (a & b, rand);
+    OIIO_CHECK_SIMD_EQUAL (a | b, ror);
+    OIIO_CHECK_SIMD_EQUAL (a ^ b, rxor);
+    OIIO_CHECK_SIMD_EQUAL (~a, rnot);
 }
 
 
@@ -865,18 +866,49 @@ float dummy_float2[16];
 float dummy_int[16];
 
 template<typename VEC>
-inline int loadstore_vec (int x) {
+inline int loadstore_vec (int dummy) {
+    typedef typename VEC::value_t ELEM;
+    ELEM A[VEC::elements], B[VEC::elements];
     VEC v;
-    v.load (dummy_float);
-    v.store (dummy_float2);
+    v.load ((ELEM *)A);
+    v.store ((ELEM *)B);
     return 0;
 }
 
 template<typename VEC, int N>
-inline int loadstore_vec_N (int x) {
+inline int loadstore_vec_N (int dummy) {
+    typedef typename VEC::value_t ELEM;
+    ELEM A[VEC::elements], B[VEC::elements];
     VEC v;
-    v.load (dummy_float, N);
-    v.store (dummy_float2, N);
+    v.load ((ELEM *)A, N);
+    v.store ((ELEM *)B, N);
+    return 0;
+}
+
+template<typename VEC>
+inline int construct_one (int dummy) {
+    typedef typename VEC::value_t ELEM;
+    VEC v (ELEM(1));
+    return 0;
+}
+
+template<typename VEC>
+inline int assign_one (int dummy) {
+    typedef typename VEC::value_t ELEM;
+    VEC v;
+    v = (ELEM(1));
+    return 0;
+}
+
+template<typename VEC>
+inline int assign_onemethod (int dummy) {
+    VEC v = VEC::One();
+    return 0;
+}
+
+template<typename VEC>
+inline int assign_zeromethod (int dummy) {
+    VEC v = VEC::Zero();
     return 0;
 }
 
@@ -942,6 +974,12 @@ void test_timing ()
     benchmark_function ("load/store float4, 2 comps", size, loadstore_vec_N<float4, 2>, 0);
     benchmark_function ("load/store float4, 1 comps", size, loadstore_vec_N<float4, 1>, 0);
     benchmark_function ("load/store float3", size, loadstore_vec<float3>, 0);
+    benchmark_function ("load/store int4", size, loadstore_vec<int4>, 0);
+    benchmark_function ("load/store bool4", size, loadstore_vec<bool4>, 0);
+    benchmark_function ("float4(const)", size, construct_one<float4>, 0);
+    benchmark_function ("float4 = const", size, assign_one<float4>, 0);
+    benchmark_function ("float4 = One()", size, assign_onemethod<float4>, 0);
+    benchmark_function ("float4 = Zero()", size, assign_zeromethod<float4>, 0);
 
     benchmark_function2 ("add float", size, add_vec<float>, float(2.51f), float(3.1f));
     benchmark_function2 ("add float4", size, add_vec<float4>, float4(2.51f), float4(3.1f));
@@ -1022,7 +1060,7 @@ main (int argc, char *argv[])
     std::cout << "SIMD is SSE " << OIIO_SIMD_SSE << "\n";
 #elif defined(OIIO_SIMD_NEON)
     std::cout << "SIMD is NEON " << OIIO_SIMD_NEON << "\n";
-#elif defined(OIIO_SIMD_SSE)
+#else
     std::cout << "NO SIMD!!\n";
 #endif
 
