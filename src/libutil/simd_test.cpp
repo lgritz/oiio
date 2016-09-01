@@ -367,6 +367,8 @@ void test_arithmetic ()
 
     VEC a (10, 11, 12, 13);
     VEC b (1, 2, 3, 4);
+    std::cout << "A is " << a << "\n";
+    std::cout << "B is " << b << "\n";
     OIIO_CHECK_SIMD_EQUAL (a+b, VEC(11,13,15,17));
     OIIO_CHECK_SIMD_EQUAL (a-b, VEC(9,9,9,9));
     OIIO_CHECK_SIMD_EQUAL (a*b, VEC(10,22,36,52));
@@ -1103,10 +1105,26 @@ main (int argc, char *argv[])
     test_int4_to_uint8s ();
     test_shift ();
 
+    test_loadstore<int8> ();
+    // test_component_access<int4> ();
+    // test_arithmetic<int4> ();
+    // test_bitwise_int4 ();
+    // test_comparisons<int4> ();
+    // test_shuffle<int4> ();
+    // test_swizzle<float4> ();
+    // test_blend<int4> ();
+    // test_transpose<int4> ();
+    // test_int4_to_uint16s ();
+    // test_int4_to_uint8s ();
+    // test_shift ();
+
     std::cout << "\n";
     test_shuffle<bool4> ();
     test_component_access<bool4> ();
     test_bitwise_bool<bool4> ();
+    // test_shuffle<bool8> ();
+    test_component_access<bool8> ();
+    // test_bitwise_bool<bool8> ();
 
     test_constants();
     test_special();
