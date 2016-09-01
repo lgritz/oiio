@@ -117,17 +117,87 @@ OIIO_CHECK_SIMD_EQUAL_impl (const X& x, const Y& y,
 
 
 
-template<typename VEC>
-inline VEC mkvec (typename VEC::value_t a, typename VEC::value_t b,
-                  typename VEC::value_t c, typename VEC::value_t d=0)
+#if OIIO_CPLUSPLUS_VERSION >= 11  /* So easy with lambdas */
+
+template <typename FUNC, typename T>
+void benchmark_function (string_view funcname, size_t n, FUNC func, T x,
+                         size_t work=SimdElements<T>::size)
 {
-    return VEC(a,b,c,d);
+    auto repeat_func = [&](){
+        // Unroll the loop 8 times
+        for (size_t i = 0; i < n; i += work*8) {
+            auto r = func(x); DoNotOptimize (r);
+            r = func(x); DoNotOptimize (r);
+            r = func(x); DoNotOptimize (r);
+            r = func(x); DoNotOptimize (r);
+            r = func(x); DoNotOptimize (r);
+            r = func(x); DoNotOptimize (r);
+            r = func(x); DoNotOptimize (r);
+            r = func(x); DoNotOptimize (r);
+        }
+    };
+    float time = time_trial (repeat_func, ntrials, iterations) / iterations;
+    std::cout << Strutil::format (" %s: %7.1f Mvals/sec, (%.1f Mcalls/sec)\n",
+                                  funcname, (n/1.0e6)/time,
+                                  ((n/work)/1.0e6)/time);
 }
 
 
-template<>
-inline float3 mkvec (float a, float b, float c, float d)
+template <typename FUNC, typename T, typename U>
+void benchmark_function2 (string_view funcname, size_t n, FUNC func, T x, U y,
+                          size_t work=SimdElements<T>::size)
 {
+    auto repeat_func = [&](){
+        // Unroll the loop 8 times
+        for (size_t i = 0; i < n; i += work*8) {
+            auto r = func(x, y); DoNotOptimize (r);
+            r = func(x, y); DoNotOptimize (r);
+            r = func(x, y); DoNotOptimize (r);
+            r = func(x, y); DoNotOptimize (r);
+            r = func(x, y); DoNotOptimize (r);
+            r = func(x, y); DoNotOptimize (r);
+            r = func(x, y); DoNotOptimize (r);
+            r = func(x, y); DoNotOptimize (r);
+        }
+    };
+    float time = time_trial (repeat_func, ntrials, iterations) / iterations;
+    std::cout << Strutil::format (" %s: %7.1f Mvals/sec, (%.1f Mcalls/sec)\n",
+                                  funcname, (n/1.0e6)/time,
+                                  ((n/work)/1.0e6)/time);
+}
+
+#else
+
+// No support of lambdas, just skip the benchmarks
+#define benchmark_function(x)
+#define benchmark_function2(x)
+
+#endif
+
+
+
+template<typename VEC>
+inline VEC mkvec (typename VEC::value_t a, typename VEC::value_t b,
+                  typename VEC::value_t c, typename VEC::value_t d=0,
+                  typename VEC::value_t e=0, typename VEC::value_t f=0,
+                  typename VEC::value_t g=0, typename VEC::value_t h=0)
+{
+    return VEC(a,b,c,d,e,f,g,h);
+}
+
+
+template<> inline int4 mkvec (int a, int b, int c, int d,
+                              int e, int f, int g, int h) {
+    return int4(a,b,c,d);
+}
+
+template<> inline float4 mkvec (float a, float b, float c, float d,
+                                float e, float f, float g, float h) {
+    return float4(a,b,c,d);
+}
+
+template<> inline float3 mkvec (float a, float b, float c, float d,
+                                float e, float f, float g, float h) {
     return float3(a,b,c);
 }
 
@@ -177,16 +247,16 @@ void test_loadstore ()
 {
     typedef typename VEC::value_t ELEM;
     std::cout << "test_loadstore " << VEC::type_name() << "\n";
-    VEC C1234 = mkvec<VEC>(1, 2, 3, 4);
+    VEC C1234 = mkvec<VEC>(1, 2, 3, 4, 5, 6, 7, 8);
     // VEC C0 (0);
-    ELEM partial[4] = { 101, 102, 103, 104 };
+    ELEM partial[] = { 101, 102, 103, 104, 105, 106, 107, 108 };
     for (int i = 1; i <= VEC::elements; ++i) {
         VEC a (ELEM(0));
         a.load (partial, i);
         for (int j = 0; j < VEC::elements; ++j)
             OIIO_CHECK_EQUAL (a[j], j<i ? partial[j] : ELEM(0));
         std::cout << "  partial load " << i << " : " << a << "\n";
-        ELEM stored[4] = { 0, 0, 0, 0 };
+        ELEM stored[] = { 0, 0, 0, 0, 0, 0, 0, 0 };
         C1234.store (stored, i);
         for (int j = 0; j < VEC::elements; ++j)
             OIIO_CHECK_EQUAL (stored[j], j<i ? ELEM(j+1) : ELEM(0));
@@ -198,11 +268,10 @@ void test_loadstore ()
 
     {
     // Check load from integers
-    // VEC C1234 (1, 2, 3, 4);
-    unsigned short us1234[] = {1, 2, 3, 4};
-    short s1234[] = {1, 2, 3, 4};
-    unsigned char uc1234[] = {1, 2, 3, 4};
-    char c1234[] = {1, 2, 3, 4};
+    unsigned short us1234[] = {1, 2, 3, 4, 5, 6, 7, 8};
+    short s1234[]           = {1, 2, 3, 4, 5, 6, 7, 8};
+    unsigned char uc1234[]  = {1, 2, 3, 4, 5, 6, 7, 8};
+    char c1234[]            = {1, 2, 3, 4, 5, 6, 7, 8};
     OIIO_CHECK_SIMD_EQUAL (VEC(us1234), C1234);
     OIIO_CHECK_SIMD_EQUAL (VEC( s1234), C1234);
     OIIO_CHECK_SIMD_EQUAL (VEC(uc1234), C1234);
@@ -367,8 +436,6 @@ void test_arithmetic ()
 
     VEC a (10, 11, 12, 13);
     VEC b (1, 2, 3, 4);
-    std::cout << "A is " << a << "\n";
-    std::cout << "B is " << b << "\n";
     OIIO_CHECK_SIMD_EQUAL (a+b, VEC(11,13,15,17));
     OIIO_CHECK_SIMD_EQUAL (a-b, VEC(9,9,9,9));
     OIIO_CHECK_SIMD_EQUAL (a*b, VEC(10,22,36,52));
@@ -809,54 +876,6 @@ void test_matrix ()
 
 #if OIIO_CPLUSPLUS_VERSION >= 11  /* So easy with lambdas */
 
-template <typename FUNC, typename T>
-void benchmark_function (string_view funcname, size_t n, FUNC func, T x,
-                         size_t work=SimdElements<T>::size)
-{
-    auto repeat_func = [&](){
-        // Unroll the loop 8 times
-        for (size_t i = 0; i < n; i += work*8) {
-            auto r = func(x); DoNotOptimize (r);
-            r = func(x); DoNotOptimize (r);
-            r = func(x); DoNotOptimize (r);
-            r = func(x); DoNotOptimize (r);
-            r = func(x); DoNotOptimize (r);
-            r = func(x); DoNotOptimize (r);
-            r = func(x); DoNotOptimize (r);
-            r = func(x); DoNotOptimize (r);
-        }
-    };
-    float time = time_trial (repeat_func, ntrials, iterations) / iterations;
-    std::cout << Strutil::format (" %s: %7.1f Mvals/sec, (%.1f Mcalls/sec)\n",
-                                  funcname, (n/1.0e6)/time,
-                                  ((n/work)/1.0e6)/time);
-}
-
-
-template <typename FUNC, typename T, typename U>
-void benchmark_function2 (string_view funcname, size_t n, FUNC func, T x, U y,
-                          size_t work=SimdElements<T>::size)
-{
-    auto repeat_func = [&](){
-        // Unroll the loop 8 times
-        for (size_t i = 0; i < n; i += work*8) {
-            auto r = func(x, y); DoNotOptimize (r);
-            r = func(x, y); DoNotOptimize (r);
-            r = func(x, y); DoNotOptimize (r);
-            r = func(x, y); DoNotOptimize (r);
-            r = func(x, y); DoNotOptimize (r);
-            r = func(x, y); DoNotOptimize (r);
-            r = func(x, y); DoNotOptimize (r);
-            r = func(x, y); DoNotOptimize (r);
-        }
-    };
-    float time = time_trial (repeat_func, ntrials, iterations) / iterations;
-    std::cout << Strutil::format (" %s: %7.1f Mvals/sec, (%.1f Mcalls/sec)\n",
-                                  funcname, (n/1.0e6)/time,
-                                  ((n/work)/1.0e6)/time);
-}
-
-
 // Wrappers to resolve the return type ambiguity
 inline float fast_exp_float (float x) { return fast_exp(x); }
 inline float4 fast_exp_float4 (const float4& x) { return fast_exp(x); }
@@ -1065,6 +1084,7 @@ main (int argc, char *argv[])
 #else
     std::cout << "NO SIMD!!\n";
 #endif
+    Timer timer;
 
     std::cout << "\n";
     test_loadstore<float4> ();
@@ -1134,6 +1154,8 @@ main (int argc, char *argv[])
 
     std::cout << "\nTiming tests:\n";
     test_timing();
+
+    std::cout << "Total time: " << Strutil::timeintervalformat(timer()) << "\n";
 
     if (unit_test_failures)
         std::cout << "\nERRORS!\n";
