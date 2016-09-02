@@ -432,29 +432,53 @@ void test_component_access<bool8> ()
 
 
 
+template<typename T> inline T do_add (const T &a, const T &b) { return a+b; }
+template<typename T> inline T do_sub (const T &a, const T &b) { return a-b; }
+template<typename T> inline T do_mul (const T &a, const T &b) { return a*b; }
+template<typename T> inline T do_div (const T &a, const T &b) { return a/b; }
+
+
 template<typename VEC>
 void test_arithmetic ()
 {
     typedef typename VEC::value_t ELEM;
     std::cout << "test_arithmetic " << VEC::type_name() << "\n";
 
-    VEC a = mkvec<VEC> (10, 11, 12, 13, 14, 15, 16, 17);
-    VEC b = mkvec<VEC> (1, 2, 3, 4, 5, 6, 7, 8);
-    OIIO_CHECK_SIMD_EQUAL (a+b, mkvec<VEC>(11,13,15,17,19,21,23,25));
-    OIIO_CHECK_SIMD_EQUAL (a-b, mkvec<VEC>(9,9,9,9,9,9,9,9));
-    OIIO_CHECK_SIMD_EQUAL (a*b, mkvec<VEC>(10,22,36,52,70,90,112,136));
-    OIIO_CHECK_SIMD_EQUAL (a/b, mkvec<VEC>(a[0]/b[0],a[1]/b[1],a[2]/b[2],a[3]/b[3],
-                                           a[4]/b[4],a[5]/b[5],a[6]/b[6],a[7]/b[7]));
-    if (is_same<VEC,float3>::value)
-        OIIO_CHECK_EQUAL (reduce_add(b), ELEM(6));
-    else
-        OIIO_CHECK_EQUAL (reduce_add(b), ELEM(10));
-    OIIO_CHECK_SIMD_EQUAL (vreduce_add(b), VEC(ELEM(10)));
+    VEC a = VEC::Iota (1.0f, 3.0f);
+    VEC b = VEC::Iota (1.0f, 1.0f);
+    VEC add(ELEM(0)), sub(ELEM(0)), mul(ELEM(0)), div(ELEM(0));
+    ELEM bsum(ELEM(0));
+    for (int i = 0; i < VEC::elements; ++i) {
+        add[i] = a[i] + b[i];
+        sub[i] = a[i] - b[i];
+        mul[i] = a[i] * b[i];
+        div[i] = a[i] / b[i];
+        bsum += b[i];
+    }
+    OIIO_CHECK_SIMD_EQUAL (a+b, add);
+    OIIO_CHECK_SIMD_EQUAL (a-b, sub);
+    OIIO_CHECK_SIMD_EQUAL (a*b, mul);
+    OIIO_CHECK_SIMD_EQUAL (a/b, div);
+    OIIO_CHECK_SIMD_EQUAL (a*ELEM(2), a*VEC(ELEM(2)));
+    { VEC r = a; r += b; OIIO_CHECK_SIMD_EQUAL (r, add); }
+    { VEC r = a; r -= b; OIIO_CHECK_SIMD_EQUAL (r, sub); }
+    { VEC r = a; r *= b; OIIO_CHECK_SIMD_EQUAL (r, mul); }
+    { VEC r = a; r /= b; OIIO_CHECK_SIMD_EQUAL (r, div); }
+    { VEC r = a; r *= ELEM(2); OIIO_CHECK_SIMD_EQUAL (r, a*ELEM(2)); }
+
+    OIIO_CHECK_EQUAL (reduce_add(b), bsum);
+    OIIO_CHECK_SIMD_EQUAL (vreduce_add(b), VEC(bsum));
     OIIO_CHECK_EQUAL (reduce_add(VEC(1.0f)), SimdElements<VEC>::size);
+
+    benchmark2 ("operator+", benchsize, do_add<VEC>, a, b);
+    benchmark2 ("operator-", benchsize, do_sub<VEC>, a, b);
+    benchmark2 ("operator*", benchsize, do_mul<VEC>, a, b);
+    benchmark2 ("operator/", benchsize, do_div<VEC>, a, b);
 }
 
 
 
+#if 0
 template<>
 void test_arithmetic<float3> ()
 {
@@ -471,7 +495,7 @@ void test_arithmetic<float3> ()
     OIIO_CHECK_EQUAL (reduce_add(b), ELEM(6));
     OIIO_CHECK_SIMD_EQUAL (vreduce_add(b), VEC(ELEM(6)));
 }
-
+#endif
 
 
 template<typename VEC>
@@ -491,11 +515,11 @@ void test_fused ()
 
 
 
-template<typename T> T logicand (const T& a, const T& b) { return a & b; }
-template<typename T> T logicor  (const T& a, const T& b) { return a | b; }
-template<typename T> T logicxor (const T& a, const T& b) { return a ^ b; }
-template<typename T> T logiccompl (const T& a) { return ~a; }
-template<typename T> T logicandnot (const T& a, const T& b) { return andnot(a,b); }
+template<typename T> T do_and (const T& a, const T& b) { return a & b; }
+template<typename T> T do_or  (const T& a, const T& b) { return a | b; }
+template<typename T> T do_xor (const T& a, const T& b) { return a ^ b; }
+template<typename T> T do_compl (const T& a) { return ~a; }
+template<typename T> T do_andnot (const T& a, const T& b) { return andnot(a,b); }
 
 
 
@@ -513,11 +537,11 @@ void test_bitwise_int ()
     OIIO_CHECK_SIMD_EQUAL (~(a), VEC(0xedcbedcb));
     OIIO_CHECK_SIMD_EQUAL (andnot (b, a), (~(b)) & a);
     OIIO_CHECK_SIMD_EQUAL (andnot (b, a), VEC(0x02240224));
-    benchmark2 ("operator&", benchsize, logicand<VEC>, a, b);
-    benchmark2 ("operator|", benchsize, logicor<VEC>, a, b);
-    benchmark2 ("operator^", benchsize, logicxor<VEC>, a, b);
-    benchmark  ("operator!", benchsize, logiccompl<VEC>, a);
-    benchmark2 ("andnot",    benchsize, logicandnot<VEC>, a, b);
+    benchmark2 ("operator&", benchsize, do_and<VEC>, a, b);
+    benchmark2 ("operator|", benchsize, do_or<VEC>, a, b);
+    benchmark2 ("operator^", benchsize, do_xor<VEC>, a, b);
+    benchmark  ("operator!", benchsize, do_compl<VEC>, a);
+    benchmark2 ("andnot",    benchsize, do_andnot<VEC>, a, b);
 }
 
 
@@ -539,26 +563,56 @@ void test_bitwise_bool ()
     OIIO_CHECK_SIMD_EQUAL (a | b, ror);
     OIIO_CHECK_SIMD_EQUAL (a ^ b, rxor);
     OIIO_CHECK_SIMD_EQUAL (~a, rnot);
-    benchmark2 ("operator&", benchsize, logicand<VEC>, a, b);
-    benchmark2 ("operator|", benchsize, logicor<VEC>, a, b);
-    benchmark2 ("operator^", benchsize, logicxor<VEC>, a, b);
-    benchmark ("operator!", benchsize, logiccompl<VEC>, a);
+    benchmark2 ("operator&", benchsize, do_and<VEC>, a, b);
+    benchmark2 ("operator|", benchsize, do_or<VEC>, a, b);
+    benchmark2 ("operator^", benchsize, do_xor<VEC>, a, b);
+    benchmark  ("operator!", benchsize, do_compl<VEC>, a);
 }
+
+
+
+template<class T, class B> B do_lt (const T& a, const T& b) { return a < b; }
+template<class T, class B> B do_gt (const T& a, const T& b) { return a > b; }
+template<class T, class B> B do_le (const T& a, const T& b) { return a <= b; }
+template<class T, class B> B do_ge (const T& a, const T& b) { return a >= b; }
+template<class T, class B> B do_eq (const T& a, const T& b) { return a == b; }
+template<class T, class B> B do_ne (const T& a, const T& b) { return a != b; }
 
 
 
 template<typename VEC>
 void test_comparisons ()
 {
+    typedef typename VEC::value_t ELEM;
+    typedef typename VEC::vbool_t vbool_t;
     std::cout << "test_comparisons " << VEC::type_name() << "\n";
 
-    VEC a (0, 1, 2, 3);
-    OIIO_CHECK_SIMD_EQUAL (a < 2, bool4(1,1,0,0));
-    OIIO_CHECK_SIMD_EQUAL (a > 2, bool4(0,0,0,1));
-    OIIO_CHECK_SIMD_EQUAL (a <= 2, bool4(1,1,1,0));
-    OIIO_CHECK_SIMD_EQUAL (a >= 2, bool4(0,0,1,1));
-    OIIO_CHECK_SIMD_EQUAL (a == 2, bool4(0,0,1,0));
-    OIIO_CHECK_SIMD_EQUAL (a != 2, bool4(1,1,0,1));
+    VEC a = VEC::Iota();
+    bool lt2[] = { 1, 1, 0, 0, 0, 0, 0, 0 };
+    bool gt2[] = { 0, 0, 0, 1, 1, 1, 1, 1 };
+    bool le2[] = { 1, 1, 1, 0, 0, 0, 0, 0 };
+    bool ge2[] = { 0, 0, 1, 1, 1, 1, 1, 1 };
+    bool eq2[] = { 0, 0, 1, 0, 0, 0, 0, 0 };
+    bool ne2[] = { 1, 1, 0, 1, 1, 1, 1, 1 };
+    OIIO_CHECK_SIMD_EQUAL (a < 2, vbool_t(lt2));
+    OIIO_CHECK_SIMD_EQUAL (a > 2, vbool_t(gt2));
+    OIIO_CHECK_SIMD_EQUAL (a <= 2, vbool_t(le2));
+    OIIO_CHECK_SIMD_EQUAL (a >= 2, vbool_t(ge2));
+    OIIO_CHECK_SIMD_EQUAL (a == 2, vbool_t(eq2));
+    OIIO_CHECK_SIMD_EQUAL (a != 2, vbool_t(ne2));
+    VEC b (ELEM(2));
+    OIIO_CHECK_SIMD_EQUAL (a < b, vbool_t(lt2));
+    OIIO_CHECK_SIMD_EQUAL (a > b, vbool_t(gt2));
+    OIIO_CHECK_SIMD_EQUAL (a <= b, vbool_t(le2));
+    OIIO_CHECK_SIMD_EQUAL (a >= b, vbool_t(ge2));
+    OIIO_CHECK_SIMD_EQUAL (a == b, vbool_t(eq2));
+    OIIO_CHECK_SIMD_EQUAL (a != b, vbool_t(ne2));
+    benchmark2 ("operator< ", benchsize, do_lt<VEC,vbool_t>, a, b);
+    benchmark2 ("operator> ", benchsize, do_gt<VEC,vbool_t>, a, b);
+    benchmark2 ("operator<=", benchsize, do_le<VEC,vbool_t>, a, b);
+    benchmark2 ("operator>=", benchsize, do_ge<VEC,vbool_t>, a, b);
+    benchmark2 ("operator==", benchsize, do_eq<VEC,vbool_t>, a, b);
+    benchmark2 ("operator!=", benchsize, do_ne<VEC,vbool_t>, a, b);
 }
 
 
@@ -1112,6 +1166,7 @@ main (int argc, char *argv[])
     std::cout << "\n";
     test_loadstore<float4> ();
     test_component_access<float4> ();
+    test_arithmetic<float3> ();
     test_arithmetic<float4> ();
     test_comparisons<float4> ();
     test_shuffle<float4> ();
@@ -1124,7 +1179,6 @@ main (int argc, char *argv[])
     std::cout << "\n";
     test_loadstore<float3> ();
     test_component_access<float3> ();
-    test_arithmetic<float3> ();
     // Unnecessary to test these, they just use the float4 ops.
     // test_comparisons<float3> ();
     // test_shuffle<float3> ();
@@ -1140,9 +1194,12 @@ main (int argc, char *argv[])
     test_component_access<int4> ();
     test_component_access<int8> ();
     test_arithmetic<int4> ();
+    test_arithmetic<int8> ();
     test_bitwise_int<int4> ();
     test_bitwise_int<int8> ();
     test_comparisons<int4> ();
+    test_comparisons<int8> ();
+
     test_shuffle<int4> ();
     test_swizzle<float4> ();
     test_blend<int4> ();

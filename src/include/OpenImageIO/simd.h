@@ -427,6 +427,13 @@ template<int i> bool extract (const bool8& a);
 template<int i> bool4 insert (const bool4& a, bool val);
 template<int i> bool8 insert (const bool8& a, bool val);
 
+// Extract the low or high 4 ints from an int8
+bool4 extract_lo (const bool8 &v);
+bool4 extract_hi (const bool8 &v);
+
+// Concatenate two bool4's to make an bool8
+bool8 join (const bool4& lo, const bool4 &hi);
+
 /// Logical "and" reduction across all components.
 template<int N>
 bool reduce_and (const vbool<N>& v);
@@ -524,7 +531,7 @@ public:
 
     /// Return an vint with incremented components (e.g., 0,1,2,3).
     /// Optional argument can give a non-zero starting point.
-    static const vint Iota (int value=0);
+    static const vint Iota (int start=0, int step=1);
 
     /// Assign one value to all components.
     const vint & operator= (int a);
@@ -648,16 +655,21 @@ std::ostream& operator<< (std::ostream& cout, const vint<N> & a);
 /// Helper: shuffle/swizzle with constant (templated) indices.
 /// Example: shuffle<1,1,2,2>(bool4(a,b,c,d)) returns (b,b,c,c)
 template<int i0, int i1, int i2, int i3> int4 shuffle (const int4& a);
+template<int i0, int i1, int i2, int i3,
+         int i4, int i5, int i6, int i7> int8 shuffle (const int8& a);
 
 /// shuffle<i>(a) is the same as shuffle<i,i,i,i>(a)
 template<int i> int4 shuffle (const int4& a);
+template<int i> int8 shuffle (const int8& a);
 
 /// Helper: as rapid as possible extraction of one component, when the
 /// index is fixed.
 template<int i> int extract (const int4& v);
+template<int i> int extract (const int8& v);
 
 /// Helper: substitute val for a[i]
 template<int i> int4 insert (const int4& a, int val);
+template<int i> int8 insert (const int8& a, int val);
 
 // Extract the low or high 4 ints from an int8
 int4 extract_lo (const int8 &v);
@@ -667,7 +679,8 @@ int4 extract_hi (const int8 &v);
 int8 join (const int4& lo, const int4 &hi);
 
 /// The sum of all components, returned in all components.
-int4 vreduce_add (const int4& v);
+template<int N>
+vint<N> vreduce_add (const vint<N>& v);
 
 /// The sum of all components, returned as a scalar.
 template<int N>
@@ -750,6 +763,7 @@ public:
     enum { paddedelements = 4 }; ///< Number of scalar elements for full pad
     enum { bits = 128 };      ///< Total number of bits
     typedef simd_raw_t<float,4>::type simd_t;  ///< the native SIMD type used
+    typedef vbool<elements> vbool_t; ///< bool type of the same length
 
     /// Default constructor (contents undefined)
     float4 () { }
@@ -828,8 +842,9 @@ public:
     static const float4 One ();
 
     /// Return a float4 with incremented components (e.g., 0.0,1.0,2.0,3.0).
-    /// Optional argument can give a non-zero starting point.
-    static const float4 Iota (float value=0.0f);
+    /// Optional argument can give a non-zero starting point and non-1 step.
+    static const float4 Iota (float start=0.0f, float step=1.0f);
+
     /// Set all components to 0.0
     void clear ();
 
@@ -1114,9 +1129,9 @@ public:
     /// Return a float3 with all components set to 1.0
     static const float3 One ();
 
-    /// Return a float3 with incremented components (e.g., 0.0,1.0,2.0,3.0).
-    /// Optional argument can give a non-zero starting point.
-    static const float3 Iota (float value=0.0f);
+    /// Return a float3 with incremented components (e.g., 0.0,1.0,2.0).
+    /// Optional argument can give a non-zero starting point and non-1 step.
+    static const float3 Iota (float start=0.0f, float step=1.0f);
 
     /// Helper: load a single value into all components
     void load (float val);
@@ -1545,6 +1560,36 @@ OIIO_FORCEINLINE void vbool<N>::store (bool *values, int n) const {
         values[i] = m_val[i] ? true : false;
 }
 
+
+OIIO_FORCEINLINE bool4 extract_lo (const bool8 &v) {
+#if OIIO_SIMD_AVX
+    return _mm256_castps256_ps128 (v.simd());
+#else
+    return *(const bool4 *)&v;
+#endif
+}
+
+OIIO_FORCEINLINE bool4 extract_hi (const bool8 &v) {
+#if OIIO_SIMD_AVX
+    return _mm256_extractf128_ps (v.simd(), 1);
+#else
+    return bool4 ((const bool4 *)&v + 1);
+#endif
+}
+
+
+OIIO_FORCEINLINE bool8 join (const bool4& lo, const bool4 &hi) {
+#if OIIO_SIMD_AVX
+    __m256i r = _mm256_castps128_ps256 (lo.simd());
+    return _mm256_insertf128_ps (r, hi.simd(), 1);
+#else
+    bool4 b4[2] = { lo, hi };
+    return *(bool8 *)&b4;
+#endif
+}
+
+
+
 OIIO_FORCEINLINE bool4 operator! (const bool4 & a) {
 #if OIIO_SIMD_SSE
     return _mm_xor_ps (a.simd(), bool4::True());
@@ -1806,8 +1851,6 @@ OIIO_FORCEINLINE bool8 insert (const bool8& a, bool val) {
 #endif
 }
 
-
-// FIXME(SSE/AVX): Can we use swizzling to make the reduce ops faster?
 
 template<int N>
 OIIO_FORCEINLINE bool reduce_and (const vbool<N>& v) {
@@ -2212,13 +2255,13 @@ OIIO_FORCEINLINE const vint<4> vint<4>::NegOne () {
 #endif
 
 
-template<> OIIO_FORCEINLINE const vint<4> vint<4>::Iota (int value) {
-    return vint<4>(value+0,value+1,value+2,value+3);
+template<> OIIO_FORCEINLINE const int4 int4::Iota (int start, int step) {
+    return int4 (start+0*step, start+1*step, start+2*step, start+3*step);
 }
 
-template<> OIIO_FORCEINLINE const vint<8> vint<8>::Iota (int value) {
-    return vint<8>(value+0,value+1,value+2,value+3,
-                   value+4,value+5,value+6,value+7);
+template<> OIIO_FORCEINLINE const int8 int8::Iota (int start, int step) {
+    return int8 (start+0*step, start+1*step, start+2*step, start+3*step,
+                 start+4*step, start+5*step, start+6*step, start+7*step);
 }
 
 
@@ -2244,10 +2287,8 @@ OIIO_FORCEINLINE int8 join (const int4& lo, const int4 &hi) {
     __m256i r = _mm256_castsi128_si256 (lo.simd());
     return _mm256_insertf128_si256 (r, hi.simd(), 1);
 #else
-    int i8[8];
-    lo.store (i8+0);
-    hi.store (i8+4);
-    return int8 (i8);
+    int4 i4[2] = { lo, hi };
+    return *(int8 *)&i4;
 #endif
 }
 
@@ -2602,6 +2643,9 @@ OIIO_FORCEINLINE bool4 operator== (const int4& a, const int4& b) {
 OIIO_FORCEINLINE bool8 operator== (const int8& a, const int8& b) {
 #if OIIO_SIMD_AVX >= 2
     return _mm256_castsi256_ps(_mm256_cmpeq_epi32 (a.m_vec, b.m_vec));
+#elif OIIO_SIMD_SSE  /* Fall back to 4-wide */
+    return join (extract_lo(a) == extract_lo(b),
+                 extract_hi(a) == extract_hi(b));
 #else
     SIMD_RETURN (bool8, a[i] == b[i] ? -1 : 0);
 #endif
@@ -2628,6 +2672,9 @@ OIIO_FORCEINLINE bool4 operator> (const int4& a, const int4& b) {
 OIIO_FORCEINLINE bool8 operator> (const int8& a, const int8& b) {
 #if OIIO_SIMD_AVX >= 2
     return _mm256_castsi256_ps(_mm256_cmpgt_epi32 (a.m_vec, b.m_vec));
+#elif OIIO_SIMD_SSE  /* Fall back to 4-wide */
+    return join (extract_lo(a) > extract_lo(b),
+                 extract_hi(a) > extract_hi(b));
 #else
     SIMD_RETURN (bool8, a[i] > b[i] ? -1 : 0);
 #endif
@@ -2646,6 +2693,9 @@ OIIO_FORCEINLINE bool8 operator< (const int8& a, const int8& b) {
 #if OIIO_SIMD_AVX >= 2
     // No lt or lte!
     return (b > a) | (a == b);
+#elif OIIO_SIMD_SSE  /* Fall back to 4-wide */
+    return join (extract_lo(a) < extract_lo(b),
+                 extract_hi(a) < extract_hi(b));
 #else
     SIMD_RETURN (bool8, a[i] < b[i] ? -1 : 0);
 #endif
@@ -2785,6 +2835,12 @@ OIIO_FORCEINLINE int extract (const int4& v) {
 #endif
 }
 
+#if OIIO_SIMD_SSE
+template<> OIIO_FORCEINLINE int extract<0> (const int4& v) {
+    return _mm_cvtsi128_si32(v.simd());
+}
+#endif
+
 template<int i>
 OIIO_FORCEINLINE int extract (const int8& v) {
 #if OIIO_SIMD_AVX
@@ -2850,6 +2906,12 @@ OIIO_FORCEINLINE int8 bitcast_to_int8 (const bool8& x)
 
 // FIXME(AVX): 8-way reductions
 
+template<int N>
+OIIO_FORCEINLINE vint<N> vreduce_add (const vint<N>& v) {
+    SIMD_RETURN_REDUCE (vint<N>, 0, r += v[i]);
+}
+
+#if OIIO_SIMD_SSE
 OIIO_FORCEINLINE int4 vreduce_add (const int4& v) {
 #if OIIO_SIMD_SSE >= 3
     // People seem to agree that SSE3 does add reduction best with 2
@@ -2860,7 +2922,7 @@ OIIO_FORCEINLINE int4 vreduce_add (const int4& v) {
     simd::int4 abcd = _mm_hadd_epi32 (ab_cd.simd(), ab_cd.simd());
     // all abcd elements are a+b+c+d, return an element as fast as possible
     return abcd;
-#elif defined(OIIO_SIMD_SSE)
+#else /* SSE 2 */
     // I think this is the best we can do for SSE2, and I'm still not sure
     // it's faster than the default scalar operation. But anyway...
     // suppose v = (a, b, c, d)
@@ -2870,20 +2932,40 @@ OIIO_FORCEINLINE int4 vreduce_add (const int4& v) {
     // cd_cd_ab_ab = (c+d,c+d,a+b,a+b)
     int4 abcd = ab_ab_cd_cd + cd_cd_ab_ab;   // a+b+c+d in all components
     return abcd;
-#else
-    SIMD_RETURN_REDUCE (int4, 0, r += v[i]);
 #endif
 }
+#endif
+
+#if OIIO_SIMD_AVX
+OIIO_FORCEINLINE int8 vreduce_add (const int8& v) {
+#if OIIO_SIMD_AVX >= 2
+    // From Syrah:
+    // ab, cd, 0, 0, ef, gh, 0, 0
+    int8 ab_cd_0_0_ef_gh_0_0 = _mm256_hadd_epi32(v.simd(), _mm256_setzero_epi32());
+    int8 abcd_0_0_0_efgh_0_0_0 = _mm256_hadd_epi32(ab_cd_0_0_ef_gh_0_0, _mm256_setzero_epi32());
+    // get efgh in the 0-idx slot
+    int8 efgh = _mm256_permute2f128_ps(_mm256_castsi256_ps(abcd_0_0_0_efgh_0_0_0), _mm256_castsi256_ps(abcd_0_0_0_efgh_0_0_0), 0x1);
+    int8 final_sum = abcd_0_0_0_efgh_0_0_0 + efgh;
+    return shuffle<0>(final_sum);
+#else /* AVX 1 */
+    int4 abcd = extract_lo(v);
+    int4 efgh = extract_hi(v);
+    int4 hadd4 = vreduce_add(abcd) + vreduce_add(efgh);
+    return join(hadd4, hadd4);
+#endif
+}
+#endif
 
 
+#if OIIO_SIMD_SSE
+template<int N>
+OIIO_FORCEINLINE int reduce_add (const vint<N>& v) {
+    return extract<0> (vreduce_add(v));
+}
+#else
 template<int N>
 OIIO_FORCEINLINE int reduce_add (const vint<N>& v) {
     SIMD_RETURN_REDUCE (int, 0, r += v[i]);
-}
-
-#if OIIO_SIMD_SSE
-template<> OIIO_FORCEINLINE int reduce_add (const int4& v) {
-    return _mm_cvtsi128_si32(vreduce_add(v));
 }
 #endif
 
@@ -2895,11 +2977,21 @@ OIIO_FORCEINLINE int reduce_and (const vint<N>& v) {
 
 #if OIIO_SIMD_SSE
 template<> OIIO_FORCEINLINE int reduce_and (const int4& v) {
-    // I think this is the best we can do for SSE, and I'm still not sure
-    // it's faster than the default scalar operation. But anyway...
-    // suppose v = (a, b, c, d)
-    int4 x = shuffle<1,0,3,2>(v) & v;
-    return extract<0>(x) & extract<2>(x);
+    int4 ab = v & shuffle<1,1,3,3>(v); // ab bb cd dd
+    int4 abcd = ab & shuffle<2>(ab);
+    return extract<0>(abcd);
+}
+
+template<> OIIO_FORCEINLINE int reduce_and (const int8& v) {
+#if OIIO_SSE_AVX >= 2
+    int8 ab = v & shuffle<1,1,3,3,5,5,7,7>(v); // ab bb cd dd ef ff gh hh
+    int8 abcd = ab & shuffle<2,2,2,2,6,6,6,6>(ab); // abcd x x x efgh x x x
+    int8 abcdefgh = abcd & shuffle<4>(abcdefgh); // abcdefgh x x x x x x x
+    return extract<0> (abcdefgh);
+#else
+    // AVX 1.0 -- use SSE
+    return reduce_and(extract_lo(v)) & reduce_and(extract_hi(v));
+#endif
 }
 #endif
 
@@ -2920,8 +3012,6 @@ template<> OIIO_FORCEINLINE int reduce_or (const int4& v) {
 #endif
 
 
-// FIXME(AVX): implement blend
-
 template<int N>
 OIIO_FORCEINLINE vint<N> blend (const vint<N>& a, const vint<N>& b, const vbool<N>& mask)
 {
@@ -2929,15 +3019,21 @@ OIIO_FORCEINLINE vint<N> blend (const vint<N>& a, const vint<N>& b, const vbool<
 }
 
 #if OIIO_SIMD_SSE >= 4 /* SSE >= 4.1 */
-template<> OIIO_FORCEINLINE int4 blend (const int4& a, const int4& b, const bool4& mask)
-{
-    return _mm_blendv_epi8 (a.simd(), b.simd(), _mm_castps_si128(mask));
+template<> OIIO_FORCEINLINE int4 blend (const int4& a, const int4& b, const bool4& mask) {
+    return _mm_castps_si128 (_mm_blendv_ps (_mm_castsi128_ps(a.simd()),
+                                            _mm_castsi128_ps(b.simd()), mask));
 }
 #elif OIIO_SIMD_SSE /* SSE2 */
-template<> OIIO_FORCEINLINE int4 blend (const int4& a, const int4& b, const bool4& mask)
-{
+template<> OIIO_FORCEINLINE int4 blend (const int4& a, const int4& b, const bool4& mask) {
     return _mm_or_si128 (_mm_and_si128(_mm_castps_si128(mask.simd()), b.simd()),
                          _mm_andnot_si128(_mm_castps_si128(mask.simd()), a.simd()));
+}
+#endif
+
+#if OIIO_SIMD_AVX
+template<> OIIO_FORCEINLINE int8 blend (const int8& a, const int8& b, const bool8& mask) {
+    return _mm256_castps_si256 (_mm256_blendv_ps (_mm256_castsi256_ps(a.simd()),
+                                                  _mm256_castsi256_ps(b.simd()), mask));
 }
 #endif
 
@@ -2949,9 +3045,14 @@ OIIO_FORCEINLINE vint<N> blend0 (const vint<N>& a, const vbool<N>& mask)
 }
 
 #if OIIO_SIMD_SSE
-template<> OIIO_FORCEINLINE int4 blend0 (const int4& a, const bool4& mask)
-{
+template<> OIIO_FORCEINLINE int4 blend0 (const int4& a, const bool4& mask) {
     return _mm_and_si128(_mm_castps_si128(mask), a.simd());
+}
+#endif
+
+#if OIIO_SIMD_AVX
+template<> OIIO_FORCEINLINE int8 blend0 (const int8& a, const bool8& mask) {
+    return _mm256_castps_si256(_mm256_and_ps(_mm256_castsi256_ps(a.simd()), mask));
 }
 #endif
 
@@ -2966,6 +3067,13 @@ OIIO_FORCEINLINE vint<N> blend0not (const vint<N>& a, const vbool<N>& mask)
 template<> OIIO_FORCEINLINE int4 blend0not (const int4& a, const bool4& mask)
 {
     return _mm_andnot_si128(_mm_castps_si128(mask), a.simd());
+}
+#endif
+
+#if OIIO_SIMD_AVX
+template<> OIIO_FORCEINLINE int8 blend0not (const int8& a, const bool8& mask)
+{
+    return _mm256_andnot_ps (mask.simd(), _mm256_castsi256_ps(a.simd()));
 }
 #endif
 
@@ -3092,8 +3200,8 @@ OIIO_FORCEINLINE const float4 float4::One () {
     return float4(1.0f);
 }
 
-OIIO_FORCEINLINE const float4 float4::Iota (float value) {
-    return float4(value,value+1.0f,value+2.0f,value+3.0f);
+OIIO_FORCEINLINE const float4 float4::Iota (float start, float step) {
+    return float4 (start+0.0f*step, start+1.0f*step, start+2.0f*step, start+3.0f*step);
 }
 
     /// Set all components to 0.0
@@ -4272,8 +4380,8 @@ OIIO_FORCEINLINE const float3 float3::Zero () { return float3(float4::Zero()); }
 
 OIIO_FORCEINLINE const float3 float3::One () { return float3(1.0f); }
 
-OIIO_FORCEINLINE const float3 float3::Iota (float value) {
-    return float3(value,value+1.0f,value+2.0f);
+OIIO_FORCEINLINE const float3 float3::Iota (float start, float step) {
+    return float3 (start+0.0f*step, start+1.0f*step, start+2.0f*step);
 }
 
 
