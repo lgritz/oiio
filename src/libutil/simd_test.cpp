@@ -52,6 +52,7 @@ using namespace OIIO::simd;
 static int iterations = 10;
 static int ntrials = 5;
 static bool verbose = false;
+static size_t benchsize = 1000000;
 
 
 static void
@@ -120,8 +121,8 @@ OIIO_CHECK_SIMD_EQUAL_impl (const X& x, const Y& y,
 #if OIIO_CPLUSPLUS_VERSION >= 11  /* So easy with lambdas */
 
 template <typename FUNC, typename T>
-void benchmark_function (string_view funcname, size_t n, FUNC func, T x,
-                         size_t work=SimdElements<T>::size)
+void benchmark (string_view funcname, size_t n, FUNC func, T x,
+                size_t work=SimdElements<T>::size)
 {
     auto repeat_func = [&](){
         // Unroll the loop 8 times
@@ -137,15 +138,15 @@ void benchmark_function (string_view funcname, size_t n, FUNC func, T x,
         }
     };
     float time = time_trial (repeat_func, ntrials, iterations) / iterations;
-    std::cout << Strutil::format (" %s: %7.1f Mvals/sec, (%.1f Mcalls/sec)\n",
+    std::cout << Strutil::format ("  %s: %7.1f Mvals/sec, (%.1f Mcalls/sec)\n",
                                   funcname, (n/1.0e6)/time,
                                   ((n/work)/1.0e6)/time);
 }
 
 
 template <typename FUNC, typename T, typename U>
-void benchmark_function2 (string_view funcname, size_t n, FUNC func, T x, U y,
-                          size_t work=SimdElements<T>::size)
+void benchmark2 (string_view funcname, size_t n, FUNC func, T x, U y,
+                 size_t work=SimdElements<T>::size)
 {
     auto repeat_func = [&](){
         // Unroll the loop 8 times
@@ -161,7 +162,7 @@ void benchmark_function2 (string_view funcname, size_t n, FUNC func, T x, U y,
         }
     };
     float time = time_trial (repeat_func, ntrials, iterations) / iterations;
-    std::cout << Strutil::format (" %s: %7.1f Mvals/sec, (%.1f Mcalls/sec)\n",
+    std::cout << Strutil::format ("  %s: %7.1f Mvals/sec, (%.1f Mcalls/sec)\n",
                                   funcname, (n/1.0e6)/time,
                                   ((n/work)/1.0e6)/time);
 }
@@ -169,8 +170,8 @@ void benchmark_function2 (string_view funcname, size_t n, FUNC func, T x, U y,
 #else
 
 // No support of lambdas, just skip the benchmarks
-#define benchmark_function(x)
-#define benchmark_function2(x)
+#define benchmark(x)
+    #define benchmark2(x)
 
 #endif
 
@@ -315,12 +316,10 @@ void test_component_access ()
     typedef typename VEC::value_t ELEM;
     std::cout << "test_component_access " << VEC::type_name() << "\n";
 
-    VEC a = mkvec<VEC> (0, 1, 2, 3);
-    OIIO_CHECK_EQUAL (a[0], 0);
-    OIIO_CHECK_EQUAL (a[1], 1);
-    OIIO_CHECK_EQUAL (a[2], 2);
-    if (SimdElements<VEC>::size > 3)
-        OIIO_CHECK_EQUAL (a[3], 3);
+    const ELEM vals[] = { 0, 1, 2, 3, 4, 5, 6, 7 };
+    VEC a = mkvec<VEC>(0, 1, 2, 3, 4, 5, 6, 7);
+    for (int i = 0; i < VEC::elements; ++i)
+        OIIO_CHECK_EQUAL (a[i], vals[i]);
     OIIO_CHECK_EQUAL (a.x(), 0);
     OIIO_CHECK_EQUAL (a.y(), 1);
     OIIO_CHECK_EQUAL (a.z(), 2);
@@ -331,31 +330,36 @@ void test_component_access ()
     OIIO_CHECK_EQUAL (extract<2>(a), 2);
     if (SimdElements<VEC>::size > 3)
         OIIO_CHECK_EQUAL (extract<3>(a), 3);
-    OIIO_CHECK_SIMD_EQUAL (insert<0>(a, ELEM(42)), mkvec<VEC>(42,1,2,3));
-    OIIO_CHECK_SIMD_EQUAL (insert<1>(a, ELEM(42)), mkvec<VEC>(0,42,2,3));
-    OIIO_CHECK_SIMD_EQUAL (insert<2>(a, ELEM(42)), mkvec<VEC>(0,1,42,3));
+    OIIO_CHECK_SIMD_EQUAL (insert<0>(a, ELEM(42)), mkvec<VEC>(42,1,2,3,4,5,6,7));
+    OIIO_CHECK_SIMD_EQUAL (insert<1>(a, ELEM(42)), mkvec<VEC>(0,42,2,3,4,5,6,7));
+    OIIO_CHECK_SIMD_EQUAL (insert<2>(a, ELEM(42)), mkvec<VEC>(0,1,42,3,4,5,6,7));
     if (SimdElements<VEC>::size > 3)
-        OIIO_CHECK_SIMD_EQUAL (insert<3>(a, ELEM(42)), mkvec<VEC>(0,1,2,42));
+        OIIO_CHECK_SIMD_EQUAL (insert<3>(a, ELEM(42)), mkvec<VEC>(0,1,2,42,4,5,6,7));
     VEC t;
-    t = a; t.set_x(42); OIIO_CHECK_SIMD_EQUAL (t, mkvec<VEC>(42,1,2,3));
-    t = a; t.set_y(42); OIIO_CHECK_SIMD_EQUAL (t, mkvec<VEC>(0,42,2,3));
-    t = a; t.set_z(42); OIIO_CHECK_SIMD_EQUAL (t, mkvec<VEC>(0,1,42,3));
+    t = a; t.set_x(42); OIIO_CHECK_SIMD_EQUAL (t, mkvec<VEC>(42,1,2,3,4,5,6,7));
+    t = a; t.set_y(42); OIIO_CHECK_SIMD_EQUAL (t, mkvec<VEC>(0,42,2,3,4,5,6,7));
+    t = a; t.set_z(42); OIIO_CHECK_SIMD_EQUAL (t, mkvec<VEC>(0,1,42,3,4,5,6,7));
     if (SimdElements<VEC>::size > 3) {
-        t = a; t.set_w(42); OIIO_CHECK_SIMD_EQUAL (t, mkvec<VEC>(0,1,2,42));
+        t = a; t.set_w(42); OIIO_CHECK_SIMD_EQUAL (t, mkvec<VEC>(0,1,2,42,4,5,6,7));
     }
 
-    const ELEM vals[4] = { 0, 1, 2, 3 };
     VEC b (vals);
-    OIIO_CHECK_EQUAL (b[0], 0);
-    OIIO_CHECK_EQUAL (b[1], 1);
-    OIIO_CHECK_EQUAL (b[2], 2);
-    if (SimdElements<VEC>::size > 3)
-        OIIO_CHECK_EQUAL (b[3], 3);
+    for (int i = 0; i < VEC::elements; ++i)
+        OIIO_CHECK_EQUAL (b[i], vals[i]);
     OIIO_CHECK_EQUAL (extract<0>(b), 0);
     OIIO_CHECK_EQUAL (extract<1>(b), 1);
     OIIO_CHECK_EQUAL (extract<2>(b), 2);
     if (SimdElements<VEC>::size > 3)
         OIIO_CHECK_EQUAL (extract<3>(b), 3);
+
+    benchmark2 ("operator[i]", benchsize,
+                [&](const VEC& v, int i){ return v[i]; },  b, 2, 1);
+    benchmark2 ("operator[2]", benchsize,
+                [&](const VEC& v, int i){ return v[2]; },  b, 2, 1);
+    benchmark2 ("extract<2> ", benchsize,
+                [&](const VEC& v, int i){ return extract<2>(v); },  b, 2, 1);
+    benchmark2 ("insert<2> ", benchsize,
+                [&](const VEC& v, ELEM i){ return insert<2>(v, i); }, b, ELEM(1), 1);
 }
 
 
@@ -434,12 +438,13 @@ void test_arithmetic ()
     typedef typename VEC::value_t ELEM;
     std::cout << "test_arithmetic " << VEC::type_name() << "\n";
 
-    VEC a (10, 11, 12, 13);
-    VEC b (1, 2, 3, 4);
-    OIIO_CHECK_SIMD_EQUAL (a+b, VEC(11,13,15,17));
-    OIIO_CHECK_SIMD_EQUAL (a-b, VEC(9,9,9,9));
-    OIIO_CHECK_SIMD_EQUAL (a*b, VEC(10,22,36,52));
-    OIIO_CHECK_SIMD_EQUAL (a/b, VEC(a[0]/b[0],a[1]/b[1],a[2]/b[2],a[3]/b[3]));
+    VEC a = mkvec<VEC> (10, 11, 12, 13, 14, 15, 16, 17);
+    VEC b = mkvec<VEC> (1, 2, 3, 4, 5, 6, 7, 8);
+    OIIO_CHECK_SIMD_EQUAL (a+b, mkvec<VEC>(11,13,15,17,19,21,23,25));
+    OIIO_CHECK_SIMD_EQUAL (a-b, mkvec<VEC>(9,9,9,9,9,9,9,9));
+    OIIO_CHECK_SIMD_EQUAL (a*b, mkvec<VEC>(10,22,36,52,70,90,112,136));
+    OIIO_CHECK_SIMD_EQUAL (a/b, mkvec<VEC>(a[0]/b[0],a[1]/b[1],a[2]/b[2],a[3]/b[3],
+                                           a[4]/b[4],a[5]/b[5],a[6]/b[6],a[7]/b[7]));
     if (is_same<VEC,float3>::value)
         OIIO_CHECK_EQUAL (reduce_add(b), ELEM(6));
     else
@@ -486,19 +491,33 @@ void test_fused ()
 
 
 
-void test_bitwise_int4 ()
+template<typename T> T logicand (const T& a, const T& b) { return a & b; }
+template<typename T> T logicor  (const T& a, const T& b) { return a | b; }
+template<typename T> T logicxor (const T& a, const T& b) { return a ^ b; }
+template<typename T> T logiccompl (const T& a) { return ~a; }
+template<typename T> T logicandnot (const T& a, const T& b) { return andnot(a,b); }
+
+
+
+template<typename VEC>
+void test_bitwise_int ()
 {
-    typedef int4 VEC;
-    typedef int ELEM;
+    typedef typename VEC::value_t ELEM;
     std::cout << "test_bitwise " << VEC::type_name() << "\n";
 
-    OIIO_CHECK_SIMD_EQUAL (VEC(0x12341234) & VEC(0x11111111), VEC(0x10101010));
-    OIIO_CHECK_SIMD_EQUAL (VEC(0x12341234) | VEC(0x11111111), VEC(0x13351335));
-    OIIO_CHECK_SIMD_EQUAL (VEC(0x12341234) ^ VEC(0x11111111), VEC(0x03250325));
-    OIIO_CHECK_SIMD_EQUAL (~(VEC(0x12341234)), VEC(0xedcbedcb));
-    OIIO_CHECK_SIMD_EQUAL (andnot (VEC(0x11111111), VEC(0x12341234)),
-                           (~(VEC(0x11111111))) & VEC(0x12341234));
-    OIIO_CHECK_SIMD_EQUAL (andnot (VEC(0x11111111), VEC(0x12341234)), VEC(0x02240224));
+    VEC a (0x12341234);
+    VEC b (0x11111111);
+    OIIO_CHECK_SIMD_EQUAL (a & b, VEC(0x10101010));
+    OIIO_CHECK_SIMD_EQUAL (a | b, VEC(0x13351335));
+    OIIO_CHECK_SIMD_EQUAL (a ^ b, VEC(0x03250325));
+    OIIO_CHECK_SIMD_EQUAL (~(a), VEC(0xedcbedcb));
+    OIIO_CHECK_SIMD_EQUAL (andnot (b, a), (~(b)) & a);
+    OIIO_CHECK_SIMD_EQUAL (andnot (b, a), VEC(0x02240224));
+    benchmark2 ("operator&", benchsize, logicand<VEC>, a, b);
+    benchmark2 ("operator|", benchsize, logicor<VEC>, a, b);
+    benchmark2 ("operator^", benchsize, logicxor<VEC>, a, b);
+    benchmark  ("operator!", benchsize, logiccompl<VEC>, a);
+    benchmark2 ("andnot",    benchsize, logicandnot<VEC>, a, b);
 }
 
 
@@ -520,6 +539,10 @@ void test_bitwise_bool ()
     OIIO_CHECK_SIMD_EQUAL (a | b, ror);
     OIIO_CHECK_SIMD_EQUAL (a ^ b, rxor);
     OIIO_CHECK_SIMD_EQUAL (~a, rnot);
+    benchmark2 ("operator&", benchsize, logicand<VEC>, a, b);
+    benchmark2 ("operator|", benchsize, logicor<VEC>, a, b);
+    benchmark2 ("operator^", benchsize, logicxor<VEC>, a, b);
+    benchmark ("operator!", benchsize, logiccompl<VEC>, a);
 }
 
 
@@ -989,73 +1012,73 @@ void test_timing ()
         dummy_float[i] = 1.0f;
         dummy_int[i] = 1;
     }
-    benchmark_function ("load/store float4", size, loadstore_vec<float4>, 0);
-    benchmark_function ("load/store float4, 4 comps", size, loadstore_vec_N<float4, 4>, 0);
-    benchmark_function ("load/store float4, 3 comps", size, loadstore_vec_N<float4, 3>, 0);
-    benchmark_function ("load/store float4, 2 comps", size, loadstore_vec_N<float4, 2>, 0);
-    benchmark_function ("load/store float4, 1 comps", size, loadstore_vec_N<float4, 1>, 0);
-    benchmark_function ("load/store float3", size, loadstore_vec<float3>, 0);
-    benchmark_function ("load/store int4", size, loadstore_vec<int4>, 0);
-    benchmark_function ("load/store bool4", size, loadstore_vec<bool4>, 0);
-    benchmark_function ("float4(const)", size, construct_one<float4>, 0);
-    benchmark_function ("float4 = const", size, assign_one<float4>, 0);
-    benchmark_function ("float4 = One()", size, assign_onemethod<float4>, 0);
-    benchmark_function ("float4 = Zero()", size, assign_zeromethod<float4>, 0);
+    benchmark ("load/store float4", size, loadstore_vec<float4>, 0);
+    benchmark ("load/store float4, 4 comps", size, loadstore_vec_N<float4, 4>, 0);
+    benchmark ("load/store float4, 3 comps", size, loadstore_vec_N<float4, 3>, 0);
+    benchmark ("load/store float4, 2 comps", size, loadstore_vec_N<float4, 2>, 0);
+    benchmark ("load/store float4, 1 comps", size, loadstore_vec_N<float4, 1>, 0);
+    benchmark ("load/store float3", size, loadstore_vec<float3>, 0);
+    benchmark ("load/store int4", size, loadstore_vec<int4>, 0);
+    benchmark ("load/store bool4", size, loadstore_vec<bool4>, 0);
+    benchmark ("float4(const)", size, construct_one<float4>, 0);
+    benchmark ("float4 = const", size, assign_one<float4>, 0);
+    benchmark ("float4 = One()", size, assign_onemethod<float4>, 0);
+    benchmark ("float4 = Zero()", size, assign_zeromethod<float4>, 0);
 
-    benchmark_function2 ("add float", size, add_vec<float>, float(2.51f), float(3.1f));
-    benchmark_function2 ("add float4", size, add_vec<float4>, float4(2.51f), float4(3.1f));
-    benchmark_function2 ("add float3", size, add_vec<float3>, float3(2.51f), float3(3.1f));
-    benchmark_function2 ("add Imath::V3f", size, add_vec<Imath::V3f>, Imath::V3f(2.51f,1.0f,1.0f), Imath::V3f(3.1f,1.0f,1.0f));
-    benchmark_function2 ("add Imath::V3f with simd", size, add_vec_simd, Imath::V3f(2.51f,1.0f,1.0f), Imath::V3f(3.1f,1.0f,1.0f));
-    benchmark_function2 ("add int", size, add_vec<int>, int(2), int(3));
-    benchmark_function2 ("add int4", size, add_vec<int4>, int4(2), int4(3));
-    benchmark_function2 ("mul float", size, mul_vec<float>, float(2.51f), float(3.1f));
-    benchmark_function2 ("mul float4", size, mul_vec<float4>, float4(2.51f), float4(3.1f));
-    benchmark_function2 ("mul float3", size, mul_vec<float3>, float3(2.51f), float3(3.1f));
-    benchmark_function2 ("mul Imath::V3f", size, mul_vec<Imath::V3f>, Imath::V3f(2.51f,0.0f,0.0f), Imath::V3f(3.1f,0.0f,0.0f));
-    benchmark_function2 ("div float", size, div_vec<float>, float(2.51f), float(3.1f));
-    benchmark_function2 ("div float4", size, div_vec<float4>, float4(2.51f), float4(3.1f));
-    benchmark_function2 ("div float3", size, div_vec<float3>, float3(2.51f), float3(3.1f));
-    benchmark_function2 ("div int", size, div_vec<int>, int(2), int(3));
-    benchmark_function2 ("div int4", size, div_vec<int4>, int4(2), int4(3));
-    benchmark_function ("dot Imath::V3f", size, dot_imath, Imath::V3f(2.0f,1.0f,0.0f), 1);
-    benchmark_function ("dot Imath::V3f with simd", size, dot_imath_simd, Imath::V3f(2.0f,1.0f,0.0f), 1);
-    benchmark_function ("dot float3", size, dot_simd, float3(2.0f,1.0f,0.0f), 1);
+    benchmark2 ("add float", size, add_vec<float>, float(2.51f), float(3.1f));
+    benchmark2 ("add float4", size, add_vec<float4>, float4(2.51f), float4(3.1f));
+    benchmark2 ("add float3", size, add_vec<float3>, float3(2.51f), float3(3.1f));
+    benchmark2 ("add Imath::V3f", size, add_vec<Imath::V3f>, Imath::V3f(2.51f,1.0f,1.0f), Imath::V3f(3.1f,1.0f,1.0f));
+    benchmark2 ("add Imath::V3f with simd", size, add_vec_simd, Imath::V3f(2.51f,1.0f,1.0f), Imath::V3f(3.1f,1.0f,1.0f));
+    benchmark2 ("add int", size, add_vec<int>, int(2), int(3));
+    benchmark2 ("add int4", size, add_vec<int4>, int4(2), int4(3));
+    benchmark2 ("mul float", size, mul_vec<float>, float(2.51f), float(3.1f));
+    benchmark2 ("mul float4", size, mul_vec<float4>, float4(2.51f), float4(3.1f));
+    benchmark2 ("mul float3", size, mul_vec<float3>, float3(2.51f), float3(3.1f));
+    benchmark2 ("mul Imath::V3f", size, mul_vec<Imath::V3f>, Imath::V3f(2.51f,0.0f,0.0f), Imath::V3f(3.1f,0.0f,0.0f));
+    benchmark2 ("div float", size, div_vec<float>, float(2.51f), float(3.1f));
+    benchmark2 ("div float4", size, div_vec<float4>, float4(2.51f), float4(3.1f));
+    benchmark2 ("div float3", size, div_vec<float3>, float3(2.51f), float3(3.1f));
+    benchmark2 ("div int", size, div_vec<int>, int(2), int(3));
+    benchmark2 ("div int4", size, div_vec<int4>, int4(2), int4(3));
+    benchmark ("dot Imath::V3f", size, dot_imath, Imath::V3f(2.0f,1.0f,0.0f), 1);
+    benchmark ("dot Imath::V3f with simd", size, dot_imath_simd, Imath::V3f(2.0f,1.0f,0.0f), 1);
+    benchmark ("dot float3", size, dot_simd, float3(2.0f,1.0f,0.0f), 1);
 
     Imath::V3f vx (2.51f,1.0f,1.0f);
     Imath::M44f mx (1,0,0,0, 0,1,0,0, 0,0,1,0, 10,11,12,1);
-    benchmark_function2 ("transformp Imath", size, transformp_imath, vx, mx, 1);
-    benchmark_function2 ("transformp Imath with simd", size, transformp_imath_simd, vx, mx, 1);
-    benchmark_function2 ("transformp simd", size, transformp_simd, float3(vx), mx, 1);
-    benchmark_function ("transpose m44", size, mat_transpose, mx, 1);
-    benchmark_function ("transpose m44 with simd", size, mat_transpose_simd, mx, 1);
+    benchmark2 ("transformp Imath", size, transformp_imath, vx, mx, 1);
+    benchmark2 ("transformp Imath with simd", size, transformp_imath_simd, vx, mx, 1);
+    benchmark2 ("transformp simd", size, transformp_simd, float3(vx), mx, 1);
+    benchmark ("transpose m44", size, mat_transpose, mx, 1);
+    benchmark ("transpose m44 with simd", size, mat_transpose_simd, mx, 1);
 
-    benchmark_function ("expf", size, expf, 0.67f);
-    benchmark_function ("fast_exp", size, fast_exp_float, 0.67f);
-    benchmark_function ("simd::exp", size, simd::exp, float4(0.67f));
-    benchmark_function ("simd::fast_exp", size, fast_exp_float4, float4(0.67f));
+    benchmark ("expf", size, expf, 0.67f);
+    benchmark ("fast_exp", size, fast_exp_float, 0.67f);
+    benchmark ("simd::exp", size, simd::exp, float4(0.67f));
+    benchmark ("simd::fast_exp", size, fast_exp_float4, float4(0.67f));
 
-    benchmark_function ("logf", size, logf, 0.67f);
-    benchmark_function ("fast_log", size, fast_log_float, 0.67f);
-    benchmark_function ("simd::log", size, simd::log, float4(0.67f));
-    benchmark_function ("simd::fast_log", size, fast_log_float4, float4(0.67f));
-    benchmark_function2 ("powf", size, powf, 0.67f, 0.67f);
-    benchmark_function2 ("simd fast_pow_pos", size, fast_pow_pos, float4(0.67f), float4(0.67f));
-    benchmark_function ("sqrt", size, sqrtf, 4.0f);
-    benchmark_function ("simd::sqrt", size, simd::sqrt, float4(1.0f,4.0f,9.0f,16.0f));
-    benchmark_function ("rsqrt", size, rsqrtf, 4.0f);
-    benchmark_function ("simd::rsqrt", size, simd::rsqrt, float4(1.0f,4.0f,9.0f,16.0f));
-    benchmark_function ("simd::rsqrt_fast", size, simd::rsqrt_fast, float4(1.0f,4.0f,9.0f,16.0f));
-    benchmark_function ("normalize Imath", size, norm_imath, Imath::V3f(1.0f,4.0f,9.0f));
-    benchmark_function ("normalize Imath with simd", size, norm_imath_simd, Imath::V3f(1.0f,4.0f,9.0f));
-    benchmark_function ("normalize Imath with simd fast", size, norm_imath_simd_fast, Imath::V3f(1.0f,4.0f,9.0f));
-    benchmark_function ("normalize simd", size, norm_simd, float3(1.0f,4.0f,9.0f));
-    benchmark_function ("normalize simd fast", size, norm_simd_fast, float3(1.0f,4.0f,9.0f));
-    benchmark_function ("m44 inverse Imath", size/8, inverse_imath, mx, 1);
+    benchmark ("logf", size, logf, 0.67f);
+    benchmark ("fast_log", size, fast_log_float, 0.67f);
+    benchmark ("simd::log", size, simd::log, float4(0.67f));
+    benchmark ("simd::fast_log", size, fast_log_float4, float4(0.67f));
+    benchmark2 ("powf", size, powf, 0.67f, 0.67f);
+    benchmark2 ("simd fast_pow_pos", size, fast_pow_pos, float4(0.67f), float4(0.67f));
+    benchmark ("sqrt", size, sqrtf, 4.0f);
+    benchmark ("simd::sqrt", size, simd::sqrt, float4(1.0f,4.0f,9.0f,16.0f));
+    benchmark ("rsqrt", size, rsqrtf, 4.0f);
+    benchmark ("simd::rsqrt", size, simd::rsqrt, float4(1.0f,4.0f,9.0f,16.0f));
+    benchmark ("simd::rsqrt_fast", size, simd::rsqrt_fast, float4(1.0f,4.0f,9.0f,16.0f));
+    benchmark ("normalize Imath", size, norm_imath, Imath::V3f(1.0f,4.0f,9.0f));
+    benchmark ("normalize Imath with simd", size, norm_imath_simd, Imath::V3f(1.0f,4.0f,9.0f));
+    benchmark ("normalize Imath with simd fast", size, norm_imath_simd_fast, Imath::V3f(1.0f,4.0f,9.0f));
+    benchmark ("normalize simd", size, norm_simd, float3(1.0f,4.0f,9.0f));
+    benchmark ("normalize simd fast", size, norm_simd_fast, float3(1.0f,4.0f,9.0f));
+    benchmark ("m44 inverse Imath", size/8, inverse_imath, mx, 1);
     // std::cout << "inv " << matrix44(inverse_imath(mx)) << "\n";
-    benchmark_function ("m44 inverse_simd", size/8, inverse_simd, mx, 1);
+    benchmark ("m44 inverse_simd", size/8, inverse_simd, mx, 1);
     // std::cout << "inv " << inverse_simd(mx) << "\n";
-    benchmark_function ("m44 inverse_simd native simd", size/8, inverse_simd, matrix44(mx), 1);
+    benchmark ("m44 inverse_simd native simd", size/8, inverse_simd, matrix44(mx), 1);
     // std::cout << "inv " << inverse_simd(mx) << "\n";
 #endif
 }
@@ -1113,9 +1136,12 @@ main (int argc, char *argv[])
 
     std::cout << "\n";
     test_loadstore<int4> ();
+    test_loadstore<int8> ();
     test_component_access<int4> ();
+    test_component_access<int8> ();
     test_arithmetic<int4> ();
-    test_bitwise_int4 ();
+    test_bitwise_int<int4> ();
+    test_bitwise_int<int8> ();
     test_comparisons<int4> ();
     test_shuffle<int4> ();
     test_swizzle<float4> ();
@@ -1125,26 +1151,14 @@ main (int argc, char *argv[])
     test_int4_to_uint8s ();
     test_shift ();
 
-    test_loadstore<int8> ();
-    // test_component_access<int4> ();
-    // test_arithmetic<int4> ();
-    // test_bitwise_int4 ();
-    // test_comparisons<int4> ();
-    // test_shuffle<int4> ();
-    // test_swizzle<float4> ();
-    // test_blend<int4> ();
-    // test_transpose<int4> ();
-    // test_int4_to_uint16s ();
-    // test_int4_to_uint8s ();
-    // test_shift ();
 
     std::cout << "\n";
     test_shuffle<bool4> ();
-    test_component_access<bool4> ();
-    test_bitwise_bool<bool4> ();
     // test_shuffle<bool8> ();
+    test_component_access<bool4> ();
     test_component_access<bool8> ();
-    // test_bitwise_bool<bool8> ();
+    test_bitwise_bool<bool4> ();
+    test_bitwise_bool<bool8> ();
 
     test_constants();
     test_special();

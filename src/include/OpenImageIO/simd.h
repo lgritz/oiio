@@ -387,7 +387,7 @@ public:
     const vbool& operator|= (const vbool & a);
     friend vbool operator^ (const vbool& a, const vbool& b);
     const vbool & operator^= (const vbool& a);
-    vbool operator~ ();
+    vbool operator~ () const;
 
     /// Comparison operators, component by component
     friend const vbool operator== (const vbool & a, const vbool & b);
@@ -612,9 +612,9 @@ public:
     const vint & operator&= (const vint& a);
     const vint & operator|= (const vint& a);
     const vint & operator^= (const vint& a);
-    vint operator~ ();
+    vint operator~ () const;
     vint operator<< (const unsigned int bits) const;
-    vint operator>> (const unsigned int bits);
+    vint operator>> (const unsigned int bits) const;
     const vint & operator<<= (const unsigned int bits);
     const vint & operator>>= (const unsigned int bits);
 
@@ -1460,13 +1460,9 @@ OIIO_FORCEINLINE const vbool<N> & vbool<N>::operator= (bool a) {
     return *this;
 }
 
-template<>
-OIIO_FORCEINLINE const vbool<4> & vbool<4>::operator= (const vbool<4> & other) {
-#if OIIO_SIMD_SSE
+template<int N>
+OIIO_FORCEINLINE const vbool<N> & vbool<N>::operator= (const vbool<N> & other) {
     m_vec = other.m_vec;
-#else
-    SIMD_CONSTRUCT (other.m_val[i]);
-#endif
     return *this;
 }
 
@@ -1632,7 +1628,7 @@ OIIO_FORCEINLINE const vbool<N> & vbool<N>::operator^= (const vbool<N>& a) {
     return *this = *this ^ a;
 }
 
-template<> OIIO_FORCEINLINE bool4 bool4::operator~ () {
+template<> OIIO_FORCEINLINE bool4 bool4::operator~ () const {
 #if OIIO_SIMD_SSE
     // Fastest way to bit-complement in SSE is to xor with 0xffffffff.
     return _mm_xor_ps (m_vec, True());
@@ -1641,7 +1637,7 @@ template<> OIIO_FORCEINLINE bool4 bool4::operator~ () {
 #endif
 }
 
-template<> OIIO_FORCEINLINE bool8 bool8::operator~ () {
+template<> OIIO_FORCEINLINE bool8 bool8::operator~ () const {
 #if OIIO_SIMD_AVX
     // Fastest way to bit-complement in SSE is to xor with 0xffffffff.
     return _mm256_xor_ps (m_vec, True());
@@ -1736,14 +1732,33 @@ OIIO_FORCEINLINE bool4 shuffle (const bool4& a) {
 #if OIIO_SIMD_SSE
     return shuffle_sse<i0,i1,i2,i3> (a.simd());
 #else
-    return bool4(a[i0], a[i1], a[i2], a[i3]);
+    return bool4 (a[i0], a[i1], a[i2], a[i3]);
 #endif
 }
 
 /// shuffle<i>(a) is the same as shuffle<i,i,i,i>(a)
-template<int i> OIIO_FORCEINLINE bool4 shuffle (const bool4& a) { return shuffle<i,i,i,i>(a); }
+template<int i> OIIO_FORCEINLINE bool4 shuffle (const bool4& a) {
+    return shuffle<i,i,i,i>(a);
+}
 
-// FIXME(AVX): need shuffle implementation for bool8
+
+template<int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7>
+OIIO_FORCEINLINE bool8 shuffle (const bool8& a) {
+#if OIIO_SIMD_AVX
+    int8 index (i0, i1, i2, i3, i4, i5, i6, i7);
+    return _mm256_permutevar_ps (a.simd(), index.simd());
+#else
+    return bool8 (a[i0], a[i1], a[i2], a[i3], a[i4], a[i5], a[i6], a[i7]);
+#endif
+}
+
+template<int i> OIIO_FORCEINLINE bool8 shuffle (const bool8& a) {
+#if OIIO_SIMD_AVX
+    return _mm256_permutevar_ps (a.simd(), _mm256_set1_epi32(i));
+#else
+    return shuffle<i,i,i,i,i,i,i,i>(a);
+#endif
+}
 
 
 /// Helper: as rapid as possible extraction of one component, when the
@@ -1790,9 +1805,6 @@ OIIO_FORCEINLINE bool8 insert (const bool8& a, bool val) {
     return tmp;
 #endif
 }
-
-
-// FIXME(AVX): need extract/insert implementation for bool8
 
 
 // FIXME(SSE/AVX): Can we use swizzling to make the reduce ops faster?
@@ -2496,18 +2508,18 @@ OIIO_FORCEINLINE const vint<N> & vint<N>::operator^= (const vint<N>& a) {
 
 
 template<int N>
-OIIO_FORCEINLINE vint<N> vint<N>::operator~ () {
+OIIO_FORCEINLINE vint<N> vint<N>::operator~ () const {
     SIMD_RETURN (vint<N>, ~m_val[i]);
 }
 
 #if OIIO_SIMD_SSE
-template<> OIIO_FORCEINLINE int4 int4::operator~ () {
+template<> OIIO_FORCEINLINE int4 int4::operator~ () const {
     return (*this) ^ NegOne();
 }
 #endif
 
 #if OIIO_SIMD_AVX >= 2
-template<> OIIO_FORCEINLINE int8 int8::operator~ () {
+template<> OIIO_FORCEINLINE int8 int8::operator~ () const {
     return (*this) ^ NegOne();
 }
 #endif
@@ -2538,12 +2550,12 @@ OIIO_FORCEINLINE const vint<N> & vint<N>::operator<<= (const unsigned int bits) 
 
 
 template<int N>
-OIIO_FORCEINLINE vint<N> vint<N>::operator>> (const unsigned int bits) {
+OIIO_FORCEINLINE vint<N> vint<N>::operator>> (const unsigned int bits) const {
     SIMD_RETURN (vint<N>, m_val[i] >> bits);
 }
 
 #if OIIO_SIMD_SSE
-template<> OIIO_FORCEINLINE int4 int4::operator>> (const unsigned int bits) {
+template<> OIIO_FORCEINLINE int4 int4::operator>> (const unsigned int bits) const {
     return _mm_srai_epi32 (m_vec, bits);
 }
 #endif
@@ -2745,6 +2757,25 @@ OIIO_FORCEINLINE int4 shuffle (const int4& a) {
 template<int i> OIIO_FORCEINLINE int4 shuffle (const int4& a) { return shuffle<i,i,i,i>(a); }
 
 
+template<int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7>
+OIIO_FORCEINLINE int8 shuffle (const int8& a) {
+#if OIIO_SIMD_AVX
+    int8 index (i0, i1, i2, i3, i4, i5, i6, i7);
+    return _mm256_castps_si256 (_mm256_permutevar_ps (_mm256_castsi256_ps(a.simd()), index.simd()));
+#else
+    return int8 (a[i0], a[i1], a[i2], a[i3], a[i4], a[i5], a[i6], a[i7]);
+#endif
+}
+
+template<int i> OIIO_FORCEINLINE int8 shuffle (const int8& a) {
+#if OIIO_SIMD_AVX
+    return _mm256_castps_si256 (_mm256_permutevar_ps (_mm256_castsi256_ps(a.simd()), _mm256_set1_epi32(i)));
+#else
+    return shuffle<i,i,i,i,i,i,i,i>(a);
+#endif
+}
+
+
 template<int i>
 OIIO_FORCEINLINE int extract (const int4& v) {
 #if OIIO_SIMD_SSE >= 4
@@ -2754,11 +2785,20 @@ OIIO_FORCEINLINE int extract (const int4& v) {
 #endif
 }
 
+template<int i>
+OIIO_FORCEINLINE int extract (const int8& v) {
+#if OIIO_SIMD_AVX
+    return _mm256_extract_epi32(v.simd(), i);
+#else
+    return v[i];
+#endif
+}
+
 
 template<int i>
 OIIO_FORCEINLINE int4 insert (const int4& a, int val) {
 #if OIIO_SIMD_SSE >= 4
-    return _mm_insert_epi32 (a, val, i);
+    return _mm_insert_epi32 (a.simd(), val, i);
 #else
     int4 tmp = a;
     tmp[i] = val;
@@ -2766,17 +2806,26 @@ OIIO_FORCEINLINE int4 insert (const int4& a, int val) {
 #endif
 }
 
-// FIXME(AVX): need shuffle/insert/extract for int8
+template<int i>
+OIIO_FORCEINLINE int8 insert (const int8& a, int val) {
+#if OIIO_SIMD_AVX
+    return _mm256_insert_epi32 (a.simd(), val, i);
+#else
+    int8 tmp = a;
+    tmp[i] = val;
+    return tmp;
+#endif
+}
 
 
-template<> OIIO_FORCEINLINE int int4::x () const { return extract<0>(*this); }
-template<> OIIO_FORCEINLINE int int4::y () const { return extract<1>(*this); }
-template<> OIIO_FORCEINLINE int int4::z () const { return extract<2>(*this); }
-template<> OIIO_FORCEINLINE int int4::w () const { return extract<3>(*this); }
-template<> OIIO_FORCEINLINE void int4::set_x (int val) { *this = insert<0>(*this, val); }
-template<> OIIO_FORCEINLINE void int4::set_y (int val) { *this = insert<1>(*this, val); }
-template<> OIIO_FORCEINLINE void int4::set_z (int val) { *this = insert<2>(*this, val); }
-template<> OIIO_FORCEINLINE void int4::set_w (int val) { *this = insert<3>(*this, val); }
+template<int N> OIIO_FORCEINLINE int vint<N>::x () const { return extract<0>(*this); }
+template<int N> OIIO_FORCEINLINE int vint<N>::y () const { return extract<1>(*this); }
+template<int N> OIIO_FORCEINLINE int vint<N>::z () const { return extract<2>(*this); }
+template<int N> OIIO_FORCEINLINE int vint<N>::w () const { return extract<3>(*this); }
+template<int N> OIIO_FORCEINLINE void vint<N>::set_x (int val) { *this = insert<0>(*this, val); }
+template<int N> OIIO_FORCEINLINE void vint<N>::set_y (int val) { *this = insert<1>(*this, val); }
+template<int N> OIIO_FORCEINLINE void vint<N>::set_z (int val) { *this = insert<2>(*this, val); }
+template<int N> OIIO_FORCEINLINE void vint<N>::set_w (int val) { *this = insert<3>(*this, val); }
 
 
 OIIO_FORCEINLINE int4 bitcast_to_int4 (const bool4& x)
@@ -2802,7 +2851,7 @@ OIIO_FORCEINLINE int8 bitcast_to_int8 (const bool8& x)
 // FIXME(AVX): 8-way reductions
 
 OIIO_FORCEINLINE int4 vreduce_add (const int4& v) {
-#if defined(OIIO_SIMD_SSE) && OIIO_SIMD_SSE >= 3
+#if OIIO_SIMD_SSE >= 3
     // People seem to agree that SSE3 does add reduction best with 2
     // horizontal adds.
     // suppose v = (a, b, c, d)
@@ -2929,37 +2978,58 @@ OIIO_FORCEINLINE vint<N> select (const vbool<N>& mask, const vint<N>& a, const v
 
 
 
-// FIXME(AVX): genericize abs, min, max, rotl32, andnot
+template<int N>
+OIIO_FORCEINLINE vint<N> abs (const vint<N>& a) {
+    SIMD_RETURN (vint<N>, std::abs(a[i]));
+}
 
-
-template<> OIIO_FORCEINLINE int4 abs (const int4& a)
-{
-#if defined(OIIO_SIMD_SSE) && OIIO_SIMD_SSE >= 3
+#if OIIO_SIMD_SSE >= 3
+template<> OIIO_FORCEINLINE int4 abs (const int4& a) {
     return _mm_abs_epi32(a.simd());
-#else
-    SIMD_RETURN (int4, std::abs(a[i]));
-#endif
 }
+#endif
+
+#if OIIO_SIMD_AVX >= 2
+template<> OIIO_FORCEINLINE int8 abs (const int8& a) {
+    return _mm256_abs_epi32(a.simd());
+}
+#endif
 
 
-template<> OIIO_FORCEINLINE int4 min (const int4& a, const int4& b)
-{
-#if OIIO_SIMD_SSE >= 4 /* SSE >= 4.1 */
+template<int N>
+OIIO_FORCEINLINE vint<N> min (const vint<N>& a, const vint<N>& b) {
     return _mm_min_epi32 (a, b);
-#else
-    SIMD_RETURN (int4, std::min (a[i], b[i]));
-#endif
 }
 
-
-template<> OIIO_FORCEINLINE int4 max (const int4& a, const int4& b)
-{
 #if OIIO_SIMD_SSE >= 4 /* SSE >= 4.1 */
-    return _mm_max_epi32 (a, b);
-#else
-    SIMD_RETURN (int4, std::max (a[i], b[i]));
-#endif
+template<> OIIO_FORCEINLINE int4 min (const int4& a, const int4& b) {
+    return _mm_min_epi32 (a, b);
 }
+#endif
+
+#if OIIO_SIMD_AVX >= 2
+template<> OIIO_FORCEINLINE int8 min (const int8& a, const int8& b) {
+    return _mm_min_epi32 (a, b);
+}
+#endif
+
+
+template<int N>
+OIIO_FORCEINLINE vint<N> max (const vint<N>& a, const vint<N>& b) {
+    return _mm_max_epi32 (a, b);
+}
+
+#if OIIO_SIMD_SSE >= 4 /* SSE >= 4.1 */
+template<> OIIO_FORCEINLINE int4 max (const int4& a, const int4& b) {
+    return _mm_max_epi32 (a, b);
+}
+#endif
+
+#if OIIO_SIMD_AVX >= 2
+template<> OIIO_FORCEINLINE int8 max (const int8& a, const int8& b) {
+    return _mm_max_epi32 (a, b);
+}
+#endif
 
 
 template<int N>
@@ -2969,14 +3039,22 @@ OIIO_FORCEINLINE vint<N> rotl32 (const vint<N>& x, const unsigned int k)
 }
 
 
-
-template<> OIIO_FORCEINLINE int4 andnot (const int4& a, const int4& b) {
-#if OIIO_SIMD_SSE
-    return _mm_andnot_si128 (a.simd(), b.simd());
-#else
-    SIMD_RETURN (int4, ~(a[i]) & b[i]);
-#endif
+template<int N>
+OIIO_FORCEINLINE vint<N> andnot (const vint<N>& a, const vint<N>& b) {
+    SIMD_RETURN (vint<N>, ~(a[i]) & b[i]);
 }
+
+#if OIIO_SIMD_SSE
+template<> OIIO_FORCEINLINE int4 andnot (const int4& a, const int4& b) {
+    return _mm_andnot_si128 (a.simd(), b.simd());
+}
+#endif
+
+#if OIIO_SIMD_AVX >= 2
+template<> OIIO_FORCEINLINE int8 andnot (const int8& a, const int8& b) {
+    return _mm256_andnot_si256 (a.simd(), b.simd());
+}
+#endif
 
 
 // Implementation had to be after the definition of vint<>::Zero.
@@ -3579,7 +3657,7 @@ OIIO_FORCEINLINE float4 bitcast_to_float4 (const int4& x)
 
 
 OIIO_FORCEINLINE float4 vreduce_add (const float4& v) {
-#if defined(OIIO_SIMD_SSE) && OIIO_SIMD_SSE >= 3
+#if OIIO_SIMD_SSE >= 3
     // People seem to agree that SSE3 does add reduction best with 2
     // horizontal adds.
     // suppose v = (a, b, c, d)
