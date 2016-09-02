@@ -2489,7 +2489,7 @@ OIIO_FORCEINLINE int4 operator& (const int4& a, const int4& b) {
 
 OIIO_FORCEINLINE int8 operator& (const int8& a, const int8& b) {
 #if OIIO_SIMD_AVX >= 2
-    return _mm256_and_si128 (a.simd(), b.simd());
+    return _mm256_and_si256 (a.simd(), b.simd());
 #else
     SIMD_RETURN (int8, a[i] & b[i]);
 #endif
@@ -2512,7 +2512,7 @@ OIIO_FORCEINLINE int4 operator| (const int4& a, const int4& b) {
 
 OIIO_FORCEINLINE int8 operator| (const int8& a, const int8& b) {
 #if OIIO_SIMD_AVX >= 2
-    return _mm256_or_si128 (a.simd(), b.simd());
+    return _mm256_or_si256 (a.simd(), b.simd());
 #else
     SIMD_RETURN (int8, a[i] | b[i]);
 #endif

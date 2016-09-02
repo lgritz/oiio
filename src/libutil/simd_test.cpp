@@ -650,21 +650,33 @@ template<typename VEC>
 void test_blend ()
 {
     std::cout << "test_blend " << VEC::type_name() << "\n";
+    typedef typename VEC::value_t ELEM;
+    typedef typename VEC::vbool_t vbool_t;
 
-    VEC a (1, 2, 3, 4);
-    VEC b (10, 11, 12, 13);
+    VEC a = VEC::Iota (1);
+    VEC b = VEC::Iota (10);
+    vbool_t f(false), t(true);
+    bool tf_values[] = { true, false, true, false, true, false, true, false };
+    vbool_t tf ((bool *)tf_values);
 
-    OIIO_CHECK_SIMD_EQUAL (blend (a, b, bool4(false,false,false,false)), a);
-    OIIO_CHECK_SIMD_EQUAL (blend (a, b, bool4(true,true,true,true)), b);
-    OIIO_CHECK_SIMD_EQUAL (blend (a, b, bool4(true,false,true,false)), VEC (10, 2, 12, 4));
+    OIIO_CHECK_SIMD_EQUAL (blend (a, b, f), a);
+    OIIO_CHECK_SIMD_EQUAL (blend (a, b, t), b);
 
-    OIIO_CHECK_SIMD_EQUAL (blend0 (a, bool4(false,false,false,false)), VEC(0,0,0,0));
-    OIIO_CHECK_SIMD_EQUAL (blend0 (a, bool4(true,true,true,true)), a);
-    OIIO_CHECK_SIMD_EQUAL (blend0 (a, bool4(true,false,true,false)), VEC (1, 0, 3, 0));
+    ELEM r1[] = { 10, 2, 12, 4, 14, 6, 16, 8 };
+    OIIO_CHECK_SIMD_EQUAL (blend (a, b, tf), VEC(r1));
 
-    OIIO_CHECK_SIMD_EQUAL (blend0not (a, bool4(false,false,false,false)), a);
-    OIIO_CHECK_SIMD_EQUAL (blend0not (a, bool4(true,true,true,true)), VEC(0,0,0,0));
-    OIIO_CHECK_SIMD_EQUAL (blend0not (a, bool4(true,false,true,false)), VEC (0, 2, 0, 4));
+    OIIO_CHECK_SIMD_EQUAL (blend0 (a, f), VEC::Zero());
+    OIIO_CHECK_SIMD_EQUAL (blend0 (a, t), a);
+    ELEM r2[] = { 1, 0, 3, 0, 5, 0, 7, 0 };
+    OIIO_CHECK_SIMD_EQUAL (blend0 (a, tf), VEC(r2));
+
+    OIIO_CHECK_SIMD_EQUAL (blend0not (a, f), a);
+    OIIO_CHECK_SIMD_EQUAL (blend0not (a, t), VEC::Zero());
+    ELEM r3[] = { 0, 2, 0, 4, 0, 6, 0, 8 };
+    OIIO_CHECK_SIMD_EQUAL (blend0not (a, tf), VEC(r3));
+
+    benchmark ("blend", benchsize,
+               [&](int){ return blend(a,b,tf); }, 0);
 }
 
 
@@ -1201,8 +1213,10 @@ main (int argc, char *argv[])
     test_comparisons<int8> ();
 
     test_shuffle<int4> ();
-    test_swizzle<float4> ();
+
     test_blend<int4> ();
+    test_blend<int8> ();
+
     test_transpose<int4> ();
     test_int4_to_uint16s ();
     test_int4_to_uint8s ();
