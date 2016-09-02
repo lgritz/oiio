@@ -114,7 +114,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #  endif
 #endif
 
-#if defined(__FMA__) || defined(__AVX2__)
+#if defined(__FMA__)
 #  define OIIO_FMA_ENABLED 1
 #endif
 
@@ -2602,7 +2602,7 @@ template<> OIIO_FORCEINLINE int4 int4::operator>> (const unsigned int bits) cons
 #endif
 
 #if OIIO_SIMD_AVX >= 2
-template<> OIIO_FORCEINLINE int4 int4::operator>> (const unsigned int bits) const {
+template<> OIIO_FORCEINLINE int8 int8::operator>> (const unsigned int bits) const {
     return _mm256_srai_epi32 (m_vec, bits);
 }
 #endif
@@ -2941,8 +2941,8 @@ OIIO_FORCEINLINE int8 vreduce_add (const int8& v) {
 #if OIIO_SIMD_AVX >= 2
     // From Syrah:
     // ab, cd, 0, 0, ef, gh, 0, 0
-    int8 ab_cd_0_0_ef_gh_0_0 = _mm256_hadd_epi32(v.simd(), _mm256_setzero_epi32());
-    int8 abcd_0_0_0_efgh_0_0_0 = _mm256_hadd_epi32(ab_cd_0_0_ef_gh_0_0, _mm256_setzero_epi32());
+    int8 ab_cd_0_0_ef_gh_0_0 = _mm256_hadd_epi32(v.simd(), _mm256_setzero_si256());
+    int8 abcd_0_0_0_efgh_0_0_0 = _mm256_hadd_epi32(ab_cd_0_0_ef_gh_0_0, _mm256_setzero_si256());
     // get efgh in the 0-idx slot
     int8 efgh = _mm256_permute2f128_ps(_mm256_castsi256_ps(abcd_0_0_0_efgh_0_0_0), _mm256_castsi256_ps(abcd_0_0_0_efgh_0_0_0), 0x1);
     int8 final_sum = abcd_0_0_0_efgh_0_0_0 + efgh;
@@ -3117,7 +3117,7 @@ template<> OIIO_FORCEINLINE int4 min (const int4& a, const int4& b) {
 
 #if OIIO_SIMD_AVX >= 2
 template<> OIIO_FORCEINLINE int8 min (const int8& a, const int8& b) {
-    return _mm_min_epi32 (a, b);
+    return _mm256_min_epi32 (a, b);
 }
 #endif
 
@@ -3135,7 +3135,7 @@ template<> OIIO_FORCEINLINE int4 max (const int4& a, const int4& b) {
 
 #if OIIO_SIMD_AVX >= 2
 template<> OIIO_FORCEINLINE int8 max (const int8& a, const int8& b) {
-    return _mm_max_epi32 (a, b);
+    return _mm256_max_epi32 (a, b);
 }
 #endif
 
