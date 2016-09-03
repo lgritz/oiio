@@ -412,7 +412,7 @@ std::ostream& operator<< (std::ostream& cout, const vbool<N> & a);
 /// Example: shuffle<1,1,2,2>(bool4(a,b,c,d)) returns (b,b,c,c)
 template<int i0, int i1, int i2, int i3> bool4 shuffle (const bool4& a);
 template<int i0, int i1, int i2, int i3,
-         int i4, int i5, int i6, int i7> bool4 shuffle (const bool8& a);
+         int i4, int i5, int i6, int i7> bool8 shuffle (const bool8& a);
 
 /// shuffle<i>(a) is the same as shuffle<i,i,i,i>(a)
 template<int i> bool4 shuffle (const bool4& a);
@@ -1789,20 +1789,16 @@ template<int i> OIIO_FORCEINLINE bool4 shuffle (const bool4& a) {
 
 template<int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7>
 OIIO_FORCEINLINE bool8 shuffle (const bool8& a) {
-#if OIIO_SIMD_AVX
+#if OIIO_SIMD_AVX >= 2
     int8 index (i0, i1, i2, i3, i4, i5, i6, i7);
-    return _mm256_permutevar_ps (a.simd(), index.simd());
+    return _mm256_permutevar8x32_ps (a.simd(), index.simd());
 #else
     return bool8 (a[i0], a[i1], a[i2], a[i3], a[i4], a[i5], a[i6], a[i7]);
 #endif
 }
 
 template<int i> OIIO_FORCEINLINE bool8 shuffle (const bool8& a) {
-#if OIIO_SIMD_AVX
-    return _mm256_permutevar_ps (a.simd(), _mm256_set1_epi32(i));
-#else
     return shuffle<i,i,i,i,i,i,i,i>(a);
-#endif
 }
 
 
@@ -2754,8 +2750,7 @@ OIIO_FORCEINLINE void vint<N>::store (unsigned short *values) const {
 }
 
 #if OIIO_SIMD_SSE
-template<>
-OIIO_FORCEINLINE void int4::store (unsigned short *values) const {
+template<> OIIO_FORCEINLINE void int4::store (unsigned short *values) const {
     // Expressed as half-words and considering little endianness, we
     // currently have xAxBxCxD (the 'x' means don't care).
     int4 clamped = m_val & int4(0xffff);   // A0B0C0D0
@@ -2768,6 +2763,13 @@ OIIO_FORCEINLINE void int4::store (unsigned short *values) const {
     _mm_storel_pd ((double *)values, _mm_castsi128_pd(result));
     // At this point, values[] should hold A,B,C,D
 }
+
+#if 0   /* Doesn't seem to be faster with this */
+template<> OIIO_FORCEINLINE void int8::store (unsigned short *values) const {
+    extract_lo(*this).store (values);
+    extract_hi(*this).store (values+4);
+}
+#endif
 #endif
 
 
@@ -2777,8 +2779,7 @@ OIIO_FORCEINLINE void vint<N>::store (unsigned char *values) const {
 }
 
 #if OIIO_SIMD_SSE
-template<>
-OIIO_FORCEINLINE void int4::store (unsigned char *values) const {
+template<> OIIO_FORCEINLINE void int4::store (unsigned char *values) const {
     // Expressed as bytes and considering little endianness, we
     // currently have xAxBxCxD (the 'x' means don't care).
     int4 clamped = m_val & int4(0xff);            // A000 B000 C000 D000
@@ -2790,6 +2791,11 @@ OIIO_FORCEINLINE void int4::store (unsigned char *values) const {
     int4 result = merged | shifted2;              // ABCD ...
     *(int*)values = result[0]; //extract<0>(result);
     // At this point, values[] should hold A,B,C,D
+}
+
+template<> OIIO_FORCEINLINE void int8::store (unsigned char *values) const {
+    extract_lo(*this).store (values);
+    extract_hi(*this).store (values+4);
 }
 #endif
 
@@ -2809,20 +2815,16 @@ template<int i> OIIO_FORCEINLINE int4 shuffle (const int4& a) { return shuffle<i
 
 template<int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7>
 OIIO_FORCEINLINE int8 shuffle (const int8& a) {
-#if OIIO_SIMD_AVX
+#if OIIO_SIMD_AVX >= 2
     int8 index (i0, i1, i2, i3, i4, i5, i6, i7);
-    return _mm256_castps_si256 (_mm256_permutevar_ps (_mm256_castsi256_ps(a.simd()), index.simd()));
+    return _mm256_castps_si256 (_mm256_permutevar8x32_ps (_mm256_castsi256_ps(a.simd()), index.simd()));
 #else
     return int8 (a[i0], a[i1], a[i2], a[i3], a[i4], a[i5], a[i6], a[i7]);
 #endif
 }
 
 template<int i> OIIO_FORCEINLINE int8 shuffle (const int8& a) {
-#if OIIO_SIMD_AVX
-    return _mm256_castps_si256 (_mm256_permutevar_ps (_mm256_castsi256_ps(a.simd()), _mm256_set1_epi32(i)));
-#else
     return shuffle<i,i,i,i,i,i,i,i>(a);
-#endif
 }
 
 
@@ -2944,7 +2946,7 @@ OIIO_FORCEINLINE int8 vreduce_add (const int8& v) {
     int8 ab_cd_0_0_ef_gh_0_0 = _mm256_hadd_epi32(v.simd(), _mm256_setzero_si256());
     int8 abcd_0_0_0_efgh_0_0_0 = _mm256_hadd_epi32(ab_cd_0_0_ef_gh_0_0, _mm256_setzero_si256());
     // get efgh in the 0-idx slot
-    int8 efgh = _mm256_permute2f128_ps(_mm256_castsi256_ps(abcd_0_0_0_efgh_0_0_0), _mm256_castsi256_ps(abcd_0_0_0_efgh_0_0_0), 0x1);
+    int8 efgh = _mm256_permutevar8x32_ps(_mm256_castsi256_ps(abcd_0_0_0_efgh_0_0_0), _mm256_castsi256_ps(abcd_0_0_0_efgh_0_0_0), 0x1);
     int8 final_sum = abcd_0_0_0_efgh_0_0_0 + efgh;
     return shuffle<0>(final_sum);
 #else /* AVX 1 */

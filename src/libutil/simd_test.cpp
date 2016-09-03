@@ -127,14 +127,14 @@ void benchmark (string_view funcname, size_t n, FUNC func, T x,
     auto repeat_func = [&](){
         // Unroll the loop 8 times
         for (size_t i = 0; i < n; i += work*8) {
-            auto r = func(x); DoNotOptimize (r);
-            r = func(x); DoNotOptimize (r);
-            r = func(x); DoNotOptimize (r);
-            r = func(x); DoNotOptimize (r);
-            r = func(x); DoNotOptimize (r);
-            r = func(x); DoNotOptimize (r);
-            r = func(x); DoNotOptimize (r);
-            r = func(x); DoNotOptimize (r);
+            auto r = func(x); DoNotOptimize (r); clobber_all_memory();
+            r = func(x); DoNotOptimize (r); clobber_all_memory();
+            r = func(x); DoNotOptimize (r); clobber_all_memory();
+            r = func(x); DoNotOptimize (r); clobber_all_memory();
+            r = func(x); DoNotOptimize (r); clobber_all_memory();
+            r = func(x); DoNotOptimize (r); clobber_all_memory();
+            r = func(x); DoNotOptimize (r); clobber_all_memory();
+            r = func(x); DoNotOptimize (r); clobber_all_memory();
         }
     };
     float time = time_trial (repeat_func, ntrials, iterations) / iterations;
@@ -151,14 +151,14 @@ void benchmark2 (string_view funcname, size_t n, FUNC func, T x, U y,
     auto repeat_func = [&](){
         // Unroll the loop 8 times
         for (size_t i = 0; i < n; i += work*8) {
-            auto r = func(x, y); DoNotOptimize (r);
-            r = func(x, y); DoNotOptimize (r);
-            r = func(x, y); DoNotOptimize (r);
-            r = func(x, y); DoNotOptimize (r);
-            r = func(x, y); DoNotOptimize (r);
-            r = func(x, y); DoNotOptimize (r);
-            r = func(x, y); DoNotOptimize (r);
-            r = func(x, y); DoNotOptimize (r);
+            auto r = func(x, y); DoNotOptimize (r); clobber_all_memory();
+            r = func(x, y); DoNotOptimize (r); clobber_all_memory();
+            r = func(x, y); DoNotOptimize (r); clobber_all_memory();
+            r = func(x, y); DoNotOptimize (r); clobber_all_memory();
+            r = func(x, y); DoNotOptimize (r); clobber_all_memory();
+            r = func(x, y); DoNotOptimize (r); clobber_all_memory();
+            r = func(x, y); DoNotOptimize (r); clobber_all_memory();
+            r = func(x, y); DoNotOptimize (r); clobber_all_memory();
         }
     };
     float time = time_trial (repeat_func, ntrials, iterations) / iterations;
@@ -282,30 +282,32 @@ void test_loadstore ()
 
 
 
-void
-test_int4_to_uint16s ()
+template<typename VEC>
+void test_vint_to_uint16s ()
 {
-    int4 i (0xffff0001, 0xffff0002, 0xffff0003, 0xffff0004);
-    unsigned short s[4];
-    i.store (s);
-    OIIO_CHECK_EQUAL (s[0], 1);
-    OIIO_CHECK_EQUAL (s[1], 2);
-    OIIO_CHECK_EQUAL (s[2], 3);
-    OIIO_CHECK_EQUAL (s[3], 4);
+    std::cout << "test converting " << VEC::type_name() << " to uint16\n";
+    VEC ival = VEC::Iota (0xffff0000);
+    unsigned short buf[VEC::elements];
+    ival.store (buf);
+    for (int i = 0; i < VEC::elements; ++i)
+        OIIO_CHECK_EQUAL (int(buf[i]), i);
+    benchmark2 ("convert to uint16", benchsize,
+                [](VEC& a, unsigned short *s){ a.store(s); return 1; }, ival, buf);
 }
 
 
 
-void
-test_int4_to_uint8s ()
+template<typename VEC>
+void test_vint_to_uint8s ()
 {
-    int4 i (0xffffff01, 0xffffff02, 0xffffff03, 0xffffff04);
-    unsigned char c[4];
-    i.store (c);
-    OIIO_CHECK_EQUAL (int(c[0]), 1);
-    OIIO_CHECK_EQUAL (int(c[1]), 2);
-    OIIO_CHECK_EQUAL (int(c[2]), 3);
-    OIIO_CHECK_EQUAL (int(c[3]), 4);
+    std::cout << "test converting " << VEC::type_name() << " to uint8\n";
+    VEC ival = VEC::Iota (0xffffff00);
+    unsigned char buf[VEC::elements];
+    ival.store (buf);
+    for (int i = 0; i < VEC::elements; ++i)
+        OIIO_CHECK_EQUAL (int(buf[i]), i);
+    benchmark2 ("convert to uint16", benchsize,
+                [](VEC& a, unsigned char *s){ a.store(s); return 1; }, ival, buf);
 }
 
 
@@ -353,13 +355,13 @@ void test_component_access ()
         OIIO_CHECK_EQUAL (extract<3>(b), 3);
 
     benchmark2 ("operator[i]", benchsize,
-                [&](const VEC& v, int i){ return v[i]; },  b, 2, 1);
+                [&](const VEC& v, int i){ return v[i]; },  b, 2);
     benchmark2 ("operator[2]", benchsize,
-                [&](const VEC& v, int i){ return v[2]; },  b, 2, 1);
+                [&](const VEC& v, int i){ return v[2]; },  b, 2);
     benchmark2 ("extract<2> ", benchsize,
-                [&](const VEC& v, int i){ return extract<2>(v); },  b, 2, 1);
+                [&](const VEC& v, int i){ return extract<2>(v); },  b, 2);
     benchmark2 ("insert<2> ", benchsize,
-                [&](const VEC& v, ELEM i){ return insert<2>(v, i); }, b, ELEM(1), 1);
+                [&](const VEC& v, ELEM i){ return insert<2>(v, i); }, b, ELEM(1));
 }
 
 
@@ -618,7 +620,7 @@ void test_comparisons ()
 
 
 template<typename VEC>
-void test_shuffle ()
+void test_shuffle4 ()
 {
     std::cout << "test_shuffle " << VEC::type_name() << "\n";
 
@@ -627,6 +629,36 @@ void test_shuffle ()
     OIIO_CHECK_SIMD_EQUAL ((shuffle<0,0,2,2>(a)), VEC(0,0,2,2));
     OIIO_CHECK_SIMD_EQUAL ((shuffle<1,1,3,3>(a)), VEC(1,1,3,3));
     OIIO_CHECK_SIMD_EQUAL ((shuffle<0,1,0,1>(a)), VEC(0,1,0,1));
+    OIIO_CHECK_SIMD_EQUAL ((shuffle<2>(a)), VEC(2));
+    benchmark ("shuffle<...> ", benchsize, [&](VEC& v){ return shuffle<3,2,1,0>(v); }, a);
+    benchmark ("shuffle<0> ", benchsize, [&](VEC& v){ return shuffle<0>(v); }, a);
+    benchmark ("shuffle<1> ", benchsize, [&](VEC& v){ return shuffle<1>(v); }, a);
+    benchmark ("shuffle<2> ", benchsize, [&](VEC& v){ return shuffle<2>(v); }, a);
+    benchmark ("shuffle<3> ", benchsize, [&](VEC& v){ return shuffle<3>(v); }, a);
+}
+
+
+
+template<typename VEC>
+void test_shuffle8 ()
+{
+    std::cout << "test_shuffle " << VEC::type_name() << "\n";
+    VEC a (0, 1, 2, 3, 4, 5, 6, 7);
+    OIIO_CHECK_SIMD_EQUAL ((shuffle<3,2,1,0,3,2,1,0>(a)), VEC(3,2,1,0,3,2,1,0));
+    OIIO_CHECK_SIMD_EQUAL ((shuffle<0,0,2,2,0,0,2,2>(a)), VEC(0,0,2,2,0,0,2,2));
+    OIIO_CHECK_SIMD_EQUAL ((shuffle<1,1,3,3,1,1,3,3>(a)), VEC(1,1,3,3,1,1,3,3));
+    OIIO_CHECK_SIMD_EQUAL ((shuffle<0,1,0,1,0,1,0,1>(a)), VEC(0,1,0,1,0,1,0,1));
+    OIIO_CHECK_SIMD_EQUAL ((shuffle<2>(a)), VEC(2));
+    benchmark ("shuffle<...> ", benchsize,
+               [&](VEC& v){ return shuffle<7,6,5,4,3,2,1,0>(v); }, a);
+    benchmark ("shuffle<0> ", benchsize, [&](VEC& v){ return shuffle<0>(v); }, a);
+    benchmark ("shuffle<1> ", benchsize, [&](VEC& v){ return shuffle<1>(v); }, a);
+    benchmark ("shuffle<2> ", benchsize, [&](VEC& v){ return shuffle<2>(v); }, a);
+    benchmark ("shuffle<3> ", benchsize, [&](VEC& v){ return shuffle<3>(v); }, a);
+    benchmark ("shuffle<4> ", benchsize, [&](VEC& v){ return shuffle<4>(v); }, a);
+    benchmark ("shuffle<5> ", benchsize, [&](VEC& v){ return shuffle<5>(v); }, a);
+    benchmark ("shuffle<6> ", benchsize, [&](VEC& v){ return shuffle<6>(v); }, a);
+    benchmark ("shuffle<7> ", benchsize, [&](VEC& v){ return shuffle<7>(v); }, a);
 }
 
 
@@ -675,14 +707,18 @@ void test_blend ()
     ELEM r3[] = { 0, 2, 0, 4, 0, 6, 0, 8 };
     OIIO_CHECK_SIMD_EQUAL (blend0not (a, tf), VEC(r3));
 
-    benchmark ("blend", benchsize,
-               [&](int){ return blend(a,b,tf); }, 0);
+    benchmark2 ("blend", benchsize,
+                [&](VEC& a, VEC& b){ return blend(a,b,tf); }, a, b);
+    benchmark2 ("blend0", benchsize,
+                [](VEC& a, vbool_t& b){ return blend0(a,b); }, a, tf);
+    benchmark2 ("blend0not", benchsize,
+                [](VEC& a, vbool_t& b){ return blend0not(a,b); }, a, tf);
 }
 
 
 
 template<typename VEC>
-void test_transpose ()
+void test_transpose4 ()
 {
     std::cout << "test_transpose " << VEC::type_name() << "\n";
 
@@ -1175,16 +1211,21 @@ main (int argc, char *argv[])
 #endif
     Timer timer;
 
+    int4 dummy4(0);
+    int8 dummy8(0);
+    benchmark ("null benchmark 4", benchsize, [](const int4&){ return int(0); }, dummy4);
+    benchmark ("null benchmark 8", benchsize, [](const int8&){ return int(0); }, dummy8);
+
     std::cout << "\n";
     test_loadstore<float4> ();
     test_component_access<float4> ();
     test_arithmetic<float3> ();
     test_arithmetic<float4> ();
     test_comparisons<float4> ();
-    test_shuffle<float4> ();
+    test_shuffle4<float4> ();
     test_swizzle<float4> ();
     test_blend<float4> ();
-    test_transpose<float4> ();
+    test_transpose4<float4> ();
     test_vectorops<float4> ();
     test_fused<float4> ();
 
@@ -1193,10 +1234,10 @@ main (int argc, char *argv[])
     test_component_access<float3> ();
     // Unnecessary to test these, they just use the float4 ops.
     // test_comparisons<float3> ();
-    // test_shuffle<float3> ();
+    // test_shuffle4<float3> ();
     // test_swizzle<float3> ();
     // test_blend<float3> ();
-    // test_transpose<float3> ();
+    // test_transpose4<float3> ();
     test_vectorops<float3> ();
     // test_fused<float3> ();
 
@@ -1211,21 +1252,22 @@ main (int argc, char *argv[])
     test_bitwise_int<int8> ();
     test_comparisons<int4> ();
     test_comparisons<int8> ();
-
-    test_shuffle<int4> ();
-
+    test_shuffle4<int4> ();
+    test_shuffle8<int8> ();
     test_blend<int4> ();
     test_blend<int8> ();
 
-    test_transpose<int4> ();
-    test_int4_to_uint16s ();
-    test_int4_to_uint8s ();
+    test_transpose4<int4> ();
+    test_vint_to_uint16s<int4> ();
+    test_vint_to_uint16s<int8> ();
+    test_vint_to_uint8s<int4> ();
+    test_vint_to_uint8s<int8> ();
     test_shift ();
 
 
     std::cout << "\n";
-    test_shuffle<bool4> ();
-    // test_shuffle<bool8> ();
+    test_shuffle4<bool4> ();
+    test_shuffle8<bool8> ();
     test_component_access<bool4> ();
     test_component_access<bool8> ();
     test_bitwise_bool<bool4> ();
