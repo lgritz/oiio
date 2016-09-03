@@ -355,13 +355,13 @@ void test_component_access ()
         OIIO_CHECK_EQUAL (extract<3>(b), 3);
 
     benchmark2 ("operator[i]", benchsize,
-                [&](const VEC& v, int i){ return v[i]; },  b, 2);
+                [&](const VEC& v, int i){ return v[i]; },  b, 2, 1 /*work*/);
     benchmark2 ("operator[2]", benchsize,
-                [&](const VEC& v, int i){ return v[2]; },  b, 2);
+                [&](const VEC& v, int i){ return v[2]; },  b, 2, 1 /*work*/);
     benchmark2 ("extract<2> ", benchsize,
-                [&](const VEC& v, int i){ return extract<2>(v); },  b, 2);
+                [&](const VEC& v, int i){ return extract<2>(v); },  b, 2, 1 /*work*/);
     benchmark2 ("insert<2> ", benchsize,
-                [&](const VEC& v, ELEM i){ return insert<2>(v, i); }, b, ELEM(1));
+                [&](const VEC& v, ELEM i){ return insert<2>(v, i); }, b, ELEM(1), 1 /*work*/);
 }
 
 
@@ -476,6 +476,7 @@ void test_arithmetic ()
     benchmark2 ("operator-", benchsize, do_sub<VEC>, a, b);
     benchmark2 ("operator*", benchsize, do_mul<VEC>, a, b);
     benchmark2 ("operator/", benchsize, do_div<VEC>, a, b);
+    benchmark  ("reduce_add", benchsize, [](VEC& a){ return vreduce_add(a); }, a);
 }
 
 
@@ -544,6 +545,11 @@ void test_bitwise_int ()
     benchmark2 ("operator^", benchsize, do_xor<VEC>, a, b);
     benchmark  ("operator!", benchsize, do_compl<VEC>, a);
     benchmark2 ("andnot",    benchsize, do_andnot<VEC>, a, b);
+
+    OIIO_CHECK_EQUAL (reduce_and(mkvec<VEC>(15, 7, 15, 15, 15, 15, 15, 15)), 7);
+    OIIO_CHECK_EQUAL (reduce_or(mkvec<VEC>(0, 3, 4, 0, 0, 0, 0, 0)), 7);
+    benchmark  ("reduce_and", benchsize, [](VEC& a){ return reduce_and(a); }, a);
+    benchmark  ("reduce_or ", benchsize, [](VEC& a){ return reduce_or(a); }, a);
 }
 
 
@@ -631,10 +637,10 @@ void test_shuffle4 ()
     OIIO_CHECK_SIMD_EQUAL ((shuffle<0,1,0,1>(a)), VEC(0,1,0,1));
     OIIO_CHECK_SIMD_EQUAL ((shuffle<2>(a)), VEC(2));
     benchmark ("shuffle<...> ", benchsize, [&](VEC& v){ return shuffle<3,2,1,0>(v); }, a);
-    benchmark ("shuffle<0> ", benchsize, [&](VEC& v){ return shuffle<0>(v); }, a);
-    benchmark ("shuffle<1> ", benchsize, [&](VEC& v){ return shuffle<1>(v); }, a);
-    benchmark ("shuffle<2> ", benchsize, [&](VEC& v){ return shuffle<2>(v); }, a);
-    benchmark ("shuffle<3> ", benchsize, [&](VEC& v){ return shuffle<3>(v); }, a);
+    benchmark ("shuffle<0> ", benchsize, [&](VEC& v){ return shuffle<0>(v); }, a, 1 /*work*/);
+    benchmark ("shuffle<1> ", benchsize, [&](VEC& v){ return shuffle<1>(v); }, a, 1 /*work*/);
+    benchmark ("shuffle<2> ", benchsize, [&](VEC& v){ return shuffle<2>(v); }, a, 1 /*work*/);
+    benchmark ("shuffle<3> ", benchsize, [&](VEC& v){ return shuffle<3>(v); }, a, 1 /*work*/);
 }
 
 
@@ -651,14 +657,14 @@ void test_shuffle8 ()
     OIIO_CHECK_SIMD_EQUAL ((shuffle<2>(a)), VEC(2));
     benchmark ("shuffle<...> ", benchsize,
                [&](VEC& v){ return shuffle<7,6,5,4,3,2,1,0>(v); }, a);
-    benchmark ("shuffle<0> ", benchsize, [&](VEC& v){ return shuffle<0>(v); }, a);
-    benchmark ("shuffle<1> ", benchsize, [&](VEC& v){ return shuffle<1>(v); }, a);
-    benchmark ("shuffle<2> ", benchsize, [&](VEC& v){ return shuffle<2>(v); }, a);
-    benchmark ("shuffle<3> ", benchsize, [&](VEC& v){ return shuffle<3>(v); }, a);
-    benchmark ("shuffle<4> ", benchsize, [&](VEC& v){ return shuffle<4>(v); }, a);
-    benchmark ("shuffle<5> ", benchsize, [&](VEC& v){ return shuffle<5>(v); }, a);
-    benchmark ("shuffle<6> ", benchsize, [&](VEC& v){ return shuffle<6>(v); }, a);
-    benchmark ("shuffle<7> ", benchsize, [&](VEC& v){ return shuffle<7>(v); }, a);
+    benchmark ("shuffle<0> ", benchsize, [&](VEC& v){ return shuffle<0>(v); }, a, 1 /*work*/);
+    benchmark ("shuffle<1> ", benchsize, [&](VEC& v){ return shuffle<1>(v); }, a, 1 /*work*/);
+    benchmark ("shuffle<2> ", benchsize, [&](VEC& v){ return shuffle<2>(v); }, a, 1 /*work*/);
+    benchmark ("shuffle<3> ", benchsize, [&](VEC& v){ return shuffle<3>(v); }, a, 1 /*work*/);
+    benchmark ("shuffle<4> ", benchsize, [&](VEC& v){ return shuffle<4>(v); }, a, 1 /*work*/);
+    benchmark ("shuffle<5> ", benchsize, [&](VEC& v){ return shuffle<5>(v); }, a, 1 /*work*/);
+    benchmark ("shuffle<6> ", benchsize, [&](VEC& v){ return shuffle<6>(v); }, a, 1 /*work*/);
+    benchmark ("shuffle<7> ", benchsize, [&](VEC& v){ return shuffle<7>(v); }, a, 1 /*work*/);
 }
 
 
@@ -748,31 +754,53 @@ void test_transpose4 ()
 
 
 
+template<typename T> inline T do_shl (const T &a, int b) { return a<<b; }
+template<typename T> inline T do_shr (const T &a, int b) { return a>>b; }
+template<typename T> inline T do_srl (const T &a, int b) { return srl(a,b); }
+
+
+template<typename VEC>
 void test_shift ()
 {
-    std::cout << "test_shift\n";
-    int4 i (1, 2, 4, 8);
-    OIIO_CHECK_SIMD_EQUAL (i << 2, int4(4, 8, 16, 32));
+    typedef typename VEC::value_t ELEM;
+    std::cout << "test_shift " << VEC::type_name() << "\n";
 
+    // Basics of << and >>
+    VEC i = VEC::Iota (10, 10);   // 10, 20, 30 ...
+    OIIO_CHECK_SIMD_EQUAL (i << 2, VEC::Iota(40, 40));
+    OIIO_CHECK_SIMD_EQUAL (i >> 1, VEC::Iota(5, 5));
+
+    // Tricky cases with high bits, and the difference between >> and srl
     int a = 1<<31, b = -1, c = 0xffff, d = 3;
-    int4 hard (a, b, c, d);
-    OIIO_CHECK_SIMD_EQUAL (hard >> 1, int4(a>>1, b>>1, c>>1, d>>1));
-    OIIO_CHECK_SIMD_EQUAL (srl(hard,1), int4(unsigned(a)>>1, unsigned(b)>>1,
-                                             unsigned(c)>>1, unsigned(d)>>1));
+    VEC hard = mkvec<VEC> (a, b, c, d, d, c, b, a);
+    OIIO_CHECK_SIMD_EQUAL (hard >> 1,
+                           mkvec<VEC>(a>>1, b>>1, c>>1, d>>1, d>>1, c>>1, b>>1, a>>1));
+    OIIO_CHECK_SIMD_EQUAL (srl(hard,1),
+                           mkvec<VEC>(unsigned(a)>>1, unsigned(b)>>1,
+                                      unsigned(c)>>1, unsigned(d)>>1,
+                                      unsigned(d)>>1, unsigned(c)>>1,
+                                      unsigned(b)>>1, unsigned(a)>>1));
     std::cout << Strutil::format ("  [%x] >>  1 == [%x]\n", hard, hard>>1);
-    std::cout << Strutil::format ("  [%x] srl 1 == [%x]\n", hard, srl(hard,4));
-    OIIO_CHECK_SIMD_EQUAL (hard >> 4, int4(a>>4, b>>4, c>>4, d>>4));
-    OIIO_CHECK_SIMD_EQUAL (srl(hard,4), int4(unsigned(a)>>4, unsigned(b)>>4,
-                                             unsigned(c)>>4, unsigned(d)>>4));
+    std::cout << Strutil::format ("  [%x] srl 1 == [%x]\n", hard, srl(hard,1));
+    OIIO_CHECK_SIMD_EQUAL (hard >> 4, mkvec<VEC>(a>>4, b>>4, c>>4, d>>4,
+                                                 d>>4, c>>4, b>>4, a>>4));
+    OIIO_CHECK_SIMD_EQUAL (srl(hard,4), mkvec<VEC>(unsigned(a)>>4, unsigned(b)>>4,
+                                                   unsigned(c)>>4, unsigned(d)>>4,
+                                                   unsigned(d)>>4, unsigned(c)>>4,
+                                                   unsigned(b)>>4, unsigned(a)>>4));
     std::cout << Strutil::format ("  [%x] >>  4 == [%x]\n", hard, hard>>4);
     std::cout << Strutil::format ("  [%x] srl 4 == [%x]\n", hard, srl(hard,4));
 
-    i = int4(1,2,4,8);
-    i <<= 1;
-    OIIO_CHECK_SIMD_EQUAL (i, int4(2,4,8,16));
-    i = int4(1,2,4,8);
-    i >>= 1;
-    OIIO_CHECK_SIMD_EQUAL (i, int4(0,1,2,4));
+    // Test <<= and >>=
+    i = VEC::Iota (10, 10);   i <<= 2;
+    OIIO_CHECK_SIMD_EQUAL (i, VEC::Iota(40, 40));
+    i = VEC::Iota (10, 10);   i >>= 1;
+    OIIO_CHECK_SIMD_EQUAL (i, VEC::Iota(5, 5));
+
+    // Benchmark
+    benchmark2 ("operator<<", benchsize, do_shl<VEC>, i, 2);
+    benchmark2 ("operator>>", benchsize, do_shr<VEC>, i, 2);
+    benchmark2 ("srl       ", benchsize, do_srl<VEC>, i, 2);
 }
 
 
@@ -1262,8 +1290,8 @@ main (int argc, char *argv[])
     test_vint_to_uint16s<int8> ();
     test_vint_to_uint8s<int4> ();
     test_vint_to_uint8s<int8> ();
-    test_shift ();
-
+    test_shift<int4> ();
+    test_shift<int8> ();
 
     std::cout << "\n";
     test_shuffle4<bool4> ();

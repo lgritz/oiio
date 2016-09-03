@@ -2573,9 +2573,13 @@ template<> OIIO_FORCEINLINE int4 int4::operator<< (const unsigned int bits) cons
 }
 #endif
 
-#if OIIO_SIMD_AVX >= 2
+#if OIIO_SIMD_SSE
 template<> OIIO_FORCEINLINE int8 int8::operator<< (const unsigned int bits) const {
+#if OIIO_SIMD_AVX >= 2
     return _mm256_slli_epi32 (m_vec, bits);
+#else
+    return join (extract_lo(*this) << bits, extract_hi(*this) << bits);
+#endif
 }
 #endif
 
@@ -2597,9 +2601,13 @@ template<> OIIO_FORCEINLINE int4 int4::operator>> (const unsigned int bits) cons
 }
 #endif
 
-#if OIIO_SIMD_AVX >= 2
+#if OIIO_SIMD_SSE
 template<> OIIO_FORCEINLINE int8 int8::operator>> (const unsigned int bits) const {
+#if OIIO_SIMD_AVX >= 2
     return _mm256_srai_epi32 (m_vec, bits);
+#else
+    return join (extract_lo(*this) >> bits, extract_hi(*this) >> bits);
+#endif
 }
 #endif
 
@@ -2906,8 +2914,6 @@ OIIO_FORCEINLINE int8 bitcast_to_int8 (const bool8& x)
 }
 
 
-// FIXME(AVX): 8-way reductions
-
 template<int N>
 OIIO_FORCEINLINE vint<N> vreduce_add (const vint<N>& v) {
     SIMD_RETURN_REDUCE (vint<N>, 0, r += v[i]);
@@ -2991,7 +2997,7 @@ template<> OIIO_FORCEINLINE int reduce_and (const int8& v) {
     int8 abcdefgh = abcd & shuffle<4>(abcdefgh); // abcdefgh x x x x x x x
     return extract<0> (abcdefgh);
 #else
-    // AVX 1.0 -- use SSE
+    // AVX 1.0 or less -- use SSE
     return reduce_and(extract_lo(v)) & reduce_and(extract_hi(v));
 #endif
 }
@@ -3012,6 +3018,18 @@ template<> OIIO_FORCEINLINE int reduce_or (const int4& v) {
     return extract<0>(x) | extract<2>(x);
 }
 #endif
+
+template<> OIIO_FORCEINLINE int reduce_or (const int8& v) {
+#if OIIO_SSE_AVX >= 2
+    int8 ab = v | shuffle<1,1,3,3,5,5,7,7>(v); // ab bb cd dd ef ff gh hh
+    int8 abcd = ab | shuffle<2,2,2,2,6,6,6,6>(ab); // abcd x x x efgh x x x
+    int8 abcdefgh = abcd | shuffle<4>(abcdefgh); // abcdefgh x x x x x x x
+    return extract<0> (abcdefgh);
+#else
+    // AVX 1.0 or less -- use SSE
+    return reduce_or(extract_lo(v)) | reduce_and(extract_hi(v));
+#endif
+}
 
 
 template<int N>
