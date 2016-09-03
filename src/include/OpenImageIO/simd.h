@@ -380,12 +380,12 @@ public:
     void store (bool *values, int n) const;
 
     /// Logical/bitwise operators, component-by-component
-    friend vbool operator! (const vbool & a);
-    friend vbool operator& (const vbool & a, const vbool & b);
+    // friend vbool operator! (const vbool & a);
+    // friend vbool operator& (const vbool & a, const vbool & b);
+    // friend vbool operator| (const vbool & a, const vbool & b);
+    // friend vbool operator^ (const vbool& a, const vbool& b);
     const vbool& operator&= (const vbool & b);
-    friend vbool operator| (const vbool & a, const vbool & b);
     const vbool& operator|= (const vbool & a);
-    friend vbool operator^ (const vbool& a, const vbool& b);
     const vbool & operator^= (const vbool& a);
     vbool operator~ () const;
 
@@ -433,6 +433,11 @@ bool4 extract_hi (const bool8 &v);
 
 // Concatenate two bool4's to make an bool8
 bool8 join (const bool4& lo, const bool4 &hi);
+
+template<int N> vbool<N> operator! (const vbool<N>& a);
+template<int N> vbool<N> operator& (const vbool<N>& a, const vbool<N>& b);
+template<int N> vbool<N> operator| (const vbool<N>& a, const vbool<N>& b);
+template<int N> vbool<N> operator^ (const vbool<N>& a, const vbool<N>& b);
 
 /// Logical "and" reduction across all components.
 template<int N>
@@ -1590,7 +1595,7 @@ OIIO_FORCEINLINE bool8 join (const bool4& lo, const bool4 &hi) {
 
 
 
-OIIO_FORCEINLINE bool4 operator! (const bool4 & a) {
+template<> OIIO_FORCEINLINE bool4 operator! (const bool4 & a) {
 #if OIIO_SIMD_SSE
     return _mm_xor_ps (a.simd(), bool4::True());
 #else
@@ -1598,7 +1603,7 @@ OIIO_FORCEINLINE bool4 operator! (const bool4 & a) {
 #endif
 }
 
-OIIO_FORCEINLINE bool8 operator! (const bool8 & a) {
+template<> OIIO_FORCEINLINE bool8 operator! (const bool8 & a) {
 #if OIIO_SIMD_AVX
     return _mm256_xor_ps (a.simd(), bool8::True());
 #else
@@ -1607,7 +1612,7 @@ OIIO_FORCEINLINE bool8 operator! (const bool8 & a) {
 }
 
 
-OIIO_FORCEINLINE bool4 operator& (const bool4 & a, const bool4 & b) {
+template<> OIIO_FORCEINLINE bool4 operator& (const bool4 & a, const bool4 & b) {
 #if OIIO_SIMD_SSE
     return _mm_and_ps (a.simd(), b.simd());
 #else
@@ -1615,7 +1620,7 @@ OIIO_FORCEINLINE bool4 operator& (const bool4 & a, const bool4 & b) {
 #endif
 }
 
-OIIO_FORCEINLINE bool8 operator& (const bool8 & a, const bool8 & b) {
+template<> OIIO_FORCEINLINE bool8 operator& (const bool8 & a, const bool8 & b) {
 #if OIIO_SIMD_AVX
     return _mm256_and_ps (a.simd(), b.simd());
 #else
@@ -1624,7 +1629,7 @@ OIIO_FORCEINLINE bool8 operator& (const bool8 & a, const bool8 & b) {
 }
 
 
-OIIO_FORCEINLINE bool4 operator| (const bool4 & a, const bool4 & b) {
+template<> OIIO_FORCEINLINE bool4 operator| (const bool4 & a, const bool4 & b) {
 #if OIIO_SIMD_SSE
     return _mm_or_ps (a.simd(), b.simd());
 #else
@@ -1632,7 +1637,7 @@ OIIO_FORCEINLINE bool4 operator| (const bool4 & a, const bool4 & b) {
 #endif
 }
 
-OIIO_FORCEINLINE bool8 operator| (const bool8 & a, const bool8 & b) {
+template<> OIIO_FORCEINLINE bool8 operator| (const bool8 & a, const bool8 & b) {
 #if OIIO_SIMD_AVX
     return _mm256_or_ps (a.simd(), b.simd());
 #else
@@ -1641,7 +1646,7 @@ OIIO_FORCEINLINE bool8 operator| (const bool8 & a, const bool8 & b) {
 }
 
 
-OIIO_FORCEINLINE bool4 operator^ (const bool4& a, const bool4& b) {
+template<> OIIO_FORCEINLINE bool4 operator^ (const bool4& a, const bool4& b) {
 #if OIIO_SIMD_SSE
     return _mm_xor_ps (a.simd(), b.simd());
 #else
@@ -1649,7 +1654,7 @@ OIIO_FORCEINLINE bool4 operator^ (const bool4& a, const bool4& b) {
 #endif
 }
 
-OIIO_FORCEINLINE bool8 operator^ (const bool8& a, const bool8& b) {
+template<> OIIO_FORCEINLINE bool8 operator^ (const bool8& a, const bool8& b) {
 #if OIIO_SIMD_AVX
     return _mm256_xor_ps (a.simd(), b.simd());
 #else
