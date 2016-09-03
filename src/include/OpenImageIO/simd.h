@@ -379,20 +379,6 @@ public:
     /// Store the first n values into memory.
     void store (bool *values, int n) const;
 
-    /// Logical/bitwise operators, component-by-component
-    // friend vbool operator! (const vbool & a);
-    // friend vbool operator& (const vbool & a, const vbool & b);
-    // friend vbool operator| (const vbool & a, const vbool & b);
-    // friend vbool operator^ (const vbool& a, const vbool& b);
-    const vbool& operator&= (const vbool & b);
-    const vbool& operator|= (const vbool & a);
-    const vbool & operator^= (const vbool& a);
-    vbool operator~ () const;
-
-    /// Comparison operators, component by component
-    friend const vbool operator== (const vbool & a, const vbool & b);
-    friend const vbool operator!= (const vbool & a, const vbool & b);
-
 private:
     // The actual data representation
     union {
@@ -403,10 +389,23 @@ private:
 
 
 
-
 /// Stream output
-template<int N>
-std::ostream& operator<< (std::ostream& cout, const vbool<N> & a);
+template<int N> std::ostream& operator<< (std::ostream& cout, const vbool<N> & a);
+
+/// Logical/bitwise operators, component-by-component
+template<int N> vbool<N> operator! (const vbool<N>& a);
+template<int N> vbool<N> operator& (const vbool<N>& a, const vbool<N>& b);
+template<int N> vbool<N> operator| (const vbool<N>& a, const vbool<N>& b);
+template<int N> vbool<N> operator^ (const vbool<N>& a, const vbool<N>& b);
+template<int N> vbool<N> operator~ (const vbool<N>& a);
+template<int N> const vbool<N>& operator&= (vbool<N>& a, const vbool<N>& b);
+template<int N> const vbool<N>& operator|= (vbool<N>& a, const vbool<N>& b);
+template<int N> const vbool<N>& operator^= (vbool<N>& a, const vbool<N>& b);
+
+/// Comparison operators, component by component
+template<int N> vbool<N> operator== (const vbool<N>& a, const vbool<N>& b);
+template<int N> vbool<N> operator!= (const vbool<N>& a, const vbool<N>& b);
+
 
 /// Helper: shuffle/swizzle with constant (templated) indices.
 /// Example: shuffle<1,1,2,2>(bool4(a,b,c,d)) returns (b,b,c,c)
@@ -433,11 +432,6 @@ bool4 extract_hi (const bool8 &v);
 
 // Concatenate two bool4's to make an bool8
 bool8 join (const bool4& lo, const bool4 &hi);
-
-template<int N> vbool<N> operator! (const vbool<N>& a);
-template<int N> vbool<N> operator& (const vbool<N>& a, const vbool<N>& b);
-template<int N> vbool<N> operator| (const vbool<N>& a, const vbool<N>& b);
-template<int N> vbool<N> operator^ (const vbool<N>& a, const vbool<N>& b);
 
 /// Logical "and" reduction across all components.
 template<int N>
@@ -1664,70 +1658,70 @@ template<> OIIO_FORCEINLINE bool8 operator^ (const bool8& a, const bool8& b) {
 
 
 template<int N>
-OIIO_FORCEINLINE const vbool<N>& vbool<N>::operator&= (const vbool<N> & b) {
-    return *this = *this & b;
+OIIO_FORCEINLINE const vbool<N>& operator&= (vbool<N>& a, const vbool<N> &b) {
+    return a = a & b;
 }
 
 template<int N>
-OIIO_FORCEINLINE const vbool<N>& vbool<N>::operator|= (const vbool<N> & a) {
-    return *this = *this | a;
+OIIO_FORCEINLINE const vbool<N>& operator|= (vbool<N>& a, const vbool<N>& b) {
+    return a = a | b;
 }
 
 template<int N>
-OIIO_FORCEINLINE const vbool<N> & vbool<N>::operator^= (const vbool<N>& a) {
-    return *this = *this ^ a;
+OIIO_FORCEINLINE const vbool<N>& operator^= (vbool<N>& a, const vbool<N>& b) {
+    return a = a ^ b;
 }
 
-template<> OIIO_FORCEINLINE bool4 bool4::operator~ () const {
+template<> OIIO_FORCEINLINE bool4 operator~ (const bool4& a) {
 #if OIIO_SIMD_SSE
     // Fastest way to bit-complement in SSE is to xor with 0xffffffff.
-    return _mm_xor_ps (m_vec, True());
+    return _mm_xor_ps (a.simd(), bool4::True());
 #else
-    SIMD_RETURN (bool4, ~m_val[i]);
+    SIMD_RETURN (bool4, ~a[i]);
 #endif
 }
 
-template<> OIIO_FORCEINLINE bool8 bool8::operator~ () const {
+template<> OIIO_FORCEINLINE bool8 operator~ (const bool8& a) {
 #if OIIO_SIMD_AVX
     // Fastest way to bit-complement in SSE is to xor with 0xffffffff.
-    return _mm256_xor_ps (m_vec, True());
+    return _mm256_xor_ps (a.simd(), bool8::True());
 #else
-    SIMD_RETURN (bool8, ~m_val[i]);
+    SIMD_RETURN (bool8, ~a[i]);
 #endif
 }
 
 
-OIIO_FORCEINLINE const bool4 operator== (const bool4 & a, const bool4 & b) {
+template<> OIIO_FORCEINLINE bool4 operator== (const bool4 & a, const bool4 & b) {
 #if OIIO_SIMD_SSE
-    return _mm_castsi128_ps (_mm_cmpeq_epi32 (_mm_castps_si128 (a.m_vec), _mm_castps_si128(b.m_vec)));
+    return _mm_castsi128_ps (_mm_cmpeq_epi32 (_mm_castps_si128 (a), _mm_castps_si128(b)));
 #else
-    SIMD_RETURN (bool4, a.m_val[i] == b.m_val[i] ? -1 : 0);
+    SIMD_RETURN (bool4, a[i] == b[i] ? -1 : 0);
 #endif
 }
 
-OIIO_FORCEINLINE const bool8 operator== (const bool8 & a, const bool8 & b) {
+template<> OIIO_FORCEINLINE bool8 operator== (const bool8 & a, const bool8 & b) {
 #if OIIO_SIMD_AVX >= 2
-    return _mm256_castsi256_ps (_mm256_cmpeq_epi32 (_mm256_castps_si256 (a.m_vec), _mm256_castps_si256(b.m_vec)));
+    return _mm256_castsi256_ps (_mm256_cmpeq_epi32 (_mm256_castps_si256 (a), _mm256_castps_si256(b)));
 #elif OIIO_SIMD_AVX
-    return _mm256_cmp_ps (a.simd(), b.simd(), _CMP_EQ_UQ);
+    return _mm256_cmp_ps (a, b, _CMP_EQ_UQ);
 #else
-    SIMD_RETURN (bool8, a.m_val[i] == b.m_val[i] ? -1 : 0);
+    SIMD_RETURN (bool8, a[i] == b[i] ? -1 : 0);
 #endif
 }
 
-OIIO_FORCEINLINE const bool4 operator!= (const bool4 & a, const bool4 & b) {
+template<> OIIO_FORCEINLINE bool4 operator!= (const bool4 & a, const bool4 & b) {
 #if OIIO_SIMD_SSE
-    return _mm_xor_ps (a.m_vec, b.m_vec);
+    return _mm_xor_ps (a, b);
 #else
-    SIMD_RETURN (bool4, a.m_val[i] != b.m_val[i] ? -1 : 0);
+    SIMD_RETURN (bool4, a[i] != b[i] ? -1 : 0);
 #endif
 }
 
-OIIO_FORCEINLINE const bool8 operator!= (const bool8 & a, const bool8 & b) {
+template<> OIIO_FORCEINLINE bool8 operator!= (const bool8 & a, const bool8 & b) {
 #if OIIO_SIMD_AVX
-    return _mm256_xor_ps (a.m_vec, b.m_vec);
+    return _mm256_xor_ps (a, b);
 #else
-    SIMD_RETURN (bool8, a.m_val[i] != b.m_val[i] ? -1 : 0);
+    SIMD_RETURN (bool8, a[i] != b[i] ? -1 : 0);
 #endif
 }
 
