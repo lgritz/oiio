@@ -68,6 +68,12 @@ namespace pvt {
 // shadow maps!
 #define USE_SHADOW_MATRICES 0
 
+// Should we use boost::container::flat_map instead of std::unordered_map?
+#define USE_BOOST_FLAT_MAP 0
+
+// Should the TileID pre-hash its values?
+#define TILEID_HAS_HASH 0
+
 
 using boost::thread_specific_ptr;
 
@@ -417,8 +423,13 @@ typedef intrusive_ptr<ImageCacheFile> ImageCacheFileRef;
 
 
 /// Map file names to file references
-typedef unordered_map_concurrent<ustring,ImageCacheFileRef,ustringHash,std::equal_to<ustring>, 32> FilenameMap;
+#if USE_BOOST_FLAT_MAP
+typedef unordered_map_concurrent<ustring,ImageCacheFileRef,ustringHash,std::equal_to<ustring>, 16, boost::container::flat_map<ustring,ImageCacheFileRef,ustringPtrIsLess>>  FilenameMap;
+typedef boost::container::flat_map<ustring,ImageCacheFileRef,ustringPtrIsLess> FingerprintMap;
+#else
+typedef unordered_map_concurrent<ustring,ImageCacheFileRef,ustringHash,std::equal_to<ustring>, 16> FilenameMap;
 typedef std::unordered_map<ustring,ImageCacheFileRef,ustringHash> FingerprintMap;
+#endif
 
 
 
@@ -442,6 +453,7 @@ public:
         int nc = file.spec(subimage,miplevel).nchannels;
         if (chend < chbegin || chend > nc)
             m_chend = nc;
+        rehash();
     }
 
     /// Destructor is trivial, because we don't hold any resources
@@ -459,11 +471,21 @@ public:
     int chend () const { return m_chend; }
     int nchannels () const { return m_chend - m_chbegin; }
 
-    void x (int v) { m_x = v; }
-    void y (int v) { m_y = v; }
-    void z (int v) { m_z = v; }
-    void xy (int x, int y) { m_x = x; m_y = y; }
-    void xyz (int x, int y, int z) { m_x = x; m_y = y; m_z = z; }
+    // Return the hash key
+    size_t hash () const {
+#if TILEID_HAS_HASH
+        return m_hash;
+#else
+        return compute_hash();
+#endif
+    }
+
+    // Several ways to alter the coordinates of the tile and rehash.
+    void x (int v) { m_x = v; rehash(); }
+    void y (int v) { m_y = v; rehash(); }
+    void z (int v) { m_z = v; rehash(); }
+    void xy (int x, int y) { m_x = x; m_y = y; rehash(); }
+    void xyz (int x, int y, int z) { m_x = x; m_y = y; m_z = z; rehash(); }
 
     /// Is this an uninitialized tileID?
     bool empty () const { return m_file == NULL; }
@@ -473,7 +495,12 @@ public:
     friend bool equal (const TileID &a, const TileID &b) {
         // Try to speed up by comparing field by field in order of most
         // probable rejection if they really are unequal.
-        return (a.m_x == b.m_x && a.m_y == b.m_y && a.m_z == b.m_z &&
+        return 
+#if TILEID_HAS_HASH
+               // Hash catches almost all cases, except for collisions.
+               a.hash() == b.hash() &&
+#endif
+               (a.m_x == b.m_x && a.m_y == b.m_y && a.m_z == b.m_z &&
                 a.m_subimage == b.m_subimage && 
                 a.m_miplevel == b.m_miplevel &&
                 (a.m_file == b.m_file) &&
@@ -495,8 +522,31 @@ public:
     bool operator== (const TileID &b) const { return equal (*this, b); }
     bool operator!= (const TileID &b) const { return ! equal (*this, b); }
 
+    /// Ordering that can be used for sort or hashing
+    bool operator< (const TileID &b) const {
+#if TILEID_HAS_HASH
+        // Hash catches almost all cases, except for collisions
+        if (hash() < b.hash()) return true;
+        if (hash() > b.hash()) return false;
+#endif
+        if (m_x < b.m_x) return true;
+        if (m_x > b.m_x) return false;
+        if (m_y < b.m_y) return true;
+        if (m_y > b.m_y) return false;
+        if (m_z < b.m_z) return true;
+        if (m_z > b.m_z) return false;
+        if (m_subimage < b.m_subimage) return true;
+        if (m_subimage > b.m_subimage) return false;
+        if (m_chbegin < b.m_chbegin) return true;
+        if (m_chbegin > b.m_chbegin) return false;
+        if (m_chend < b.m_chend) return true;
+        if (m_chend > b.m_chend) return false;
+        if (file_ptr() < b.file_ptr()) return true;
+        /*if (file_ptr() > b.file_ptr())*/ return false;
+    }
+
     /// Digest the TileID into a size_t to use as a hash key.
-    size_t hash () const {
+    size_t compute_hash () const {
 #if 0
         // original -- turned out not to fill hash buckets evenly
         return m_x * 53 + m_y * 97 + m_z * 193 + 
@@ -508,6 +558,13 @@ public:
                                 m_miplevel + (m_subimage<<8) +
                                 (chbegin()<<4) + nchannels())
                            + m_file->filename().hash();
+#endif
+    }
+
+    // Recompute the hash (if it's stored in the struct)
+    OIIO_FORCEINLINE void rehash () {
+#if TILEID_HAS_HASH
+        m_hash = compute_hash();
 #endif
     }
 
@@ -527,6 +584,9 @@ public:
     }
 
 private:
+#if TILEID_HAS_HASH
+    size_t m_hash;            ///< Cached hash
+#endif
     int m_x, m_y, m_z;        ///< x,y,z tile index within the subimage
     int m_subimage;           ///< subimage
     int m_miplevel;           ///< MIP-map level
@@ -653,7 +713,11 @@ typedef intrusive_ptr<ImageCacheTile> ImageCacheTileRef;
 
 /// Hash table that maps TileID to ImageCacheTileRef -- this is the type of the
 /// main tile cache.
-typedef unordered_map_concurrent<TileID, ImageCacheTileRef, TileID::Hasher, std::equal_to<TileID>, 128> TileCache;
+#if USE_BOOST_FLAT_MAP
+typedef unordered_map_concurrent<TileID, ImageCacheTileRef, TileID::Hasher, std::equal_to<TileID>, 64, boost::container::flat_map<TileID,ImageCacheTileRef> > TileCache;
+#else
+typedef unordered_map_concurrent<TileID, ImageCacheTileRef, TileID::Hasher, std::equal_to<TileID>, 64> TileCache;
+#endif
 
 
 /// A very small amount of per-thread data that saves us from locking
