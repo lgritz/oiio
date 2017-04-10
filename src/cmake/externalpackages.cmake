@@ -103,9 +103,12 @@ if (BOOST_CUSTOM)
     # N.B. For a custom version, the caller had better set up the variables
     # Boost_VERSION, Boost_INCLUDE_DIRS, Boost_LIBRARY_DIRS, Boost_LIBRARIES.
 else ()
-    set (Boost_COMPONENTS filesystem system thread)
+    set (Boost_COMPONENTS system thread)
     if (NOT USE_STD_REGEX)
         list (APPEND Boost_COMPONENTS regex)
+    endif ()
+    if (NOT USE_STD_FILESYSTEM AND NOT USE_EXP_FILESYSTEM)
+        list (APPEND Boost_COMPONENTS filesystem)
     endif ()
     find_package (Boost 1.53 REQUIRED
                   COMPONENTS ${Boost_COMPONENTS})

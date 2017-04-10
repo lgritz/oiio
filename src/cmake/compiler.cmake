@@ -225,6 +225,7 @@ if (NOT VERBOSE)
     set (CMAKE_REQUIRED_QUIET 1)
 endif ()
 include (CMakePushCheckState)
+include (CheckCXXSourceCompiles)
 include (CheckCXXSourceRuns)
 
 cmake_push_check_state ()
@@ -240,6 +241,23 @@ if (USE_STD_REGEX)
     add_definitions (-DUSE_STD_REGEX)
 else ()
     add_definitions (-DUSE_BOOST_REGEX)
+endif ()
+cmake_pop_check_state ()
+
+cmake_push_check_state ()
+set (CMAKE_REQUIRED_DEFINITIONS ${CSTD_FLAGS})
+check_cxx_source_compiles("#include <filesystem>
+      int main() { std::filesystem::path p; return 0; }"
+      USE_STD_FILESYSTEM)
+check_cxx_source_compiles("#include <experimental/filesystem>
+      int main() { std::experimental::filesystem::path p; return 0; }"
+      USE_EXP_FILESYSTEM)
+if (USE_STD_FILESYSTEM)
+    add_definitions (-DUSE_STD_FILESYSTEM)
+elseif (USE_EXP_FILESYSTEM)
+    add_definitions (-DUSE_EXP_FILESYSTEM)
+else ()
+    add_definitions (-DUSE_BOOST_FILESYSTEM)
 endif ()
 cmake_pop_check_state ()
 

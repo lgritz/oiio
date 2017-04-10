@@ -56,6 +56,7 @@
   using boost::regex_search;
   using boost::regex_replace;
   using boost::match_results;
+  using boost::error_code;
 #else
 # include <regex>
   using std::regex;
@@ -64,8 +65,20 @@
   using std::match_results;
 #endif
 
-#include <boost/filesystem.hpp>
-namespace filesystem = boost::filesystem;
+#if defined(USE_STD_FILESYSTEM)
+# include <filesystem>
+  namespace filesystem = std::filesystem;
+  using std::error_code;
+  asefs
+#elif defined(USE_EXP_FILESYSTEM)
+# include <experimental/filesystem>
+  namespace filesystem = std::experimental::filesystem;
+  using std::error_code;
+#else
+# include <boost/filesystem.hpp>
+  namespace filesystem = boost::filesystem;
+  using boost::system::error_code;
+#endif
 // FIXME: use std::filesystem when available
 
 
@@ -383,7 +396,7 @@ Filesystem::create_directory (string_view path, std::string &err)
 	std::string pathStr = path.str();
 #endif
 
-    boost::system::error_code ec;
+    error_code ec;
 	bool ok = filesystem::create_directory (pathStr, ec);
     if (ok)
         err.clear();
@@ -408,7 +421,7 @@ Filesystem::copy (string_view from, string_view to, std::string &err)
 	std::string toStr = to.str();
 #endif
 
-    boost::system::error_code ec;
+    error_code ec;
     filesystem::copy (fromStr, toStr, ec);
     if (! ec) {
         err.clear();
@@ -435,7 +448,7 @@ Filesystem::rename (string_view from, string_view to, std::string &err)
 	std::string fromStr = from.str();
 	std::string toStr = to.str();
 #endif
-    boost::system::error_code ec;
+    error_code ec;
     filesystem::rename (fromStr, toStr, ec);
     if (! ec) {
         err.clear();
@@ -460,7 +473,7 @@ Filesystem::remove (string_view path, std::string &err)
 #else
 	std::string pathStr = path.str();
 #endif
-    boost::system::error_code ec;
+    error_code ec;
     bool ok = filesystem::remove (pathStr, ec);
     if (ok)
         err.clear();
@@ -483,7 +496,7 @@ Filesystem::remove_all (string_view path, std::string &err)
 #else
 	std::string pathStr = path.str();
 #endif
-    boost::system::error_code ec;
+    error_code ec;
     unsigned long long n = filesystem::remove_all (pathStr, ec);
     if (!ec)
         err.clear();
@@ -497,7 +510,7 @@ Filesystem::remove_all (string_view path, std::string &err)
 std::string
 Filesystem::temp_directory_path()
 {
-    boost::system::error_code ec;
+    error_code ec;
     filesystem::path p = filesystem::temp_directory_path (ec);
     return ec ? std::string() : p.string();
 }
@@ -516,7 +529,7 @@ Filesystem::unique_path (string_view model)
 #else
 	std::string modelStr = model.str();
 #endif
-    boost::system::error_code ec;
+    error_code ec;
     filesystem::path p = filesystem::unique_path (modelStr, ec);
     return ec ? std::string() : p.string();
 }
@@ -526,7 +539,7 @@ Filesystem::unique_path (string_view model)
 std::string
 Filesystem::current_path()
 {
-    boost::system::error_code ec;
+    error_code ec;
     filesystem::path p = filesystem::current_path (ec);
     return ec ? std::string() : p.string();
 }
