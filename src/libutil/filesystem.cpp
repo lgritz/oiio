@@ -33,6 +33,7 @@
 #include <iostream>
 #include <string>
 #include <algorithm>
+#include <random>
 
 #include <boost/tokenizer.hpp>
 
@@ -529,9 +530,29 @@ Filesystem::unique_path (string_view model)
 #else
 	std::string modelStr = model.str();
 #endif
+#ifdef USE_BOOST_FILESYSTEM
+    // Boost filesystem has unique_path().
     error_code ec;
     filesystem::path p = filesystem::unique_path (modelStr, ec);
     return ec ? std::string() : p.string();
+#else
+    // std::filesystem does not have unique_path(). Punt!
+    static const char chrs[] = "0123456789abcdef";
+    static std::mt19937 rg{std::random_device{}()};
+    static std::uniform_int_distribution<size_t> pick(0, 15);
+    static std::mutex mutex;
+    std::lock_guard<std::mutex> lock (mutex);
+    std::string name;
+    while (true) {
+        name = model.str();
+        for (size_t i = 0, e = model.size(); i < e; ++i)
+            if (name[i] == '%')
+                name[i] = chrs[pick(rg)];
+        if (! exists(name))
+            break;
+    }
+    return name;
+#endif
 }
 
 
@@ -642,10 +663,16 @@ Filesystem::last_write_time (const std::string& path)
 {
     try {
 #ifdef _WIN32
-        std::wstring wpath = Strutil::utf8_to_utf16 (path);
-        return filesystem::last_write_time (wpath);
+        std::wstring path = Strutil::utf8_to_utf16 (::path);
+#endif
+        auto ftime = filesystem::last_write_time (path);
+#ifdef USE_BOOST_FILESYSTEM
+        // Boost filesystem returns a std::time_t, so just return it
+        return ftime;
 #else
-        return filesystem::last_write_time (path);
+        // C++17 std::filesystem returns a filesystem::file_time_type,
+        // so we need to convert it to a time_t.
+        return decltype(ftime)::clock::to_time_t(ftime); // assuming system_clock
 #endif
     } catch (...) {
         // File doesn't exist
@@ -660,10 +687,12 @@ Filesystem::last_write_time (const std::string& path, std::time_t time)
 {
     try {
 #ifdef _WIN32
-        std::wstring wpath = Strutil::utf8_to_utf16 (path);
-        filesystem::last_write_time (wpath, time);
-#else
+        std::wstring path = Strutil::utf8_to_utf16 (::path);
+#endif
+#ifdef USE_BOOST_FILESYSTEM
         filesystem::last_write_time (path, time);
+#else
+        filesystem::last_write_time (path, std::chrono::system_clock::from_time_t (time));
 #endif
     } catch (...) {
         // File doesn't exist
