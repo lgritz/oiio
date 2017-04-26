@@ -43,13 +43,10 @@
 #  pragma warning (disable : 4127)
 #endif
 
-#ifndef NULL
-#define NULL 0
-#endif
-
 #include <limits>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <iostream>
 
 #include <OpenImageIO/export.h>
@@ -75,14 +72,53 @@ OIIO_NAMESPACE_BEGIN
 /////////////////////////////////////////////////////////////////////////////
 
 struct OIIO_API TypeDesc {
+
+    enum class BASETYPE_BITS {
+        BYTES_MASK = 0x0f,
+        BITS_8 = 1, BITS_16 = 2, BITS_32 = 4, BITS_64 = 8,
+#if UINTPTR_MAX == 0xffffffffffffffff
+        BITS_PTR = BITS_64
+#elif UINTPTR_MAX == 0xffffffff
+        BITS_PTR = BITS_32
+#else
+        #error "Can't tell how many bits a pointer is"
+#endif
+        FORMAT_MASK = 0xf0,
+        FORMAT_UNKNOWN = (0<<4),
+        FORMAT_NONE    = (1<<4),
+        FORMAT_UINT    = (2<<4),
+        FORMAT_SINT    = (3<<4),
+        FORMAT_FLOAT   = (4<<4)
+    };
+
     /// BASETYPE is a simple enum for the C/C++ built-in types.
     ///
-    enum BASETYPE { UNKNOWN, NONE, 
-                    UCHAR, UINT8=UCHAR, CHAR, INT8=CHAR,
-                    USHORT, UINT16=USHORT, SHORT, INT16=SHORT,
-                    UINT, UINT32=UINT, INT, INT32=INT,
-                    ULONGLONG, UINT64=ULONGLONG, LONGLONG, INT64=LONGLONG,
-                    HALF, FLOAT, DOUBLE, STRING, PTR, LASTBASE };
+    enum BASETYPE {
+        UNKNOWN = BASETYPE_BITS::FORMAT_UNKNOWN,
+        NONE = BASETYPE_BITS::FORMAT_NONE,
+        UINT8 = BASETYPE_BITS::FORMAT_UINT | BASETYPE_BITS::BITS_8,
+        INT8  = BASETYPE_BITS::FORMAT_SINT | BASETYPE_BITS::BITS_8,
+        UCHAR = UINT8,
+        CHAR  = INT8,
+        UINT16 = BASETYPE_BITS::FORMAT_UINT | BASETYPE_BITS::BITS_16,
+        INT16  = BASETYPE_BITS::FORMAT_SINT | BASETYPE_BITS::BITS_16,
+        USHORT = UINT16,
+        SHORT  = INT16,
+        UINT32 = BASETYPE_BITS::FORMAT_UINT | BASETYPE_BITS::BITS_32,
+        INT32  = BASETYPE_BITS::FORMAT_SINT | BASETYPE_BITS::BITS_32,
+        UINT   = UINT32,
+        INT    = INT32,
+        UINT64 = BASETYPE_BITS::FORMAT_UINT | BASETYPE_BITS::BITS_64,
+        INT64  = BASETYPE_BITS::FORMAT_SINT | BASETYPE_BITS::BITS_64,
+        ULONGLONG = UINT64,
+        LONGLONG  = INT64,
+        HALF = BASETYPE_BITS::FORMAT_FLOAT | BASETYPE_BITS::BITS_16,
+        FLOAT = BASETYPE_BITS::FORMAT_FLOAT | BASETYPE_BITS::BITS_32,
+        DOUBLE = BASETYPE_BITS::FORMAT_FLOAT | BASETYPE_BITS::BITS_64,
+        STRING = BASETYPE_BITS::FORMAT_STRING | BASETYPE_BITS::BITS_PTR,
+        PTR = BASETYPE_BITS::FORMAT_PTR | BASETYPE_BITS::BITS_PTR
+    };
+
     /// AGGREGATE describes whether our type is a simple scalar of
     /// one of the BASETYPE's, or one of several simple aggregates.
     enum AGGREGATE { SCALAR=1, VEC2=2, VEC3=3, VEC4=4, MATRIX33=9, MATRIX44=16 };
@@ -211,14 +247,23 @@ struct OIIO_API TypeDesc {
 
     /// Return the base type size, i.e., stripped of both array-ness
     /// and aggregateness.
-    size_t basesize () const;
+    size_t basesize () const {
+        // The lower bits of basetype directly encode the size in bytes.
+        return basetype & BASETYPE_BITS::BYTES_MASK;
+    }
 
     /// True if it's a floating-point type (versus a fundamentally
     /// integral type or something else like a string).
-    bool is_floating_point () const;
+    bool is_floating_point () const {
+        unsigned int f = (basetype & BASETYPE_BITS::FORMAT_MASK);
+        return f == BASETYPE_BITS::FORMAT_FLOAT;
+    }
 
     /// True if it's a signed type that allows for negative values.
-    bool is_signed () const;
+    bool is_signed () const {
+        unsigned int f = (basetype & BASETYPE_BITS::FORMAT_MASK);
+        return f == BASETYPE_BITS::FORMAT_SINT || f == BASETYPE_BITS::FORMAT_FLOAT;
+    }
 
     /// Shortcut: is it UNKNOWN?
     bool is_unknown () const { return (basetype == UNKNOWN); }

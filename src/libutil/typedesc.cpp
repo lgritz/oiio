@@ -52,131 +52,37 @@ TypeDesc::TypeDesc (string_view typestring)
 
 
 
-namespace {
-
-static int basetype_size[] = {
-    0, // UNKNOWN
-    0, // VOID
-    sizeof(unsigned char),   // UCHAR
-    sizeof(char),            // CHAR
-    sizeof(unsigned short),  // USHORT
-    sizeof(short),           // SHORT
-    sizeof(unsigned int),    // UINT
-    sizeof(int),             // INT
-    sizeof(unsigned long long), // ULONGLONG
-    sizeof(long long),       // LONGLONG
-    sizeof(float)/2,         // HALF
-    sizeof(float),           // FLOAT
-    sizeof(double),          // DOUBLE
-    sizeof(char *),          // STRING
-    sizeof(void *)           // PTR
-};
-
-}
-
-size_t
-TypeDesc::basesize () const
-{
-    DASSERT (sizeof(basetype_size)/sizeof(basetype_size[0]) == TypeDesc::LASTBASE);
-    DASSERT (basetype < TypeDesc::LASTBASE);
-    return basetype_size[basetype];
-}
-
-
-
-bool
-TypeDesc::is_floating_point () const
-{
-    static bool isfloat[] = {
-        0, // UNKNOWN
-        0, // VOID
-        0, // UCHAR
-        0, // CHAR
-        0, // USHORT
-        0, // SHORT
-        0, // UINT
-        0, // INT
-        0, // ULONGLONG
-        0, // LONGLONG
-        1, // HALF
-        1, // FLOAT
-        1, // DOUBLE
-        0, // STRING
-        0  // PTR
-    };
-    DASSERT (sizeof(isfloat)/sizeof(isfloat[0]) == TypeDesc::LASTBASE);
-    DASSERT (basetype < TypeDesc::LASTBASE);
-    return isfloat[basetype];
-}
-
-
-
-bool
-TypeDesc::is_signed () const
-{
-    static bool issigned[] = {
-        0, // UNKNOWN
-        0, // VOID
-        0, // UCHAR
-        1, // CHAR
-        0, // USHORT
-        1, // SHORT
-        0, // UINT
-        1, // INT
-        0, // ULONGLONG
-        1, // LONGLONG
-        1, // HALF
-        1, // FLOAT
-        1, // DOUBLE
-        0, // STRING
-        0  // PTR
-    };
-    DASSERT (sizeof(issigned)/sizeof(issigned[0]) == TypeDesc::LASTBASE);
-    DASSERT (basetype < TypeDesc::LASTBASE);
-    return issigned[basetype];
-}
-
 
 
 namespace {
 
-static const char * basetype_name[] = {
-    "unknown",         // UNKNOWN
-    "void",            // VOID/NONE
-    "uint8",           // UCHAR
-    "int8",            // CHAR
-    "uint16",          // USHORT
-    "int16",           // SHORT
-    "uint",            // UINT
-    "int",             // INT
-    "uint64",          // ULONGLONG
-    "int64",           // LONGLONG
-    "half",            // HALF
-    "float",           // FLOAT
-    "double",          // DOUBLE
-    "string",          // STRING
-    "pointer"          // PTR
+struct BasetypeTable {
+    BASETYPE basetype;
+    const char * basetype_name;
+    const char * basetype_code;
 };
 
-static const char * basetype_code[] = {
-    "unknown",      // UNKNOWN
-    "void",         // VOID/NONE
-    "uc",           // UCHAR
-    "c",            // CHAR
-    "us",           // USHORT
-    "s",            // SHORT
-    "ui",           // UINT
-    "i",            // INT
-    "ull",          // ULONGLONG
-    "ll",           // LONGLONG
-    "h",            // HALF
-    "f",            // FLOAT
-    "d",            // DOUBLE
-    "str",          // STRING
-    "ptr"           // PTR
+static BASETYPETABLE basetype_table = {
+    { TypeDesc::UNKNOWN, "unknown",  "unknown" },
+    { TypeDesc::VOID,    "void",     "void"    },
+    { TypeDesc::UINT8,   "uint8",    "uint8"   },
+    { TypeDesc::INT8,    "int8",     "int8"    },
+    { TypeDesc::UINT16,  "uint16",   "uint16"  },
+    { TypeDesc::INT16,   "int16",    "int16"   },
+    { TypeDesc::UINT32,  "uint",     "uint"    },
+    { TypeDesc::INT32,   "int",      "int"     },
+    { TypeDesc::UINT64,  "uint64",   "uint64"  },
+    { TypeDesc::INT64,   "int64",    "int64"   },
+    { TypeDesc::HALF,    "half",     "half"    },
+    { TypeDesc::FLOAT,   "float",    "float"   },
+    { TypeDesc::DOUBLE,  "double",   "double"  },
+    { TypeDesc::STRING,  "string",   "string"  },
+    { TypeDesc::POINTER, "pointer",  "pointer" }
 };
 
 }
+
+
 
 const char *
 TypeDesc::c_str () const
