@@ -778,6 +778,59 @@ ImageBufAlgo::mad (ImageBuf &dst, const ImageBuf &A, float b,
 
 
 
+template<class Rtype, class Atype>
+static bool
+macc_implf (ImageBuf &R, const ImageBuf &A, array_view<const float> b,
+            ROI roi, int nthreads)
+{
+    ImageBufAlgo::parallel_image (roi, nthreads, [&](ROI roi){
+        ImageBuf::Iterator<Rtype> r (R, roi);
+        ImageBuf::ConstIterator<Atype> a (A, roi);
+        for ( ;  !r.done();  ++r, ++a)
+            for (int ch = roi.chbegin;  ch < roi.chend;  ++ch)
+                r[ch] = r[ch] + a[ch] * b[ch];
+    });
+    return true;
+}
+
+
+
+bool
+ImageBufAlgo::macc (ImageBuf &dst, const ImageBuf &A,
+                    array_view<const float> B,
+                    ROI roi, int nthreads)
+{
+    if (!A.initialized()) {
+        dst.error ("Uninitialized input image.");
+        return false;
+    }
+    if (! B.size()) {
+        dst.error ("No scale parameter supplied.");
+        return false;
+    }
+    if (! IBAprep (roi, &dst, &A, IBAprep_REQUIRE_SAME_NCHANNELS))
+        return false;
+
+    // Make sure B is a view of at least as many floats as there are
+    // channels in dst. Construct and pad as necessary.
+    std::vector<float> blocal;
+    if (B.size() < (size_t)dst.nchannels()) {
+        if (B.size()) {
+            blocal.assign (B.data(), B.data()+B.size());
+        }
+        blocal.resize (dst.nchannels(), B.back());
+        B = array_view<const float>(blocal);
+    }
+
+    bool ok = true;
+    OIIO_DISPATCH_COMMON_TYPES2 (ok, "macc", macc_implf, dst.spec().format,
+                                 A.spec().format, dst, A, B,
+                                 roi, nthreads);
+    return ok;
+}
+
+
+
 bool
 ImageBufAlgo::invert (ImageBuf &dst, const ImageBuf &A,
                       ROI roi, int nthreads)

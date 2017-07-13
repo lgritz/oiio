@@ -855,6 +855,31 @@ inline bool OIIO_API mad (ImageBuf &dst, float A, const ImageBuf &B,
 }
 
 
+/// Multiply and accumulate: For all pixels and channels of dst within
+/// region roi (defaulting to all the defined pixels of dst), set
+///    dst = dst + A * B.
+/// A is an ImageBuf. B may be a per-channel array of weights, or a single
+/// value for all channels.
+/// Note that this is accumulating INTO dst, utilizing its previous values
+/// (whereas most IBA functions erase and write over the corresponding
+/// pixels of their destinations).
+///
+/// If roi is not initialized, it will be set to the data region of A. If
+/// dst is not initialized, it will be sized based on roi. If dst is
+/// initialized, it also must have the same number of channels as A.
+///
+/// The nthreads parameter specifies how many threads (potentially) may
+/// be used, but it's not a guarantee.  If nthreads == 0, it will use
+/// the global OIIO attribute "nthreads".  If nthreads == 1, it
+/// guarantees that it will not launch any new threads.
+///
+/// Return true on success, false on error (with an appropriate error
+/// message set in dst).
+bool OIIO_API macc (ImageBuf &dst, const ImageBuf &A,
+                    array_view<const float> B,
+                    ROI roi=ROI::All(), int nthreads=0);
+
+
 /// For all pixels and channels within the designated ROI, compute
 /// dst = 1 - A. It is permitted for dst and A to be the same image.
 ///
