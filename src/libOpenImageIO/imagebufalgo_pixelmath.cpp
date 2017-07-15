@@ -808,6 +808,7 @@ ImageBufAlgo::macc (ImageBuf &dst, const ImageBuf &A,
         dst.error ("No scale parameter supplied.");
         return false;
     }
+    bool dst_preinitialized = dst.initialized();
     if (! IBAprep (roi, &dst, &A, IBAprep_REQUIRE_SAME_NCHANNELS))
         return false;
 
@@ -820,6 +821,11 @@ ImageBufAlgo::macc (ImageBuf &dst, const ImageBuf &A,
         }
         blocal.resize (dst.nchannels(), B.back());
         B = array_view<const float>(blocal);
+    }
+
+    if (! dst_preinitialized) {
+        // Special case: uninitialized dst reduces this to just a multiply.
+        return ImageBufAlgo::mul (dst, A, B.data());
     }
 
     bool ok = true;

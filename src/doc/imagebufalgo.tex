@@ -1068,6 +1068,31 @@ the same number of channels.
 \apiend
 
 
+\apiitem{bool {\ce macc} (ImageBuf \&dst, const ImageBuf \&A, const ImageBuf \&B, \\
+        \bigspc  const ImageBuf \&C, ROI roi=ROI::All(), int nthreads=0)}
+\index{ImageBufAlgo!macc} \indexapi{macc}
+\NEW % 1.8
+
+For all pixels within the designated region, multiply and accumulate, i.e.,
+compute {\cf dst = dst + A * B} (pixel by pixel, channel by channel).
+{\cf A} must be an image. {\cf B} is an {\cf array_view} referring to either
+a single floats (applied to all channels), or a per-channel float array.
+Note that the results accumulate into {\cf dst} rather than fully
+overwriting its initial pixel values (though if {\cf dst} is not yet
+initialized at all, it will be filled with zeros when it is allocated.)
+
+\smallskip
+\noindent Example:
+\begin{code}
+    ImageBuf A ("a.exr");
+    ImageBuf B ("b.exr");
+    ImageBuf WeightedSum;
+    ImageBufAlgo::macc (WeightedSum, A, 0.25f /* A weight */);
+    ImageBufAlgo::macc (WeightedSum, B, 0.75f /* B weight */);
+\end{code}
+\apiend
+
+
 \apiitem{bool {\ce invert} (ImageBuf \&dst, const ImageBuf \&A, \\
         \bigspc  ROI roi=ROI::All(), int nthreads=0)}
 \index{ImageBufAlgo!invert} \indexapi{invert}

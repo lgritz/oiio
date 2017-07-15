@@ -424,6 +424,40 @@ void test_mad ()
 
 
 
+// Tests ImageBufAlgo::macc
+void test_macc ()
+{
+    std::cout << "test mad\n";
+    const int WIDTH = 4, HEIGHT = 4, CHANNELS = 4;
+    ImageSpec spec (WIDTH, HEIGHT, CHANNELS, TypeDesc::FLOAT);
+
+    // Create buffers
+    ImageBuf A (spec);
+    const float Aval[CHANNELS] = { 1, 2, 3, 4 };
+    ImageBufAlgo::fill (A, Aval);
+
+    // Test initialization, and also single float weight
+    ImageBuf R (spec); //  ImageBufAlgo::zero (R);
+    ImageBufAlgo::macc (R, A, 2.0f);
+    for (ImageBuf::Iterator<float> r (R); !r.done(); ++r) {
+        std::cout << r[0] << ' ' << r[1] << ' ' << r[2] << "\n";
+        for (int c = 0;  c < spec.nchannels;  ++c)
+            OIIO_CHECK_EQUAL (r[c], 2*Aval[c]);
+    }
+
+    // Add 10 more times, weighted
+    float weight[] = { .125, 0.5, 2.0, 0.25 };
+    for (int i = 0; i < 10; ++i)
+        ImageBufAlgo::macc (R, A, weight);
+    float sum[] = { 1 + 10*0.125*1, 2 + 10*0.5*2, 3 + 10*2*3, 4 + 10*0.25*4 };
+    for (ImageBuf::Iterator<float> r (R); !r.done(); ++r) {
+        for (int c = 0;  c < spec.nchannels;  ++c)
+            OIIO_CHECK_EQUAL (r[c], sum[c]);
+    }
+}
+
+
+
 // Tests ImageBufAlgo::compare
 void test_compare ()
 {
@@ -804,6 +838,7 @@ main (int argc, char **argv)
     test_sub ();
     test_mul ();
     test_mad ();
+    test_macc ();
     test_compare ();
     test_isConstantColor ();
     test_isConstantChannel ();

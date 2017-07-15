@@ -2313,7 +2313,7 @@ float} for each color channel.
 Compute {\cf dst} = {\cf A * B + C} (channel-by-channel multiplication
 and addition). {\cf A}
 is an \ImageBuf, and {\cf B} and {\cf C} may be both \ImageBuf, both
-{\cf float} (scaling all channels) or a both tuples giving a {\cf float} for
+{\cf float} (scaling all channels) or both tuples giving a {\cf float} for
 each color channel.
 
 \smallskip
@@ -2323,6 +2323,26 @@ each color channel.
     buf = ImageBuf ()
     ImageBufAlgo.mad (buf, ImageBuf("a.exr"),
                       ImageBuf("b.exr"), ImageBuf("c.exr"))
+\end{code}
+\apiend
+
+
+\apiitem{bool ImageBufAlgo.{\ce macc} (dst, A, B, C, roi=ROI.All, nthreads=0)}
+\index{ImageBufAlgo!macc} \indexapi{macc}
+\NEW % 1.8
+
+Compute {\cf dst} = {\cf dst + A * B} (channel-by-channel multiplication and
+accumulation). {\cf A} is an \ImageBuf, and {\cf B} and may be either a
+{\cf float} (scaling all channels) or a tuple giving a {\cf float} value for
+each color channel.
+
+\smallskip
+\noindent Example:
+\begin{code}
+    # Compute a weighted sum of a.exr and b.exr
+    buf = ImageBuf ()
+    ImageBufAlgo.macc (buf, ImageBuf("a.exr"), Aweight)
+    ImageBufAlgo.macc (buf, ImageBuf("b.exr"), Bweight)
 \end{code}
 \apiend
 

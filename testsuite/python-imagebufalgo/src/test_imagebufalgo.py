@@ -216,6 +216,12 @@ try:
                          make_constimage(64,64,3,oiio.HALF,(0.1,0.1,0.1)))
     write (b, "mad.exr", oiio.HALF)
 
+    # macc
+    b = ImageBuf()
+    ImageBufAlgo.macc (b, make_constimage(64,64,3,oiio.HALF,0.5))
+    ImageBufAlgo.macc (b, make_constimage(64,64,3,oiio.HALF,(.25,.5,.125)))
+    write (b, "macc.exr", oiio.HALF)
+
     # div
     b = ImageBuf()
     ImageBufAlgo.div (b, gray64, make_constimage (64, 64, 3, oiio.HALF, (2.0,1,0.5)))

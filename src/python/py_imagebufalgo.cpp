@@ -589,6 +589,32 @@ IBA_mad_images (ImageBuf &dst, const ImageBuf &A, const ImageBuf &B,
 
 
 bool
+IBA_macc_color (ImageBuf &dst, const ImageBuf &A,
+                tuple Bvalues_tuple, ROI roi=ROI::All(), int nthreads=0)
+{
+    std::vector<float> Bvalues;
+    py_to_stdvector (Bvalues, Bvalues_tuple);
+    if (roi.defined())
+        Bvalues.resize (roi.nchannels(), 0.0f);
+    else if (A.initialized())
+        Bvalues.resize (A.nchannels(), 0.0f);
+    else return false;
+    ASSERT (Bvalues.size() > 0);
+    ScopedGILRelease gil;
+    return ImageBufAlgo::macc (dst, A, Bvalues, roi, nthreads);
+}
+
+bool
+IBA_macc_float (ImageBuf &dst, const ImageBuf &A, float B,
+               ROI roi=ROI::All(), int nthreads=0)
+{
+    ScopedGILRelease gil;
+    return ImageBufAlgo::macc (dst, A, B, roi, nthreads);
+}
+
+
+
+bool
 IBA_invert (ImageBuf &dst, const ImageBuf &A,
              ROI roi=ROI::All(), int nthreads=0)
 {
@@ -1665,6 +1691,14 @@ void declare_imagebufalgo()
              (arg("dst"), arg("A"), arg("B"), arg("C"),
               arg("roi")=ROI::All(), arg("nthreads")=0))
         .staticmethod("mad")
+
+        .def("macc", &IBA_macc_float,
+             (arg("dst"), arg("A"), arg("B"),
+              arg("roi")=ROI::All(), arg("nthreads")=0))
+        .def("macc", &IBA_macc_color,
+             (arg("dst"), arg("A"), arg("B"),
+              arg("roi")=ROI::All(), arg("nthreads")=0))
+        .staticmethod("macc")
 
         .def("invert", &IBA_invert,
              (arg("dst"), arg("A"),
