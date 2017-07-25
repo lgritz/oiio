@@ -350,6 +350,9 @@ public:
 private:
     typedef ImageCacheTileRef TileRef;
     typedef ImageCachePerThreadInfo PerThreadInfo;
+    using FloatWide = Tex::FloatWide;
+    using IntWide = Tex::IntWide;
+    using RunMask = Tex::RunMask;
 
     void init ();
 
@@ -526,11 +529,19 @@ private:
     bool missing_texture (TextureOpt &options, int nchannels, float *result,
                           float *dresultds, float *dresultdt,
                           float *dresultdr=NULL);
+    bool missing_texture_wide (TextureOptBatch &options, int nchannels,
+                          RunMask mask, float *result,
+                          float *dresultds, float *dresultdt,
+                          float *dresultdr=nullptr);
 
     /// Handle gray-to-RGB promotion.
     void fill_gray_channels (const ImageSpec &spec, int nchannels,
                              float *result, float *dresultds, float *dresultdt,
                              float *dresultdr=NULL);
+    void fill_gray_channels_wide (const ImageSpec &spec, int nchannels,
+                             RunMask mask, float *result,
+                             float *dresultds, float *dresultdt,
+                             float *dresultdr=nullptr);
 
     static bool wrap_periodic_sharedborder (int &coord, int origin, int width);
     static const wrap_impl wrap_functions[];

@@ -829,6 +829,44 @@ TextureSystemImpl::missing_texture (TextureOpt &options, int nchannels,
 
 
 
+bool
+TextureSystemImpl::missing_texture_wide (TextureOptBatch &options,
+                                         int nchannels, RunMask mask,
+                                         float *result, float *dresultds,
+                                         float *dresultdt, float *dresultdr)
+{
+    if (options.missingcolor) {
+        for (int c = 0;  c < nchannels;  ++c, result += Tex::BatchWidth)
+            FloatWide(options.missingcolor[c]).store_mask (mask, result);
+    } else {
+        FloatWide fill (options.fill);
+        for (int c = 0;  c < nchannels;  ++c, result += Tex::BatchWidth)
+            fill.store_mask (mask, result);
+    }
+    if (dresultds) {
+        DASSERT (dresultdt);
+        FloatWide zero = FloatWide::Zero();
+        for (int c = 0;  c < nchannels;  ++c, dresultds += Tex::BatchWidth)
+            zero.store_mask (mask, dresultds);
+        for (int c = 0;  c < nchannels;  ++c, dresultdt += Tex::BatchWidth)
+            zero.store_mask (mask, dresultdt);
+        if (dresultdr) {
+            for (int c = 0;  c < nchannels;  ++c, dresultdr += Tex::BatchWidth)
+                zero.store_mask (mask, dresultdr);
+        }
+    }
+
+    if (options.missingcolor) {
+        // don't treat it as an error if missingcolor was supplied
+        (void) geterror ();   // eat the error
+        return true;
+    } else {
+        return false;
+    }
+}
+
+
+
 void
 TextureSystemImpl::fill_gray_channels (const ImageSpec &spec,
                                        int nchannels, float *result,
@@ -856,7 +894,6 @@ TextureSystemImpl::fill_gray_channels (const ImageSpec &spec,
             if (dresultdr)
                 *(simd::vfloat4 *)dresultdr = simd::shuffle<0,0,0,1>(*(simd::vfloat4 *)dresultdr);
         }
-
     }
 }
 
