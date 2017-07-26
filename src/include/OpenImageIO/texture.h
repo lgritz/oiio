@@ -126,6 +126,7 @@ static constexpr int BatchWidth = OIIO_TEXTURE_SIMD_BATCH_WIDTH;
 
 typedef simd::VecType<float,OIIO_TEXTURE_SIMD_BATCH_WIDTH>::type FloatWide;
 typedef simd::VecType<int,OIIO_TEXTURE_SIMD_BATCH_WIDTH>::type IntWide;
+typedef simd::VecType<bool,OIIO_TEXTURE_SIMD_BATCH_WIDTH>::type BoolWide;
 typedef uint64_t RunMask;
 
 #if OIIO_TEXTURE_SIMD_BATCH_WIDTH == 4

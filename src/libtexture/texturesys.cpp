@@ -298,6 +298,61 @@ const wrap_impl_simd wrap_functions_simd[] = {
 
 
 
+Tex::BoolWide
+wrap_black_wide (Tex::IntWide &coord, int origin, int width)
+{
+    return ((coord >= origin) & (coord < (width+origin)));
+}
+
+
+Tex::BoolWide
+wrap_clamp_wide (Tex::IntWide &coord, int origin, int width)
+{
+    using namespace simd;
+    coord = clamp (coord, Tex::IntWide(origin), Tex::IntWide(origin+width-1));
+    return true;
+}
+
+
+Tex::BoolWide
+wrap_periodic_wide (Tex::IntWide &coord, int origin, int width)
+{
+    coord -= origin;
+    coord %= width;   // FIXME -- worth a conditional to avoid this?
+    coord = blend (coord, coord+width, coord < 0); // Fix negative values
+    coord += origin;
+    return true;
+}
+
+
+Tex::BoolWide
+wrap_periodic_pow2_wide (Tex::IntWide &coord, int origin, int width)
+{
+    DASSERT (ispow2(width));
+    coord -= origin;
+    coord &= (width - 1); // Shortcut periodic if we're sure it's a pow of 2
+    coord += origin;
+    return true;
+}
+
+
+Tex::BoolWide
+wrap_mirror_wide (Tex::IntWide &coord, int origin, int width)
+{
+    coord -= origin;
+    coord = blend (coord, -coord-1, coord < 0);  // Fix negative values
+    Tex::IntWide iter = coord / width;    // Which iteration of the pattern?
+    coord -= iter * width;
+    // Odd iterations -- flip the sense
+    coord = blend (coord, (width - 1) - coord, (iter & 1) != Tex::IntWide::Zero());
+    DASSERT (all(coord >= 0) && all(coord < width));
+    coord += origin;
+    return true;
+}
+
+
+
+
 
 const char *
 texture_format_name (TexFormat f)
@@ -830,29 +885,26 @@ TextureSystemImpl::missing_texture (TextureOpt &options, int nchannels,
 
 
 bool
-TextureSystemImpl::missing_texture_wide (TextureOptBatch &options,
-                                         int nchannels, RunMask mask,
-                                         float *result, float *dresultds,
-                                         float *dresultdt, float *dresultdr)
+TextureSystemImpl::missing_texture_wide (TextureOptBatch &options, int nchannels,
+                                         FloatWide *result, FloatWide *dresultds,
+                                         FloatWide *dresultdt, FloatWide *dresultdr)
 {
     if (options.missingcolor) {
-        for (int c = 0;  c < nchannels;  ++c, result += Tex::BatchWidth)
-            FloatWide(options.missingcolor[c]).store_mask (mask, result);
+        for (int c = 0;  c < nchannels;  ++c)
+            result[c] = options.missingcolor[c];
     } else {
-        FloatWide fill (options.fill);
-        for (int c = 0;  c < nchannels;  ++c, result += Tex::BatchWidth)
-            fill.store_mask (mask, result);
+        for (int c = 0;  c < nchannels;  ++c)
+            result[c] = options.fill;
     }
     if (dresultds) {
-        DASSERT (dresultdt);
-        FloatWide zero = FloatWide::Zero();
-        for (int c = 0;  c < nchannels;  ++c, dresultds += Tex::BatchWidth)
-            zero.store_mask (mask, dresultds);
-        for (int c = 0;  c < nchannels;  ++c, dresultdt += Tex::BatchWidth)
-            zero.store_mask (mask, dresultdt);
+        DASSERT (dresultdt == nullptr);
+        for (int c = 0;  c < nchannels;  ++c)
+            dresultds[c].clear();
+        for (int c = 0;  c < nchannels;  ++c)
+            dresultdt[c].clear();
         if (dresultdr) {
-            for (int c = 0;  c < nchannels;  ++c, dresultdr += Tex::BatchWidth)
-                zero.store_mask (mask, dresultdr);
+            for (int c = 0;  c < nchannels;  ++c)
+                dresultdr[c].clear();
         }
     }
 
@@ -893,6 +945,65 @@ TextureSystemImpl::fill_gray_channels (const ImageSpec &spec,
             *(simd::vfloat4 *)dresultdt = simd::shuffle<0,0,0,1>(*(simd::vfloat4 *)dresultdt);
             if (dresultdr)
                 *(simd::vfloat4 *)dresultdr = simd::shuffle<0,0,0,1>(*(simd::vfloat4 *)dresultdr);
+        }
+    }
+}
+
+
+
+void
+TextureSystemImpl::fill_gray_channels_wide (const ImageSpec &spec, int nchannels,
+                                            FloatWide *result, FloatWide *dresultds,
+                                            FloatWide *dresultdt, FloatWide *dresultdr)
+{
+    int specchans = spec.nchannels;
+    if (specchans == 1 && nchannels >= 3) {
+        // Asked for RGB or RGBA, texture was just R...
+        // copy the one channel to G and B
+        FloatWide r;
+        r = result[0];
+        result[1] = r;
+        result[2] = r;
+        if (dresultds) {
+            r = dresultds[0];
+            dresultds[1] = r;
+            dresultds[2] = r;
+            r = dresultdt[0];
+            dresultdt[1] = r;
+            dresultdt[2] = r;
+            if (dresultdr) {
+                r = dresultdr[0];
+                dresultdr[1] = r;
+                dresultdr[2] = r;
+            }
+        }
+    } else if (specchans == 2 && nchannels == 4 && spec.alpha_channel == 1) {
+        // Asked for RGBA, texture was RA
+        // Shuffle into RRRA
+        FloatWide r, a;
+        r = result[0];
+        a = result[1];
+        result[1] = r;
+        result[2] = r;
+        result[3] = a;
+        if (dresultds) {
+            r = dresultds[0];
+            a = dresultds[1];
+            dresultds[1] = r;
+            dresultds[2] = r;
+            dresultds[3] = a;
+            r = dresultdt[0];
+            a = dresultdt[1];
+            dresultdt[1] = r;
+            dresultdt[2] = r;
+            dresultdt[3] = a;
+            if (dresultdr) {
+                r = dresultdr[0];
+                a = dresultdr[1];
+                dresultdr[1] = r;
+                dresultdr[2] = r;
+                dresultdr[3] = a;
+            }
         }
     }
 }
@@ -1957,6 +2068,120 @@ TextureSystemImpl::sample_closest (int nsamples, const float *s_,
     }
     return allok;
 }
+
+
+
+/// Do all lanes contain the same value?
+inline bool allsame (const vint4 &v) {
+    return all (shuffle<0>(v) == v);
+}
+inline bool allsame (const vint8 &v) {
+    return all (shuffle<0>(v) == v);
+}
+inline bool allsame (const vint16 &v) {
+    return all (shuffle<0>(shuffle4<0>(v)) == v);
+}
+
+
+#if 0
+bool
+TextureSystemImpl::sample_closest_wide (int nsamples,
+                    const FloatWide *s_, const FloatWide *t_, // per sample
+                    int miplevel,
+                    TextureFile &texturefile,
+                    PerThreadInfo *thread_info,
+                    TextureOpt &options, RunMask runmask,
+                    int nchannels_result, int actualchannels,
+                    const float *weight_,  // per sample
+                    FloatWide *accum_, FloatWide *daccumds_, FloatWide *daccumdt_)
+{
+    bool allok = true;
+    const ImageSpec &spec (texturefile.spec (options.subimage, miplevel));
+    const ImageCacheFile::LevelInfo &levelinfo (texturefile.levelinfo(options.subimage,miplevel));
+    TypeDesc::BASETYPE pixeltype = texturefile.pixeltype(options.subimage);
+    wrap_impl_wide swrap_func = wrap_functions[(int)options.swrap];
+    wrap_impl_wide twrap_func = wrap_functions[(int)options.twrap];
+    FloatWide accum;
+    accum.clear();
+    FloatWide nonfill = 0.0f;
+    int firstchannel = options.firstchannel;
+    int tile_chbegin = 0, tile_chend = spec.nchannels;
+    if (spec.nchannels > m_max_tile_channels) {
+        // For files with many channels, narrow the range we cache
+        tile_chbegin = options.firstchannel;
+        tile_chend = options.firstchannel+actualchannels;
+    }
+    for (int sample = 0;  sample < nsamples;  ++sample) {
+        FloatWide s = s_[sample], t = t_[sample];   // st coords for this sample
+        FloatWide weight = weight_[sample];
+
+        IntWide stex, ttex;    // Texel coordintes
+        FloatWide sfrac, tfrac;
+        st_to_texel (s, t, texturefile, spec, stex, ttex, sfrac, tfrac);
+
+        stex += blend (sfrac > 0.5f, IntWide::Zero(), IntWide::One());
+        ttex += blend (tfrac > 0.5f, IntWide::Zero(), IntWide::One());
+
+        // Wrap
+        BoolWide svalid, tvalid;  // Valid texels?  false means black border
+        svalid = swrap_func (stex, spec.x, spec.width);
+        tvalid = twrap_func (ttex, spec.y, spec.height);
+        if (! levelinfo.full_pixel_range) {
+            svalid &= ((stex >= spec.x) & (stex < (spec.x+spec.width))); // data window
+            tvalid &= ((ttex >= spec.y) & (ttex < (spec.y+spec.height)));
+        }
+        if (none (svalid & tvalid)) {
+            // All texels we need were out of range and using 'black' wrap.
+            nonfill += weight;
+            continue;
+        }
+
+        IntWide tile_s = (stex - spec.x) % spec.tile_width;
+        IntWide tile_t = (ttex - spec.y) % spec.tile_height;
+        TileID id (texturefile, options.subimage, miplevel, 0, 0, 0,
+                   tile_chbegin, tile_chend);
+        id.xy (stex - tile_s, ttex - tile_t);
+        bool ok = find_tile (id, thread_info);
+        if (! ok)
+            error ("%s", m_imagecache->geterror());
+        TileRef &tile (thread_info->tile);
+        if (! tile  ||  ! ok) {
+            allok = false;
+            continue;
+        }
+        int offset = id.nchannels() * (tile_t * spec.tile_width + tile_s)
+                        + (firstchannel - id.chbegin());
+        DASSERT ((size_t)offset < spec.nchannels*spec.tile_pixels());
+        simd::vfloat4 texel_simd;
+        if (pixeltype == TypeDesc::UINT8) {
+            // special case for 8-bit tiles
+            texel_simd = uchar2float4 (tile->bytedata() + offset);
+        } else if (pixeltype == TypeDesc::UINT16) {
+            texel_simd = ushort2float4 (tile->ushortdata() + offset);
+        } else if (pixeltype == TypeDesc::HALF) {
+            texel_simd = half2float4 (tile->halfdata() + offset);
+        } else {
+            DASSERT (pixeltype == TypeDesc::FLOAT);
+            texel_simd.load (tile->floatdata() + offset);
+        }
+
+        accum += weight * texel_simd;
+    }
+    simd::vbool4 channel_mask = channel_masks[actualchannels];
+    accum = blend0(accum, channel_mask);
+    if (nonfill < 1.0f && nchannels_result > actualchannels && options.fill) {
+        // Add the weighted fill color
+        accum += blend0not(vfloat4((1.0f - nonfill) * options.fill), channel_mask);
+    }
+
+    *accum_ = accum;
+    if (daccumds_) {
+        daccumds_->clear();  // constant interp has 0 derivatives
+        daccumdt_->clear();
+    }
+    return allok;
+}
+#endif
 
 
 

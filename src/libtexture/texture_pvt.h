@@ -62,6 +62,10 @@ class ImageCacheTileRef;
 class TextureSystemImpl : public TextureSystem {
 public:
     typedef ImageCacheFile TextureFile;
+    using FloatWide = Tex::FloatWide;
+    using IntWide   = Tex::IntWide;
+    using BoolWide  = Tex::BoolWide;
+    using RunMask   = Tex::RunMask;
 
     TextureSystemImpl (ImageCache *imagecache);
     virtual ~TextureSystemImpl ();
@@ -346,13 +350,11 @@ public:
     void operator delete (void *todel) { ::delete ((char *)todel); }
 
     typedef bool (*wrap_impl) (int &coord, int origin, int width);
+    typedef BoolWide (*wrap_impl_wide) (IntWide &coord, IntWide origin, IntWide width);
 
 private:
     typedef ImageCacheTileRef TileRef;
     typedef ImageCachePerThreadInfo PerThreadInfo;
-    using FloatWide = Tex::FloatWide;
-    using IntWide = Tex::IntWide;
-    using RunMask = Tex::RunMask;
 
     void init ();
 
@@ -418,7 +420,6 @@ private:
                          float _dsdx, float _dtdx,
                          float _dsdy, float _dtdy,
                          float *result, float *dresultds, float *resultdt);
-    
     bool texture_lookup_nomip (TextureFile &texfile, 
                          PerThreadInfo *thread_info, 
                          TextureOpt &options,
@@ -427,7 +428,6 @@ private:
                          float _dsdx, float _dtdx,
                          float _dsdy, float _dtdy,
                          float *result, float *dresultds, float *resultdt);
-    
     bool texture_lookup_trilinear_mipmap (TextureFile &texfile,
                          PerThreadInfo *thread_info, 
                          TextureOpt &options,
@@ -436,7 +436,37 @@ private:
                          float _dsdx, float _dtdx,
                          float _dsdy, float _dtdy,
                          float *result, float *dresultds, float *resultdt);
-    
+
+    typedef bool (TextureSystemImpl::*texture_lookup_prototype_wide)
+            (TextureFile &texfile, PerThreadInfo *thread_info,
+             TextureOpt &options, RunMask mask,
+             int nchannels_result, int actualchannels,
+             const FloatWide& _s, const FloatWide& _t,
+             const FloatWide& _dsdx, const FloatWide& _dtdx,
+             const FloatWide& _dsdy, const FloatWide& _dtdy,
+             FloatWide *result, FloatWide *dresultds, FloatWide *resultdt);
+    bool texture_lookup_wide (TextureFile &texfile, PerThreadInfo *thread_info,
+                        TextureOpt &options, RunMask mask,
+                        int nchannels_result, int actualchannels,
+                        const FloatWide& _s, const FloatWide& _t,
+                        const FloatWide& _dsdx, const FloatWide& _dtdx,
+                        const FloatWide& _dsdy, float _dtdy,
+                        FloatWide *result, FloatWide *dresultds, FloatWide *resultdt);
+    bool texture_lookup_nomip_wide (TextureFile &texfile, PerThreadInfo *thread_info,
+                        TextureOpt &options, RunMask mask,
+                        int nchannels_result, int actualchannels,
+                        const FloatWide& _s, const FloatWide& _t,
+                        const FloatWide& _dsdx, const FloatWide& _dtdx,
+                        const FloatWide& _dsdy, const FloatWide& _dtdy,
+                        FloatWide *result, FloatWide *dresultds, FloatWide *resultdt);
+    bool texture_lookup_trilinear_mipmap_wide (TextureFile &texfile, PerThreadInfo *thread_info,
+                        TextureOpt &options, RunMask mask,
+                        int nchannels_result, int actualchannels,
+                        const FloatWide& _s, const FloatWide& _t,
+                        const FloatWide& _dsdx, const FloatWide& _dtdx,
+                        const FloatWide& _dsdy, const FloatWide& _dtdy,
+                        FloatWide *result, FloatWide *dresultds, FloatWide *resultdt);
+
     // For the samplers, it's guaranteed that all float* inputs and outputs
     // are padded to length 'simd' and aligned to a simd*4-byte boundary
     // (for example, 4 for SSE). This means that the functions can behave AS
@@ -467,6 +497,32 @@ private:
                           int nchannels_result, int actualchannels,
                           const float *weight, simd::vfloat4 *accum,
                           simd::vfloat4 *daccumds, simd::vfloat4 *daccumdt);
+
+    typedef bool (TextureSystemImpl::*sampler_prototype_wide)
+                         (int nsamples, const FloatWide& s, const FloatWide& t,
+                          int level, TextureFile &texturefile,
+                          PerThreadInfo *thread_info, TextureOpt &options,
+                          RunMask mask, int nchannels_result, int actualchannels,
+                          const float *weight, FloatWide *accum,
+                          FloatWide *daccumds, FloatWide *daccumdt);
+    bool sample_closest_wide  (int nsamples, const FloatWide& s, const FloatWide& t,
+                          int level, TextureFile &texturefile,
+                          PerThreadInfo *thread_info, TextureOpt &options,
+                          RunMask mask, int nchannels_result, int actualchannels,
+                          const float *weight, FloatWide *accum,
+                          FloatWide *daccumds, FloatWide *daccumdt);
+    bool sample_bilinear_wide (int nsamples, const FloatWide& s, const FloatWide& t,
+                          int level, TextureFile &texturefile,
+                          PerThreadInfo *thread_info, TextureOpt &options,
+                          RunMask mask, int nchannels_result, int actualchannels,
+                          const float *weight, FloatWide *accum,
+                          FloatWide *daccumds, FloatWide *daccumdt);
+    bool sample_bicubic_wide  (int nsamples, const FloatWide& s, const FloatWide& t,
+                          int level, TextureFile &texturefile,
+                          PerThreadInfo *thread_info, TextureOpt &options,
+                          RunMask mask, int nchannels_result, int actualchannels,
+                          const float *weight, FloatWide *accum,
+                          FloatWide *daccumds, FloatWide *daccumdt);
 
     // Define a prototype of a member function pointer for texture3d
     // lookups.
@@ -520,9 +576,10 @@ private:
     /// sample position, and ifrac and jfrac are the fractional (0-1)
     /// portion of the way to the next texel to the right or down,
     /// respectively.
-    void st_to_texel (float s, float t, TextureFile &texturefile,
-                      const ImageSpec &spec, int &i, int &j,
-                      float &ifrac, float &jfrac);
+    template<typename Float, typename Int>
+    void st_to_texel (const Float &s, const Float &t, TextureFile &texturefile,
+                      const ImageSpec &spec, Int &i, Int &j,
+                      Float &ifrac, Float &jfrac);
 
     /// Called when the requested texture is missing, fills in the
     /// results.
@@ -530,18 +587,16 @@ private:
                           float *dresultds, float *dresultdt,
                           float *dresultdr=NULL);
     bool missing_texture_wide (TextureOptBatch &options, int nchannels,
-                          RunMask mask, float *result,
-                          float *dresultds, float *dresultdt,
-                          float *dresultdr=nullptr);
+                          FloatWide *result, FloatWide *dresultds,
+                          FloatWide *dresultdt, FloatWide *dresultdr=nullptr);
 
     /// Handle gray-to-RGB promotion.
     void fill_gray_channels (const ImageSpec &spec, int nchannels,
                              float *result, float *dresultds, float *dresultdt,
                              float *dresultdr=NULL);
     void fill_gray_channels_wide (const ImageSpec &spec, int nchannels,
-                             RunMask mask, float *result,
-                             float *dresultds, float *dresultdt,
-                             float *dresultdr=nullptr);
+                             FloatWide *result, FloatWide *dresultds,
+                             FloatWide *dresultdt, FloatWide *dresultdr=nullptr);
 
     static bool wrap_periodic_sharedborder (int &coord, int origin, int width);
     static const wrap_impl wrap_functions[];
@@ -642,22 +697,25 @@ TextureSystemImpl::anisotropic_aspect (float &majorlength, float &minorlength,
 
 
 
+template<typename Float, typename Int>
 inline void
-TextureSystemImpl::st_to_texel (float s, float t, TextureFile &texturefile,
-                                const ImageSpec &spec, int &i, int &j,
-                                float &ifrac, float &jfrac)
+TextureSystemImpl::st_to_texel (const Float& s_, const Float& t_,
+                                TextureFile &texturefile,
+                                const ImageSpec &spec, Int& i, Int& j,
+                                Float& ifrac, Float& jfrac)
 {
     // As passed in, (s,t) map the texture to (0,1).  Remap to texel coords.
     // Note that we have two modes, depending on the m_sample_border.
+    Float s = s_, t = t_;
     if (texturefile.m_sample_border == 0) {
         // texel samples are at 0.5/res, 1.5/res, ..., (res-0.5)/res,
-        s = s * spec.width  + spec.x - 0.5f;
-        t = t * spec.height + spec.y - 0.5f;
+        s = s * Float(spec.width)  + (spec.x - 0.5f);
+        t = t * Float(spec.height) + (spec.y - 0.5f);
     } else {
         // first and last rows/columns are *exactly* on the boundary,
         // so samples are at 0, 1/(res-1), ..., 1.
-        s = s * (spec.width-1)  + spec.x;
-        t = t * (spec.height-1) + spec.y;
+        s = s * Float(spec.width-1)  + Float(spec.x);
+        t = t * Float(spec.height-1) + Float(spec.y);
     }
     ifrac = floorfrac (s, &i);
     jfrac = floorfrac (t, &j);
