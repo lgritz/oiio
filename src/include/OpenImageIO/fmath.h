@@ -224,7 +224,7 @@ clamp (const T& a, const T& low, const T& high)
 }
 
 
-// Specialization of clamp for vfloat4
+// Specialization of clamp for vector types
 template<> inline simd::vfloat4
 clamp (const simd::vfloat4& a, const simd::vfloat4& low, const simd::vfloat4& high)
 {
@@ -236,6 +236,31 @@ clamp (const simd::vfloat8& a, const simd::vfloat8& low, const simd::vfloat8& hi
 {
     return simd::min (high, simd::max (low, a));
 }
+
+template<> inline simd::vfloat16
+clamp (const simd::vfloat16& a, const simd::vfloat16& low, const simd::vfloat16& high)
+{
+    return simd::min (high, simd::max (low, a));
+}
+
+template<> inline simd::vint4
+clamp (const simd::vint4& a, const simd::vint4& low, const simd::vint4& high)
+{
+    return simd::min (high, simd::max (low, a));
+}
+
+template<> inline simd::vint8
+clamp (const simd::vint8& a, const simd::vint8& low, const simd::vint8& high)
+{
+    return simd::min (high, simd::max (low, a));
+}
+
+template<> inline simd::vint16
+clamp (const simd::vint16& a, const simd::vint16& low, const simd::vint16& high)
+{
+    return simd::min (high, simd::max (low, a));
+}
+
 
 
 
