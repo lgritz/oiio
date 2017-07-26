@@ -74,6 +74,14 @@ template<typename T, typename U> struct is_same { static const bool value = fals
 template<typename T> struct is_same<T,T> { static const bool value = true; };
 
 
+/// Helper metaprogramming: figure out the integer type corresponding
+/// to a float type. For scalars, it's just int.
+template<typename T> struct IntType { typedef int type; };
+template<> struct IntType<simd::vfloat4> { typedef simd::vint4 type; };
+template<> struct IntType<simd::vfloat8> { typedef simd::vint8 type; };
+template<> struct IntType<simd::vfloat16> { typedef simd::vint16 type; };
+
+
 
 
 ////////////////////////////////////////////////////////////////////////////
@@ -472,18 +480,20 @@ bicubic_interp (const T **val, T s, T t, int n, T *result)
 
 /// Return floor(x) cast to an int.
 inline int
-ifloor (float x)
+floori (float x)
 {
     return (int)floorf(x);
 }
 
+// alias ifloor to floori
+inline int ifloor (float x) { return floori(x); }
 
 
 /// Return (x-floor(x)) and put (int)floor(x) in *xint.  This is similar
 /// to the built-in modf, but returns a true int, always rounds down
 /// (compared to modf which rounds toward 0), and always returns
 /// frac >= 0 (comapred to modf which can return <0 if x<0).
-inline float
+OIIO_FORCEINLINE float
 floorfrac (float x, int *xint)
 {
 #if 1

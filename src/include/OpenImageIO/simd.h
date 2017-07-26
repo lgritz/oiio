@@ -7054,7 +7054,7 @@ OIIO_FORCEINLINE vfloat4 round (const vfloat4& a)
 
 OIIO_FORCEINLINE vint4 ifloor (const vfloat4& a)
 {
-    // FIXME: look into this, versus the method of quick_floor in texturesys.cpp
+    // FIXME: look into whether the SSE4 method is slower than the bit method
 #if OIIO_SIMD_SSE >= 4  /* SSE >= 4.1 */
     return vint4(floor(a));
 #else
