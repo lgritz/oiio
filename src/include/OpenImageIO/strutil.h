@@ -148,9 +148,21 @@ std::string OIIO_API format_raw (const char *fmt, ...)
 std::string OIIO_API vformat (const char *fmt, va_list ap)
                                          OPENIMAGEIO_PRINTF_ARGS(1,0);
 
+/// Return a string expressing a number, in human readable form.
+///  - numformat(153)           -> "153"
+///  - numformat(15300)         -> "15.3k"
+///  - numformat(15300000)      -> "14.6M"
+///  - numformat(1.53e9)        -> "14.2G"
+std::string OIIO_API numformat (double value, int digits=1);
+std::string OIIO_API numformat (int64_t value, int digits=1);
+std::string OIIO_API numformat (uint64_t value, int digits=1);
+inline std::string numformat (int value, int digits=1) {
+    return numformat(int64_t(value), digits);
+}
+
 /// Return a string expressing a number of bytes, in human readable form.
 ///  - memformat(153)           -> "153 B"
-///  - memformat(15300)         -> "14.9 KB"
+///  - memformat(15300)         -> "14.9 kB"
 ///  - memformat(15300000)      -> "14.6 MB"
 ///  - memformat(15300000000LL) -> "14.2 GB"
 std::string OIIO_API memformat (long long bytes, int digits=1);

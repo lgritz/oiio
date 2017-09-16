@@ -62,10 +62,60 @@ void test_format ()
 
 
 
+void test_numformat ()
+{
+    // int
+    OIIO_CHECK_EQUAL (Strutil::numformat (int( 15)), "15");
+    OIIO_CHECK_EQUAL (Strutil::numformat (int(-15)), "-15");
+    OIIO_CHECK_EQUAL (Strutil::numformat (int( 15500)), "15.5k");
+    OIIO_CHECK_EQUAL (Strutil::numformat (int(-15500)), "-15.5k");
+    OIIO_CHECK_EQUAL (Strutil::numformat (int( 15500000)), "15.5M");
+    OIIO_CHECK_EQUAL (Strutil::numformat (int(-15500000)), "-15.5M");
+
+    // long long, which should end up as int64_t
+    OIIO_CHECK_EQUAL (Strutil::numformat ( 15LL), "15");
+    OIIO_CHECK_EQUAL (Strutil::numformat (-15LL), "-15");
+    OIIO_CHECK_EQUAL (Strutil::numformat ( 15500LL), "15.5k");
+    OIIO_CHECK_EQUAL (Strutil::numformat (-15500LL), "-15.5k");
+    OIIO_CHECK_EQUAL (Strutil::numformat ( 15500000LL), "15.5M");
+    OIIO_CHECK_EQUAL (Strutil::numformat (-15500000LL), "-15.5M");
+    OIIO_CHECK_EQUAL (Strutil::numformat ( 15500000000LL), "15.5G");
+    OIIO_CHECK_EQUAL (Strutil::numformat (-15500000000LL), "-15.5G");
+    OIIO_CHECK_EQUAL (Strutil::numformat ( 15500000000000LL), "15.5T");
+    OIIO_CHECK_EQUAL (Strutil::numformat (-15500000000000LL), "-15.5T");
+
+    // unsigned long long, which should end up as uint64_t
+    OIIO_CHECK_EQUAL (Strutil::numformat ( 15ULL), "15");
+    OIIO_CHECK_EQUAL (Strutil::numformat ( 15500ULL), "15.5k");
+    OIIO_CHECK_EQUAL (Strutil::numformat ( 15500000ULL), "15.5M");
+    OIIO_CHECK_EQUAL (Strutil::numformat ( 15500000000ULL), "15.5G");
+    OIIO_CHECK_EQUAL (Strutil::numformat ( 15500000000000ULL), "15.5T");
+
+    // float, which should end up as double
+    OIIO_CHECK_EQUAL (Strutil::numformat ( 15.0f), "15.0");
+    OIIO_CHECK_EQUAL (Strutil::numformat (-15.0f), "-15.0");
+    OIIO_CHECK_EQUAL (Strutil::numformat ( 15500.0f), "15.5k");
+    OIIO_CHECK_EQUAL (Strutil::numformat (-15500.0f), "-15.5k");
+    OIIO_CHECK_EQUAL (Strutil::numformat ( 15500000.0f), "15.5M");
+    OIIO_CHECK_EQUAL (Strutil::numformat (-15500000.0f), "-15.5M");
+    OIIO_CHECK_EQUAL (Strutil::numformat ( 15500000000.0f), "15.5G");
+    OIIO_CHECK_EQUAL (Strutil::numformat (-15500000000.0f), "-15.5G");
+    OIIO_CHECK_EQUAL (Strutil::numformat ( 15500000000000.0f), "15.5T");
+    OIIO_CHECK_EQUAL (Strutil::numformat (-15500000000000.0f), "-15.5T");
+    OIIO_CHECK_EQUAL (Strutil::numformat ( 0.15f), "150.0m");
+    OIIO_CHECK_EQUAL (Strutil::numformat (-0.15f), "-150.0m");
+    OIIO_CHECK_EQUAL (Strutil::numformat ( 0.00015f), "150.0µ");
+    OIIO_CHECK_EQUAL (Strutil::numformat (-0.00015f), "-150.0µ");
+    OIIO_CHECK_EQUAL (Strutil::numformat ( 0.00000015f), "150.0n");
+    OIIO_CHECK_EQUAL (Strutil::numformat (-0.00000015f), "-150.0n");
+}
+
+
+
 void test_memformat ()
 {
     OIIO_CHECK_EQUAL (Strutil::memformat (15), "15 B");
-    OIIO_CHECK_EQUAL (Strutil::memformat (15LL*1024), "15 KB");
+    OIIO_CHECK_EQUAL (Strutil::memformat (15LL*1024), "15 kB");
     OIIO_CHECK_EQUAL (Strutil::memformat (15LL*1024*1024), "15.0 MB");
     OIIO_CHECK_EQUAL (Strutil::memformat (15LL*1024*1024*1024), "15.0 GB");
     OIIO_CHECK_EQUAL (Strutil::memformat (15LL*1024*1024+200000), "15.2 MB");
@@ -783,6 +833,7 @@ int
 main (int argc, char *argv[])
 {
     test_format ();
+    test_numformat ();
     test_memformat ();
     test_timeintervalformat ();
     test_get_rest_arguments ();

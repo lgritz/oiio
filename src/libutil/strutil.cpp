@@ -197,6 +197,51 @@ Strutil::vformat (const char *fmt, va_list ap)
 }
 
 
+#if 1
+std::string
+Strutil::numformat (uint64_t value, int digits)
+{
+    static uint64_t sizes[] = { 1000000000000, 1000000000, 1000000, 1000, 0 };
+    static const char* suffix[] = { "T", "G", "M", "k", "" };
+    for (int i = 0; sizes[i]; ++i) {
+        if (value >= sizes[i])
+            return OIIO::Strutil::format("%1.*f%s", digits,
+                                         double(value) / double(sizes[i]), suffix[i]);
+    }
+    return OIIO::Strutil::format("%u", value);
+}
+
+
+
+std::string
+Strutil::numformat (int64_t value, int digits)
+{
+    static int64_t sizes[] = { 1000000000000, 1000000000, 1000000, 1000, 0 };
+    static const char* suffix[] = { "T", "G", "M", "k", "" };
+    for (int i = 0; sizes[i]; ++i) {
+        if (std::abs(value) >= sizes[i])
+            return OIIO::Strutil::format("%1.*f%s", digits,
+                                         double(value) / double(sizes[i]), suffix[i]);
+    }
+    return OIIO::Strutil::format("%d", value);
+}
+#endif
+
+
+std::string
+Strutil::numformat (double value, int digits)
+{
+    static double sizes[] = { 1e12, 1e9, 1e6, 1e3, 1.0, 1e-3, 1e-6, 1e-9, 0 };
+    static const char* suffix[] = { "T", "G", "M", "k", "", "m", "µ", "n", "" };
+    for (int i = 0; sizes[i]; ++i) {
+        if (std::abs(value) >= sizes[i])
+            return OIIO::Strutil::format("%1.*f%s", digits,
+                                         value/sizes[i], suffix[i]);
+    }
+    return OIIO::Strutil::format("%1.*f%s", digits, value);
+}
+
+
 
 std::string
 Strutil::memformat (long long bytes, int digits)
@@ -214,7 +259,7 @@ Strutil::memformat (long long bytes, int digits)
         d = (double)bytes / MB;
     } else if (bytes >= KB) {
         // Just KB, don't bother with decimalization
-        return format ("%lld KB", (long long)bytes/KB);
+        return format ("%lld kB", (long long)bytes/KB);
     } else {
         // Just bytes, don't bother with decimalization
         return format ("%lld B", (long long)bytes);
