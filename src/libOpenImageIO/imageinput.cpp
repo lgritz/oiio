@@ -268,6 +268,21 @@ ImageInput::read_scanlines (int ybegin, int yend, int z,
 
 
 bool
+ImageInput::read_scanlines_atomic (int subimage, int miplevel,
+                                   int ybegin, int yend, int z,
+                                   int chbegin, int chend,
+                                   TypeDesc format, void *data,
+                                   stride_t xstride, stride_t ystride)
+{
+    std::lock_guard<std::mutex> lock (m_mutex);
+    return seek_subimage (subimage, miplevel) &&
+           read_scanlines (ybegin, yend, z, chbegin, chend,
+                           format, data, xstride, ystride);
+}
+
+
+
+bool
 ImageInput::read_native_scanlines (int ybegin, int yend, int z, void *data)
 {
     // Base class implementation of read_native_scanlines just repeatedly
@@ -450,7 +465,8 @@ ImageInput::read_tiles (int xbegin, int xend, int ybegin, int yend,
             return read_native_tiles (xbegin, xend, ybegin, yend, zbegin, zend,
                                       data);  // Simple case
         else
-            return read_native_tiles (xbegin, xend, ybegin, yend, zbegin, zend,
+            return read_native_tiles (current_subimage(), current_miplevel(),
+                                      xbegin, xend, ybegin, yend, zbegin, zend,
                                       chbegin, chend, data);
     }
 
@@ -520,6 +536,21 @@ ImageInput::read_tiles (int xbegin, int xend, int ybegin, int yend,
 
 
 bool
+ImageInput::read_tiles_atomic (int subimage, int miplevel,
+                        int xbegin, int xend, int ybegin, int yend,
+                        int zbegin, int zend, int chbegin, int chend,
+                        TypeDesc format, void *data,
+                        stride_t xstride, stride_t ystride, stride_t zstride)
+{
+    std::lock_guard<std::mutex> lock (m_mutex);
+    return seek_subimage (subimage, miplevel) &&
+           read_tiles (xbegin, xend, ybegin, yend, zbegin, zend, chbegin, chend,
+                       format, data, xstride, ystride, zstride);
+}
+
+
+
+bool
 ImageInput::read_native_tiles (int xbegin, int xend, int ybegin, int yend,
                                int zbegin, int zend, void *data)
 {
@@ -558,17 +589,36 @@ ImageInput::read_native_tiles (int xbegin, int xend, int ybegin, int yend,
 
 
 bool
-ImageInput::read_native_tiles (int xbegin, int xend, int ybegin, int yend,
-                               int zbegin, int zend, 
+ImageInput::read_native_tiles (int subimage, int miplevel,
+                               int xbegin, int xend, int ybegin, int yend,
+                               int zbegin, int zend,
                                int chbegin, int chend, void *data)
 {
-    chend = clamp (chend, chbegin+1, m_spec.nchannels);
-    int nchans = chend - chbegin;
+    // Values we need to set while we hold the lock, but that we want to
+    // retain after releasing the lock, even if m_spec changes.
+    int tile_width, tile_height, tile_depth;
+    int spec_nchannels; // channels in the file
+    int nchans;  // channels we're reading
+    size_t prefix_bytes, subset_bytes;
+    size_t native_pixel_bytes, tile_bytes;
+    std::unique_ptr<char[]> pels_tmp;  // temp storage if needed
+    char *peldata = nullptr;
 
-    // All-channel case just reduces to the simpler read_native_scanlines.
-    if (chbegin == 0 && chend >= m_spec.nchannels)
+    {  // scope the lock
+    std::lock_guard<std::mutex> lock (m_mutex);
+    if (! seek_subimage (subimage, miplevel))
+        return false;
+
+    spec_nchannels = m_spec.nchannels;
+    chend = clamp (chend, chbegin+1, spec_nchannels);
+    nchans = chend - chbegin;
+
+#if 0
+    // All-channel case just reduces to the simpler read_native_tiles.
+    if (chbegin == 0 && chend >= spec_nchannels)
         return read_native_tiles (xbegin, xend, ybegin, yend,
                                   zbegin, zend, data);
+#endif
 
     if (! m_spec.valid_tile_range (xbegin, xend, ybegin, yend, zbegin, zend))
         return false;
@@ -578,34 +628,72 @@ ImageInput::read_native_tiles (int xbegin, int xend, int ybegin, int yend,
     // supports tiles.  Only the hardcore ones will overload
     // read_native_tiles with their own implementation.
 
-    stride_t native_pixel_bytes = (stride_t) m_spec.pixel_bytes (true);
-    stride_t native_tileystride = native_pixel_bytes * m_spec.tile_width;
-    stride_t native_tilezstride = native_tileystride * m_spec.tile_height;
+    tile_width = m_spec.tile_width;
+    tile_height = m_spec.tile_height;
+    tile_depth = m_spec.tile_depth;
 
-    size_t prefix_bytes = m_spec.pixel_bytes (0,chbegin,true);
-    size_t subset_bytes = m_spec.pixel_bytes (chbegin,chend,true);
-    stride_t subset_ystride = (xend-xbegin) * subset_bytes;
-    stride_t subset_zstride = (yend-ybegin) * subset_ystride;
+    native_pixel_bytes = (stride_t) m_spec.pixel_bytes (true);
 
-    std::unique_ptr<char[]> pels (new char [m_spec.tile_bytes(true)]);
+    prefix_bytes = m_spec.pixel_bytes (0,chbegin,true);
+    subset_bytes = m_spec.pixel_bytes (chbegin,chend,true);
+    tile_bytes = m_spec.tile_bytes(true);
+
+    int nxtiles = (xend - xbegin + tile_width - 1) / tile_width;
+    int nytiles = (yend - ybegin + tile_height - 1) / tile_height;
+    int nztiles = (zend - zbegin + tile_depth - 1) / tile_depth;
+    int ntiles = nxtiles * nytiles * nztiles;
+    ASSERT (ntiles);
+
+    if (ntiles == 1 && nchans == spec_nchannels) {
+        // If we're asking for all channels of just one tile, we can read
+        // straight into the caller's data buffer.
+        peldata = (char *)data;
+    } else {
+        // For multiple tiles or channel subsets, allocate our own temp
+        // buffer big enough for all the raw native tiles we're reading.
+        pels_tmp.reset (new char [tile_bytes * ntiles]);
+        peldata = pels_tmp.get();
+    }
+    size_t itile = 0;  // tile index
     for (int z = zbegin;  z < zend;  z += m_spec.tile_depth) {
         for (int y = ybegin;  y < yend;  y += m_spec.tile_height) {
-            for (int x = xbegin;  x < xend;  x += m_spec.tile_width) {
-                bool ok = read_native_tile (x, y, z, &pels[0]);
+            for (int x = xbegin;  x < xend;  x += tile_width, ++itile) {
+                size_t tileoffset = itile * tile_bytes;
+                bool ok = read_native_tile (x, y, z, peldata+tileoffset);
                 if (! ok)
                     return false;
-                copy_image (nchans, m_spec.tile_width,
-                            m_spec.tile_height, m_spec.tile_depth,
-                            &pels[prefix_bytes], subset_bytes,
-                            native_pixel_bytes, native_tileystride,
-                            native_tilezstride,
-                            (char *)data+ (z-zbegin)*subset_zstride + 
-                                (y-ybegin)*subset_ystride +
-                                (x-xbegin)*subset_bytes,
-                            subset_bytes, subset_ystride, subset_zstride);
             }
         }
     }
+    }  // exit the scope that hold the exclusive lock
+
+    if (pels_tmp.get()) {
+        // If we read the raw tiles into a temporary buffer, now we have to
+        // copy back to the caller's buffer, heeding the differences in data
+        // layout and number of channels.
+        stride_t native_tileystride = native_pixel_bytes * tile_width;
+        stride_t native_tilezstride = native_tileystride * tile_height;
+        stride_t subset_ystride = (xend-xbegin) * subset_bytes;
+        stride_t subset_zstride = (yend-ybegin) * subset_ystride;
+        size_t itile = 0;
+        for (int z = zbegin;  z < zend;  z += tile_depth) {
+            for (int y = ybegin;  y < yend;  y += tile_height) {
+                for (int x = xbegin;  x < xend;  x += tile_width, ++itile) {
+                    size_t tileoffset = itile * tile_bytes;
+                    copy_image (nchans, tile_width,
+                                tile_height, tile_depth,
+                                peldata+tileoffset + prefix_bytes, subset_bytes,
+                                native_pixel_bytes, native_tileystride,
+                                native_tilezstride,
+                                (char *)data+ (z-zbegin)*subset_zstride +
+                                    (y-ybegin)*subset_ystride +
+                                    (x-xbegin)*subset_bytes,
+                                subset_bytes, subset_ystride, subset_zstride);
+                }
+            }
+        }
+    }
+
     return true;
 }
 

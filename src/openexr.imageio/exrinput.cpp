@@ -157,7 +157,12 @@ public:
     virtual bool close ();
     virtual int current_subimage (void) const { return m_subimage; }
     virtual int current_miplevel (void) const { return m_miplevel; }
-    virtual bool seek_subimage (int subimage, int miplevel, ImageSpec &newspec);
+    virtual bool seek_subimage (int subimage, int miplevel);
+    virtual bool seek_subimage (int subimage, int miplevel, ImageSpec &newspec) {
+        bool ok = seek_subimage (subimage, miplevel);
+        newspec = m_spec;
+        return ok;
+    }
     virtual bool read_native_scanline (int y, int z, void *data);
     virtual bool read_native_scanlines (int ybegin, int yend, int z, void *data);
     virtual bool read_native_scanlines (int ybegin, int yend, int z,
@@ -165,7 +170,8 @@ public:
     virtual bool read_native_tile (int x, int y, int z, void *data);
     virtual bool read_native_tiles (int xbegin, int xend, int ybegin, int yend,
                                     int zbegin, int zend, void *data);
-    virtual bool read_native_tiles (int xbegin, int xend, int ybegin, int yend,
+    virtual bool read_native_tiles (int subimage, int miplevel,
+                                    int xbegin, int xend, int ybegin, int yend,
                                     int zbegin, int zend,
                                     int chbegin, int chend, void *data);
     virtual bool read_native_deep_scanlines (int ybegin, int yend, int z,
@@ -823,15 +829,14 @@ OpenEXRInput::PartInfo::query_channels (const Imf::Header *header)
 
 
 bool
-OpenEXRInput::seek_subimage (int subimage, int miplevel, ImageSpec &newspec)
+OpenEXRInput::seek_subimage (int subimage, int miplevel)
 {
-    if (subimage < 0 || subimage >= m_nsubimages)   // out of range
-        return false;
-
     if (subimage == m_subimage && miplevel == m_miplevel) {  // no change
-        newspec = m_spec;
         return true;
     }
+
+    if (subimage < 0 || subimage >= m_nsubimages)   // out of range
+        return false;
 
     PartInfo &part (m_parts[subimage]);
     if (! part.initialized) {
@@ -885,7 +890,6 @@ OpenEXRInput::seek_subimage (int subimage, int miplevel, ImageSpec &newspec)
     m_spec = part.spec;
 
     if (miplevel == 0 && part.levelmode == Imf::ONE_LEVEL) {
-        newspec = m_spec;
         return true;
     }
 
@@ -932,7 +936,6 @@ OpenEXRInput::seek_subimage (int subimage, int miplevel, ImageSpec &newspec)
         m_spec.full_width = w;
         m_spec.full_height = w;
     }
-    newspec = m_spec;
 
     return true;
 }
@@ -1032,7 +1035,8 @@ OpenEXRInput::read_native_scanlines (int ybegin, int yend, int z,
 bool
 OpenEXRInput::read_native_tile (int x, int y, int z, void *data)
 {
-    return read_native_tiles (x, x+m_spec.tile_width, y, y+m_spec.tile_height,
+    return read_native_tiles (current_subimage(), current_miplevel(),
+                              x, x+m_spec.tile_width, y, y+m_spec.tile_height,
                               z, z+m_spec.tile_depth,
                               0, m_spec.nchannels, data);
 }
@@ -1043,17 +1047,23 @@ bool
 OpenEXRInput::read_native_tiles (int xbegin, int xend, int ybegin, int yend,
                                  int zbegin, int zend, void *data)
 {
-    return read_native_tiles (xbegin, xend, ybegin, yend, zbegin, zend,
+    return read_native_tiles (current_subimage(), current_miplevel(),
+                              xbegin, xend, ybegin, yend, zbegin, zend,
                               0, m_spec.nchannels, data);
 }
 
 
 
 bool
-OpenEXRInput::read_native_tiles (int xbegin, int xend, int ybegin, int yend,
-                                 int zbegin, int zend, 
+OpenEXRInput::read_native_tiles (int subimage, int miplevel,
+                                 int xbegin, int xend, int ybegin, int yend,
+                                 int zbegin, int zend,
                                  int chbegin, int chend, void *data)
 {
+    std::lock_guard<std::mutex> lock (m_mutex);
+    if (! seek_subimage (subimage, miplevel))
+        return false;
+
     chend = clamp (chend, chbegin+1, m_spec.nchannels);
 #if 0
     std::cerr << "openexr rnt " << xbegin << ' ' << xend << ' ' << ybegin 

@@ -127,7 +127,12 @@ public:
         // If m_emulate_mipmap is true, pretend subimages are mipmap levels
         return m_emulate_mipmap ? m_subimage : 0;
     }
-    virtual bool seek_subimage (int subimage, int miplevel, ImageSpec &newspec);
+    virtual bool seek_subimage (int subimage, int miplevel);
+    virtual bool seek_subimage (int subimage, int miplevel, ImageSpec &newspec) {
+        bool ok = seek_subimage (subimage, miplevel);
+        newspec = m_spec;
+        return ok;
+    }
     virtual bool read_native_scanline (int y, int z, void *data);
     virtual bool read_native_tile (int x, int y, int z, void *data);
     virtual bool read_scanline (int y, int z, TypeDesc format, void *data,
@@ -139,6 +144,11 @@ public:
     virtual bool read_tile (int x, int y, int z, TypeDesc format, void *data,
                             stride_t xstride, stride_t ystride, stride_t zstride);
     virtual bool read_tiles (int xbegin, int xend, int ybegin, int yend,
+                             int zbegin, int zend, int chbegin, int chend,
+                             TypeDesc format, void *data,
+                             stride_t xstride, stride_t ystride, stride_t zstride);
+    virtual bool read_tiles_atomic (int subimage, int miplevel,
+                             int xbegin, int xend, int ybegin, int yend,
                              int zbegin, int zend, int chbegin, int chend,
                              TypeDesc format, void *data,
                              stride_t xstride, stride_t ystride, stride_t zstride);
@@ -509,8 +519,11 @@ TIFFInput::open (const std::string &name, ImageSpec &newspec,
 
 
 bool
-TIFFInput::seek_subimage (int subimage, int miplevel, ImageSpec &newspec)
+TIFFInput::seek_subimage (int subimage, int miplevel)
 {
+    if (subimage == current_subimage() && miplevel == current_miplevel())
+        return true;   // no change
+
     if (subimage < 0)       // Illegal
         return false;
     if (m_emulate_mipmap) {
@@ -526,7 +539,6 @@ TIFFInput::seek_subimage (int subimage, int miplevel, ImageSpec &newspec)
 
     if (subimage == m_subimage) {
         // We're already pointing to the right subimage
-        newspec = m_spec;
         return true;
     }
 
@@ -574,8 +586,7 @@ TIFFInput::seek_subimage (int subimage, int miplevel, ImageSpec &newspec)
             m_spec.channelformats.clear ();
             m_photometric = PHOTOMETRIC_RGB;
         }
-        newspec = m_spec;
-        if (newspec.format == TypeDesc::UNKNOWN) {
+        if (m_spec.format == TypeDesc::UNKNOWN) {
             error ("No support for data format of \"%s\"", m_filename.c_str());
             return false;
         }
@@ -1594,6 +1605,34 @@ bool TIFFInput::read_tiles (int xbegin, int xend, int ybegin, int yend,
 }
 
 
+bool TIFFInput::read_tiles_atomic (int subimage, int miplevel,
+                            int xbegin, int xend, int ybegin, int yend,
+                            int zbegin, int zend,
+                            int chbegin, int chend,
+                            TypeDesc format, void *data,
+                            stride_t xstride, stride_t ystride, stride_t zstride)
+{
+    // Rely on the parent class for the basic read_tiles operation
+    bool ok = ImageInput::read_tiles_atomic (subimage, miplevel,
+                                      xbegin, xend, ybegin, yend, zbegin, zend,
+                                      chbegin, chend, format, data,
+                                      xstride, ystride, zstride);
+
+    if (ok && m_convert_alpha) {
+        // If alpha is unassociated and we aren't requested to keep it that
+        // way, multiply the colors by alpha per the usual OIIO conventions
+        // to deliver associated color & alpha.  Any auto-premultiplication
+        // by alpha should happen after we've already done data format
+        // conversions. That's why we do it here, rather than in
+        // read_native_blah.
+        OIIO::premult (m_spec.nchannels, m_spec.tile_width, m_spec.tile_height,
+                       std::max (1, m_spec.tile_depth),
+                       chbegin, chend, format, data,
+                       xstride, AutoStride, AutoStride,
+                       m_spec.alpha_channel, m_spec.z_channel);
+    }
+    return ok;
+}
 
 
 

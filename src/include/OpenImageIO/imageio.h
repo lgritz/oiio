@@ -61,6 +61,7 @@
 #include <OpenImageIO/paramlist.h>
 #include <OpenImageIO/strutil.h>
 #include <OpenImageIO/array_view.h>
+#include <OpenImageIO/thread.h>
 
 OIIO_NAMESPACE_BEGIN
 
@@ -422,6 +423,8 @@ public:
 
 /// ImageInput abstracts the reading of an image file in a file
 /// format-agnostic manner.
+///
+///
 class OIIO_API ImageInput {
 public:
     /// Create an ImageInput subclass instance that is able to read
@@ -523,6 +526,18 @@ public:
     /// a call to seek_subimage().
     const ImageSpec &spec (void) const { return m_spec; }
 
+    /// Retrieve a copy of the ImageSpec corresponding to the specified
+    /// subimage and MIP level. Return true upon success, false (and set an
+    /// appropriate error) upon failure, such as no such subimage or MIP
+    /// level existing). This is "random access" (does not need to match the
+    /// last call to seek_subimage), but it may invalidate any prior call to
+    /// seek_subimage by changing the apparent current subimage or MIP
+    /// level.
+    virtual bool get_spec (int subimage, int miplevel, ImageSpec &spec) {
+        std::lock_guard<std::mutex> lock (m_mutex);
+        return seek_subimage (subimage, miplevel, spec);
+    }
+
     /// Close an image that we are totally done with.
     ///
     virtual bool close () = 0;
@@ -561,6 +576,13 @@ public:
     /// doesn't worry about MIP-map levels at all.
     bool seek_subimage (int subimage, ImageSpec &newspec) {
         return seek_subimage (subimage, 0 /* miplevel */, newspec);
+    }
+
+    virtual bool seek_subimage (int subimage, int miplevel) {
+        if (subimage == current_subimage() && miplevel == current_miplevel())
+            return true;
+        ImageSpec dummy_spec;
+        return seek_subimage (subimage, miplevel, dummy_spec);
     }
 
     /// Read the scanline that includes pixels (*,y,z) into data,
@@ -614,6 +636,27 @@ public:
                                  TypeDesc format, void *data,
                                  stride_t xstride=AutoStride,
                                  stride_t ystride=AutoStride);
+
+    /// Read multiple scanlines that include pixels (*,y,z) for all
+    /// ybegin <= y < yend, into data, using the strides given and
+    /// converting to the requested data format (unless format is
+    /// TypeDesc::UNKNOWN, in which case pixels will be copied in the
+    /// native data layout, including per-channel data formats).  Only
+    /// channels [chbegin,chend) will be read/copied (chbegin=0,
+    /// chend=spec.nchannels reads all channels, yielding equivalent
+    /// behavior to the simpler variant of read_scanlines).
+    ///
+    /// This call mult take a subimage and miplevel specifying which image
+    /// within the file to read from. It is completely random access
+    /// (including with respect to subimage/miplevel) and thread-safe when
+    /// used concurrently with any other call to read_*_atomic or get_spec,
+    /// but is NOT SAFE to call concurrently with any other methods.
+    virtual bool read_scanlines_atomic (int subimage, int miplevel,
+                                        int ybegin, int yend, int z,
+                                        int chbegin, int chend,
+                                        TypeDesc format, void *data,
+                                        stride_t xstride=AutoStride,
+                                        stride_t ystride=AutoStride);
 
     /// Read the tile whose upper-left origin is (x,y,z) into data,
     /// converting if necessary from the native data format of the file
@@ -681,6 +724,28 @@ public:
     /// equivalent behavior to the simpler variant of read_tiles).
     virtual bool read_tiles (int xbegin, int xend, int ybegin, int yend,
                              int zbegin, int zend, 
+                             int chbegin, int chend, TypeDesc format,
+                             void *data, stride_t xstride=AutoStride,
+                             stride_t ystride=AutoStride,
+                             stride_t zstride=AutoStride);
+
+    /// Read the block of multiple tiles that include all pixels in
+    /// [xbegin,xend) X [ybegin,yend) X [zbegin,zend), into data, using
+    /// the strides given and converting to the requested data format
+    /// (unless format is TypeDesc::UNKNOWN, in which case pixels will
+    /// be copied in the native data layout, including per-channel data
+    /// formats).  Only channels [chbegin,chend) will be read/copied
+    /// (chbegin=0, chend=spec.nchannels reads all channels, yielding
+    /// equivalent behavior to the simpler variant of read_tiles).
+    ///
+    /// This call mult take a subimage and miplevel specifying which image
+    /// within the file to read from. It is completely random access
+    /// (including with respect to subimage/miplevel) and thread-safe when
+    /// used concurrently with any other call to read_*_atomic or get_spec,
+    /// but is NOT SAFE to call concurrently with any other methods.
+    virtual bool read_tiles_atomic (int subimage, int miplevel,
+                             int xbegin, int xend,
+                             int ybegin, int yend, int zbegin, int zend,
                              int chbegin, int chend, TypeDesc format,
                              void *data, stride_t xstride=AutoStride,
                              stride_t ystride=AutoStride,
@@ -773,12 +838,15 @@ public:
     virtual bool read_native_tiles (int xbegin, int xend, int ybegin, int yend,
                                     int zbegin, int zend, void *data);
 
-    /// A variant of read_native_tiles that reads only channels
-    /// [chbegin,chend).  If a format reader subclass does
-    /// not override this method, the default implementation will simply
-    /// call the all-channel version of read_native_tiles into a
-    /// temporary buffer and copy the subset of channels.
-    virtual bool read_native_tiles (int xbegin, int xend, int ybegin, int yend,
+    /// Fully general read_native_tiles, reading a set of tiles, possibly
+    /// with only a subset of channels [chbegin,chend), from a particular
+    /// subimage and MIP level (it will do a seek_subimage if necessary).
+    /// If a format reader subclass does not override this method, the
+    /// default implementation will simply call the all-channel version of
+    /// read_native_tiles into a temporary buffer and copy the subset of
+    /// channels.
+    virtual bool read_native_tiles (int subimage, int miplevel,
+                                    int xbegin, int xend, int ybegin, int yend,
                                     int zbegin, int zend,
                                     int chbegin, int chend, void *data);
 
@@ -841,8 +909,15 @@ public:
     /// Retrieve the current thread-spawning policy.
     int threads () const { return m_threads; }
 
+    /// Lock, try_lock, and unlock for the internal mutex. This means
+    /// you can have a std::lock_guard on the ImageInput itself.
+    void lock () { m_mutex.lock(); }
+    bool try_lock () { return m_mutex.try_lock(); }
+    void unlock () { m_mutex.unlock(); }
+
 protected:
     ImageSpec m_spec;  // format spec of the current open subimage/MIPlevel
+    std::mutex m_mutex; // lock of the thread-safe methods
 
 private:
     mutable std::string m_errmessage;  // private storage of error message
