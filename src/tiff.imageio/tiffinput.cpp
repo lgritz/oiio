@@ -143,11 +143,7 @@ public:
                                  stride_t xstride, stride_t ystride);
     virtual bool read_tile (int x, int y, int z, TypeDesc format, void *data,
                             stride_t xstride, stride_t ystride, stride_t zstride);
-    virtual bool read_tiles (int xbegin, int xend, int ybegin, int yend,
-                             int zbegin, int zend, int chbegin, int chend,
-                             TypeDesc format, void *data,
-                             stride_t xstride, stride_t ystride, stride_t zstride);
-    virtual bool read_tiles_atomic (int subimage, int miplevel,
+    virtual bool read_tiles (int subimage, int miplevel,
                              int xbegin, int xend, int ybegin, int yend,
                              int zbegin, int zend, int chbegin, int chend,
                              TypeDesc format, void *data,
@@ -1579,33 +1575,7 @@ bool TIFFInput::read_tile (int x, int y, int z, TypeDesc format, void *data,
 
 
 
-bool TIFFInput::read_tiles (int xbegin, int xend, int ybegin, int yend,
-                            int zbegin, int zend,
-                            int chbegin, int chend,
-                            TypeDesc format, void *data,
-                            stride_t xstride, stride_t ystride, stride_t zstride)
-{
-    bool ok = ImageInput::read_tiles (xbegin, xend, ybegin, yend, zbegin, zend,
-                                      chbegin, chend, format, data,
-                                      xstride, ystride, zstride);
-    if (ok && m_convert_alpha) {
-        // If alpha is unassociated and we aren't requested to keep it that
-        // way, multiply the colors by alpha per the usual OIIO conventions
-        // to deliver associated color & alpha.  Any auto-premultiplication
-        // by alpha should happen after we've already done data format
-        // conversions. That's why we do it here, rather than in
-        // read_native_blah.
-        OIIO::premult (m_spec.nchannels, m_spec.tile_width, m_spec.tile_height,
-                       std::max (1, m_spec.tile_depth),
-                       chbegin, chend, format, data,
-                       xstride, AutoStride, AutoStride,
-                       m_spec.alpha_channel, m_spec.z_channel);
-    }
-    return ok;
-}
-
-
-bool TIFFInput::read_tiles_atomic (int subimage, int miplevel,
+bool TIFFInput::read_tiles (int subimage, int miplevel,
                             int xbegin, int xend, int ybegin, int yend,
                             int zbegin, int zend,
                             int chbegin, int chend,
@@ -1613,7 +1583,7 @@ bool TIFFInput::read_tiles_atomic (int subimage, int miplevel,
                             stride_t xstride, stride_t ystride, stride_t zstride)
 {
     // Rely on the parent class for the basic read_tiles operation
-    bool ok = ImageInput::read_tiles_atomic (subimage, miplevel,
+    bool ok = ImageInput::read_tiles (subimage, miplevel,
                                       xbegin, xend, ybegin, yend, zbegin, zend,
                                       chbegin, chend, format, data,
                                       xstride, ystride, zstride);

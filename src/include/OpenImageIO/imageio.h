@@ -53,6 +53,7 @@
 #include <string>
 #include <limits>
 #include <cmath>
+#include <utility>
 
 #include <OpenImageIO/export.h>
 #include <OpenImageIO/oiioversion.h>
@@ -424,7 +425,11 @@ public:
 /// ImageInput abstracts the reading of an image file in a file
 /// format-agnostic manner.
 ///
-///
+/// Threading guarantees:
+///  * The read_ functions that take subimage & miplevel parameters are
+///    guaranteed to be thread-safe against each other in all circumstances.
+///  * All read_ functions are thread-safe against each other if the file
+///    has only one subimage and is not MIP-mapped.
 class OIIO_API ImageInput {
 public:
     /// Create an ImageInput subclass instance that is able to read
@@ -468,6 +473,9 @@ public:
 
     ImageInput ();
     virtual ~ImageInput ();
+
+    typedef std::recursive_mutex mutex;
+    typedef std::lock_guard<mutex> lock_guard;
 
     /// Return the name of the format implemented by this class.
     ///
@@ -526,18 +534,6 @@ public:
     /// a call to seek_subimage().
     const ImageSpec &spec (void) const { return m_spec; }
 
-    /// Retrieve a copy of the ImageSpec corresponding to the specified
-    /// subimage and MIP level. Return true upon success, false (and set an
-    /// appropriate error) upon failure, such as no such subimage or MIP
-    /// level existing). This is "random access" (does not need to match the
-    /// last call to seek_subimage), but it may invalidate any prior call to
-    /// seek_subimage by changing the apparent current subimage or MIP
-    /// level.
-    virtual bool get_spec (int subimage, int miplevel, ImageSpec &spec) {
-        std::lock_guard<std::mutex> lock (m_mutex);
-        return seek_subimage (subimage, miplevel, spec);
-    }
-
     /// Close an image that we are totally done with.
     ///
     virtual bool close () = 0;
@@ -552,6 +548,12 @@ public:
     /// one) is number 0.
     virtual int current_miplevel (void) const { return 0; }
 
+    /// Thread-safe retrieval of current subimage and miplevel.
+    virtual std::pair<int,int> get_current_subimage_miplevel () const {
+        lock_guard lock (m_mutex);
+        return std::pair<int,int> (current_subimage(), current_miplevel());
+    }
+
     /// Seek to the given subimage and MIP-map level within the open
     /// image file.  The first subimage of the file has index 0, the
     /// highest-resolution MIP level has index 0.  Return true on
@@ -565,6 +567,7 @@ public:
     /// subimages and levels.
     virtual bool seek_subimage (int subimage, int miplevel,
                                 ImageSpec &newspec) {
+        lock_guard lock (m_mutex);
         if (subimage == current_subimage() && miplevel == current_miplevel()) {
             newspec = spec();
             return true;
@@ -579,6 +582,7 @@ public:
     }
 
     virtual bool seek_subimage (int subimage, int miplevel) {
+        lock_guard lock (m_mutex);
         if (subimage == current_subimage() && miplevel == current_miplevel())
             return true;
         ImageSpec dummy_spec;
@@ -649,14 +653,14 @@ public:
     /// This call mult take a subimage and miplevel specifying which image
     /// within the file to read from. It is completely random access
     /// (including with respect to subimage/miplevel) and thread-safe when
-    /// used concurrently with any other call to read_*_atomic or get_spec,
+    /// used concurrently with any other call to read_*_atomic,
     /// but is NOT SAFE to call concurrently with any other methods.
-    virtual bool read_scanlines_atomic (int subimage, int miplevel,
-                                        int ybegin, int yend, int z,
-                                        int chbegin, int chend,
-                                        TypeDesc format, void *data,
-                                        stride_t xstride=AutoStride,
-                                        stride_t ystride=AutoStride);
+    virtual bool read_scanlines (int subimage, int miplevel,
+                                 int ybegin, int yend, int z,
+                                 int chbegin, int chend,
+                                 TypeDesc format, void *data,
+                                 stride_t xstride=AutoStride,
+                                 stride_t ystride=AutoStride);
 
     /// Read the tile whose upper-left origin is (x,y,z) into data,
     /// converting if necessary from the native data format of the file
@@ -741,9 +745,9 @@ public:
     /// This call mult take a subimage and miplevel specifying which image
     /// within the file to read from. It is completely random access
     /// (including with respect to subimage/miplevel) and thread-safe when
-    /// used concurrently with any other call to read_*_atomic or get_spec,
+    /// used concurrently with any other call to read_*_atomic.
     /// but is NOT SAFE to call concurrently with any other methods.
-    virtual bool read_tiles_atomic (int subimage, int miplevel,
+    virtual bool read_tiles (int subimage, int miplevel,
                              int xbegin, int xend,
                              int ybegin, int yend, int zbegin, int zend,
                              int chbegin, int chend, TypeDesc format,
@@ -828,16 +832,6 @@ public:
     /// IF IT SUPPORTS TILED IMAGES.
     virtual bool read_native_tile (int x, int y, int z, void *data);
 
-    /// read_native_tiles is just like read_tiles, except that it keeps
-    /// the data in the native format of the disk file and always reads
-    /// into contiguous memory (no strides).  It's up to the caller to
-    /// have enough space allocated and know what to do with the data.
-    /// If a format reader does not override this method, the default
-    /// implementation it will simply be a loop calling read_native_tile
-    /// for each tile in the block.
-    virtual bool read_native_tiles (int xbegin, int xend, int ybegin, int yend,
-                                    int zbegin, int zend, void *data);
-
     /// Fully general read_native_tiles, reading a set of tiles, possibly
     /// with only a subset of channels [chbegin,chend), from a particular
     /// subimage and MIP level (it will do a seek_subimage if necessary).
@@ -883,6 +877,7 @@ public:
     /// flags).  If no error has occurred since the last time geterror()
     /// was called, it will return an empty string.
     std::string geterror () const {
+        std::lock_guard<std::recursive_mutex> lock (m_mutex);
         std::string e = m_errmessage;
         m_errmessage.clear ();
         return e;
@@ -917,7 +912,7 @@ public:
 
 protected:
     ImageSpec m_spec;  // format spec of the current open subimage/MIPlevel
-    std::mutex m_mutex; // lock of the thread-safe methods
+    mutable mutex m_mutex;   // lock of the thread-safe methods
 
 private:
     mutable std::string m_errmessage;  // private storage of error message

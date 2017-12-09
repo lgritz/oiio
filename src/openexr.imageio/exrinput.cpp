@@ -168,8 +168,6 @@ public:
     virtual bool read_native_scanlines (int ybegin, int yend, int z,
                                         int chbegin, int chend, void *data);
     virtual bool read_native_tile (int x, int y, int z, void *data);
-    virtual bool read_native_tiles (int xbegin, int xend, int ybegin, int yend,
-                                    int zbegin, int zend, void *data);
     virtual bool read_native_tiles (int subimage, int miplevel,
                                     int xbegin, int xend, int ybegin, int yend,
                                     int zbegin, int zend,
@@ -1044,23 +1042,12 @@ OpenEXRInput::read_native_tile (int x, int y, int z, void *data)
 
 
 bool
-OpenEXRInput::read_native_tiles (int xbegin, int xend, int ybegin, int yend,
-                                 int zbegin, int zend, void *data)
-{
-    return read_native_tiles (current_subimage(), current_miplevel(),
-                              xbegin, xend, ybegin, yend, zbegin, zend,
-                              0, m_spec.nchannels, data);
-}
-
-
-
-bool
 OpenEXRInput::read_native_tiles (int subimage, int miplevel,
                                  int xbegin, int xend, int ybegin, int yend,
                                  int zbegin, int zend,
                                  int chbegin, int chend, void *data)
 {
-    std::lock_guard<std::mutex> lock (m_mutex);
+    lock_guard lock (m_mutex);
     if (! seek_subimage (subimage, miplevel))
         return false;
 
