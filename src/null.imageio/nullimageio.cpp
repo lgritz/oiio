@@ -88,7 +88,8 @@ public:
     virtual int current_miplevel (void) const { return m_miplevel; }
     virtual bool seek_subimage (int subimage, int miplevel, ImageSpec &newspec);
     virtual bool read_native_scanline (int y, int z, void *data);
-    virtual bool read_native_tile (int x, int y, int z, void *data);
+    virtual bool read_native_tile (int subimge, int miplevel,
+                                   int x, int y, int z, void *data);
 
 private:
     std::string m_filename;          ///< Stash the filename
@@ -375,7 +376,8 @@ NullInput::read_native_scanline (int y, int z, void *data)
 
 
 bool
-NullInput::read_native_tile (int x, int y, int z, void *data)
+NullInput::read_native_tile (int subimage, int miplevel,
+                             int x, int y, int z, void *data)
 {
     if (m_value.size()) {
         size_t s = m_spec.pixel_bytes();

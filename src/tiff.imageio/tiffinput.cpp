@@ -134,7 +134,8 @@ public:
         return ok;
     }
     virtual bool read_native_scanline (int y, int z, void *data);
-    virtual bool read_native_tile (int x, int y, int z, void *data);
+    virtual bool read_native_tile (int subimage, int miplevel,
+                                   int x, int y, int z, void *data);
     virtual bool read_scanline (int y, int z, TypeDesc format, void *data,
                                 stride_t xstride);
     virtual bool read_scanlines (int ybegin, int yend, int z,
@@ -1423,8 +1424,12 @@ TIFFInput::read_native_scanline (int y, int z, void *data)
 
 
 bool
-TIFFInput::read_native_tile (int x, int y, int z, void *data)
+TIFFInput::read_native_tile (int subimage, int miplevel,
+                             int x, int y, int z, void *data)
 {
+    lock_guard lock (m_mutex);   // Because libtiff is not reentrant
+    if (! seek_subimage (subimage, miplevel))
+        return false;
     x -= m_spec.x;
     y -= m_spec.y;
 

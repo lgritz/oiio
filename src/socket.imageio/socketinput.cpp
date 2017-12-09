@@ -125,8 +125,10 @@ SocketInput::read_native_scanline (int y, int z, void *data)
 
 
 bool
-SocketInput::read_native_tile (int x, int y, int z, void *data)
+SocketInput::read_native_tile (int subimage, int miplevel,
+                               int x, int y, int z, void *data)
 {
+    lock_guard lock (m_mutex);
     try {
         boost::asio::read (socket, buffer (reinterpret_cast<char *> (data),
                 m_spec.tile_bytes ()));

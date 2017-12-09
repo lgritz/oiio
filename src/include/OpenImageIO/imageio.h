@@ -829,12 +829,17 @@ public:
     /// read into contiguous memory (no strides).  It's up to the user to
     /// have enough space allocated and know what to do with the data.
     /// IT IS EXPECTED THAT EACH FORMAT PLUGIN WILL OVERRIDE THIS METHOD
-    /// IF IT SUPPORTS TILED IMAGES.
-    virtual bool read_native_tile (int x, int y, int z, void *data);
+    /// IF IT SUPPORTS TILED IMAGES. The default implementation just returns
+    /// an error.
+    virtual bool read_native_tile (int subimage, int miplevel,
+                                   int x, int y, int z, void *data);
 
     /// Fully general read_native_tiles, reading a set of tiles, possibly
     /// with only a subset of channels [chbegin,chend), from a particular
     /// subimage and MIP level (it will do a seek_subimage if necessary).
+    /// This function is guaranteed to be implemented so that it is
+    /// completely thread-safe versus other calls to the same function.
+    ///
     /// If a format reader subclass does not override this method, the
     /// default implementation will simply call the all-channel version of
     /// read_native_tiles into a temporary buffer and copy the subset of

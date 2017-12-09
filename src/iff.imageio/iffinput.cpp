@@ -156,10 +156,15 @@ IffInput::read_native_scanline (int y, int z, void *data)
 
 
 bool
-IffInput::read_native_tile (int x, int y, int z, void *data)
+IffInput::read_native_tile (int subimage, int miplevel,
+                            int x, int y, int z, void *data)
 {
-    if (m_buf.empty ())
-        readimg ();
+    {
+        lock_guard lock (m_mutex);
+        if (m_buf.empty ())
+            readimg ();
+    }
+    // Nn need to keep holding the lock -- now we're just memcpy-ing it out.
 
     // tile size
     int w = m_spec.width;

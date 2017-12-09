@@ -66,9 +66,15 @@ public:
     virtual bool open (const std::string &name, ImageSpec &newspec);
     virtual bool close ();
     virtual int current_subimage (void) const { return m_subimage; }
-    virtual bool seek_subimage (int subimage, int miplevel, ImageSpec &newspec);
+    virtual bool seek_subimage (int subimage, int miplevel);
+    virtual bool seek_subimage (int subimage, int miplevel, ImageSpec &newspec) {
+        bool ok = seek_subimage (subimage, miplevel);
+        newspec = m_spec;
+        return ok;
+    }
     virtual bool read_native_scanline (int y, int z, void *data);
-    virtual bool read_native_tile (int x, int y, int z, void *data);
+    virtual bool read_native_tile (int subimage, int miplevel,
+                                   int x, int y, int z, void *data);
 
     /// Transform a world space position to local coordinates, using the
     /// mapping of the current subimage.
@@ -403,13 +409,15 @@ Field3DInput::open (const std::string &name, ImageSpec &newspec)
     }
 
     m_nsubimages = (int) m_layers.size();
-    return seek_subimage (0, 0, newspec);
+    bool ok = seek_subimage (0, 0, newspec);
+    newspec = spec();
+    return ok;
 }
 
 
 
 bool
-Field3DInput::seek_subimage (int subimage, int miplevel, ImageSpec &newspec)
+Field3DInput::seek_subimage (int subimage, int miplevel)
 {
     if (subimage < 0 || subimage >= m_nsubimages)   // out of range
         return false;
@@ -418,7 +426,6 @@ Field3DInput::seek_subimage (int subimage, int miplevel, ImageSpec &newspec)
 
     m_subimage = subimage;
     m_spec = m_layers[subimage].spec;
-    newspec = m_spec;
     return true;
 }
 
@@ -497,8 +504,12 @@ bool Field3DInput::readtile (int x, int y, int z, T *data)
 
 
 bool
-Field3DInput::read_native_tile (int x, int y, int z, void *data)
+Field3DInput::read_native_tile (int subimage, int miplevel,
+                                int x, int y, int z, void *data)
 {
+    lock_guard inputlock (m_mutex);
+    if (! seek_subimage (subimage, miplevel))
+        return false;
     spin_lock lock (field3d_mutex());
     layerrecord &lay (m_layers[m_subimage]);
     if (lay.datatype == TypeDesc::FLOAT) {

@@ -340,6 +340,7 @@ bool
 ImageInput::read_tile (int x, int y, int z, TypeDesc format, void *data,
                        stride_t xstride, stride_t ystride, stride_t zstride)
 {
+    auto submip = get_current_subimage_miplevel();
     if (! m_spec.tile_width ||
         ((x-m_spec.x) % m_spec.tile_width) != 0 ||
         ((y-m_spec.y) % m_spec.tile_height) != 0 ||
@@ -367,13 +368,15 @@ ImageInput::read_tile (int x, int y, int z, TypeDesc format, void *data,
     // If user's format and strides are set up to accept the native data
     // layout, read the tile directly into the user's buffer.
     if (native_data && contiguous)
-        return read_native_tile (x, y, z, data);  // Simple case
+        return read_native_tile (submip.first, submip.second,
+                                 x, y, z, data);  // Simple case
 
     // Complex case -- either changing data type or stride
     size_t tile_values = (size_t)m_spec.tile_pixels() * m_spec.nchannels;
 
     std::unique_ptr<char[]> buf (new char [m_spec.tile_bytes(true)]);
-    bool ok = read_native_tile (x, y, z, &buf[0]);
+    bool ok = read_native_tile (submip.first, submip.second,
+                                x, y, z, &buf[0]);
     if (! ok)
         return false;
     if (! perchanfile) {
@@ -572,47 +575,6 @@ ImageInput::read_tiles (int xbegin, int xend, int ybegin, int yend,
 
 
 
-#if 0
-bool
-ImageInput::read_native_tiles (int xbegin, int xend, int ybegin, int yend,
-                               int zbegin, int zend, void *data)
-{
-    lock_guard lock (m_mutex);
-    if (! m_spec.valid_tile_range (xbegin, xend, ybegin, yend, zbegin, zend))
-        return false;
-
-    // Base class implementation of read_native_tiles just repeatedly
-    // calls read_native_tile, which is supplied by every plugin that
-    // supports tiles.  Only the hardcore ones will overload
-    // read_native_tiles with their own implementation.
-    stride_t pixel_bytes = (stride_t) m_spec.pixel_bytes (true);
-    stride_t tileystride = pixel_bytes * m_spec.tile_width;
-    stride_t tilezstride = tileystride * m_spec.tile_height;
-    stride_t ystride = (xend-xbegin) * pixel_bytes;
-    stride_t zstride = (yend-ybegin) * ystride;
-    std::unique_ptr<char[]> pels (new char [m_spec.tile_bytes(true)]);
-    for (int z = zbegin;  z < zend;  z += m_spec.tile_depth) {
-        for (int y = ybegin;  y < yend;  y += m_spec.tile_height) {
-            for (int x = xbegin;  x < xend;  x += m_spec.tile_width) {
-                bool ok = read_native_tile (x, y, z, &pels[0]);
-                if (! ok)
-                    return false;
-                copy_image (m_spec.nchannels, m_spec.tile_width,
-                            m_spec.tile_height, m_spec.tile_depth,
-                            &pels[0], size_t(pixel_bytes),
-                            pixel_bytes, tileystride, tilezstride,
-                            (char *)data+ (z-zbegin)*zstride + 
-                                (y-ybegin)*ystride + (x-xbegin)*pixel_bytes,
-                            pixel_bytes, ystride, zstride);
-            }
-        }
-    }
-    return true;
-}
-#endif
-
-
-
 bool
 ImageInput::read_native_tiles (int subimage, int miplevel,
                                int xbegin, int xend, int ybegin, int yend,
@@ -677,7 +639,8 @@ ImageInput::read_native_tiles (int subimage, int miplevel,
         for (int y = ybegin;  y < yend;  y += m_spec.tile_height) {
             for (int x = xbegin;  x < xend;  x += tile_width, ++itile) {
                 size_t tileoffset = itile * tile_bytes;
-                bool ok = read_native_tile (x, y, z, peldata+tileoffset);
+                bool ok = read_native_tile (subimage, miplevel,
+                                            x, y, z, peldata+tileoffset);
                 if (! ok)
                     return false;
             }
@@ -869,7 +832,8 @@ ImageInput::append_error (const std::string& message) const
 }
 
 bool
-ImageInput::read_native_tile (int x, int y, int z, void * data)
+ImageInput::read_native_tile (int subimage, int miplevel,
+                              int x, int y, int z, void * data)
 {
     return false;
 }

@@ -59,7 +59,8 @@ public:
     virtual int current_miplevel (void) const { return m_miplevel; }
     virtual bool seek_subimage (int subimage, int miplevel, ImageSpec &newspec);
     virtual bool read_native_scanline (int y, int z, void *data);
-    virtual bool read_native_tile (int x, int y, int z, void *data);
+    virtual bool read_native_tile (int subimage, int miplevel,
+                                   int x, int y, int z, void *data);
 
 private:
     std::string m_filename;           ///< Stash the filename
@@ -653,8 +654,11 @@ DDSInput::read_native_scanline (int y, int z, void *data)
 
 
 bool
-DDSInput::read_native_tile (int x, int y, int z, void *data)
+DDSInput::read_native_tile (int subimage, int miplevel,
+                            int x, int y, int z, void *data)
 {
+    lock_guard lock (m_mutex);
+
     // static ints to keep track of the current cube face and re-seek and
     // re-read face
     static int lastx = -1, lasty = -1, lastz = -1; 

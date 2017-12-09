@@ -167,7 +167,8 @@ public:
     virtual bool read_native_scanlines (int ybegin, int yend, int z, void *data);
     virtual bool read_native_scanlines (int ybegin, int yend, int z,
                                         int chbegin, int chend, void *data);
-    virtual bool read_native_tile (int x, int y, int z, void *data);
+    virtual bool read_native_tile (int subimage, int miplevel,
+                                   int x, int y, int z, void *data);
     virtual bool read_native_tiles (int subimage, int miplevel,
                                     int xbegin, int xend, int ybegin, int yend,
                                     int zbegin, int zend,
@@ -1031,9 +1032,10 @@ OpenEXRInput::read_native_scanlines (int ybegin, int yend, int z,
 
 
 bool
-OpenEXRInput::read_native_tile (int x, int y, int z, void *data)
+OpenEXRInput::read_native_tile (int subimage, int miplevel,
+                                int x, int y, int z, void *data)
 {
-    return read_native_tiles (current_subimage(), current_miplevel(),
+    return read_native_tiles (subimage, miplevel,
                               x, x+m_spec.tile_width, y, y+m_spec.tile_height,
                               z, z+m_spec.tile_depth,
                               0, m_spec.nchannels, data);
