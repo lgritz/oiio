@@ -160,7 +160,8 @@ public:
     virtual bool seek_subimage (int subimage, int miplevel);
     virtual bool seek_subimage (int subimage, int miplevel, ImageSpec &newspec) {
         bool ok = seek_subimage (subimage, miplevel);
-        newspec = m_spec;
+        if (ok)
+            newspec = m_spec;
         return ok;
     }
     virtual bool read_native_scanline (int y, int z, void *data);

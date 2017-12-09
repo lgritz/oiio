@@ -52,9 +52,16 @@ public:
     virtual bool close ();
     virtual int current_subimage (void) const { return m_subimage; }
     virtual int current_miplevel (void) const { return m_miplevel; }
-    virtual bool seek_subimage (int subimage, int miplevel, ImageSpec &newspec);
+    virtual bool seek_subimage (int subimage, int miplevel);
+    virtual bool seek_subimage (int subimage, int miplevel, ImageSpec &newspec) {
+        bool ok = seek_subimage (subimage, miplevel);
+        if (ok)
+            newspec = m_spec;
+        return ok;
+    }
     virtual bool read_native_scanline (int y, int z, void *data);
-    virtual bool read_native_tile (int x, int y, int z, void *data);
+    virtual bool read_native_tile (int subimage, int miplevel,
+                                   int x, int y, int z, void *data);
 
 private:
     PtexTexture *m_ptex;
@@ -118,7 +125,7 @@ PtexInput::open (const std::string &name, ImageSpec &newspec)
     m_numFaces = m_ptex->numFaces();
     m_hasMipMaps = m_ptex->hasMipMaps();
 
-    bool ok = seek_subimage (0, 0, newspec);
+    bool ok = seek_subimage (0, 0);
     newspec = spec ();
     return ok;
 }
@@ -126,8 +133,9 @@ PtexInput::open (const std::string &name, ImageSpec &newspec)
 
 
 bool
-PtexInput::seek_subimage (int subimage, int miplevel, ImageSpec &newspec)
+PtexInput::seek_subimage (int subimage, int miplevel)
 {
+    lock_guard lock (m_mutex);
     if (m_subimage == subimage && m_miplevel == miplevel)
         return true;   // Already fine
 
@@ -248,7 +256,6 @@ PtexInput::seek_subimage (int subimage, int miplevel, ImageSpec &newspec)
     }
 
     facedata->release();
-    newspec = m_spec;
     return true;
 }
 
@@ -272,8 +279,17 @@ PtexInput::read_native_scanline (int y, int z, void *data)
 
 
 bool
-PtexInput::read_native_tile (int x, int y, int z, void *data)
+PtexInput::read_native_tile (int subimage, int miplevel,
+                             int x, int y, int z, void *data)
 {
+    lock_guard lock (m_mutex);
+    if (! seek_subimage (subimage, miplevel))
+        return false;
+
+    // FIXME: if we ever care about ptex performance, research whether the
+    // ptex methods below are thread-safe, and if so, maybe we don't need
+    // to hold the lock the whole time.
+
     PtexFaceData *facedata = m_ptex->getData (m_subimage, m_mipfaceres);
 
     PtexFaceData *f = facedata;
