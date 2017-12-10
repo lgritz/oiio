@@ -1034,7 +1034,8 @@ ImageCacheFile::close ()
     // N.B. close() does not need to lock the m_input_mutex, because close()
     // itself is only called by routines that hold the lock.
     if (opened()) {
-        m_input->close ();
+        // Release our reference. When nobody else is using the ImageInput,
+        // it will delete (ImageInput destructor implies close()).
         m_input.reset ();
         m_imagecache.decr_open_files ();
     }

@@ -536,8 +536,10 @@ public:
     /// a call to seek_subimage().
     virtual const ImageSpec &spec (void) const { return m_spec; }
 
-    /// Close an image that we are totally done with.
-    ///
+    /// Close an image that we are totally done with. The call so close() is
+    /// not strictly necessary if the ImageInput is destroyed immediately
+    /// afterwards, since it is required for the destructor to close if the
+    /// file is still open.
     virtual bool close () = 0;
 
     /// Returns the index of the subimage that is currently being read.
