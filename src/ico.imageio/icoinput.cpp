@@ -54,7 +54,7 @@ public:
     virtual bool open (const std::string &name, ImageSpec &newspec);
     virtual bool close ();
     virtual int current_subimage (void) const { return m_subimage; }
-    virtual bool seek_subimage (int subimage, int miplevel, ImageSpec &newspec);
+    virtual bool seek_subimage (int subimage, int miplevel);
     virtual bool read_native_scanline (int y, int z, void *data);
 
 private:
@@ -144,17 +144,18 @@ ICOInput::open (const std::string &name, ImageSpec &newspec)
     }
 
     // default to subimage #0, according to convention
-    seek_subimage (0, 0, m_spec);
-
-    newspec = spec ();
-
-    return true;
+    bool ok = seek_subimage (0, 0);
+    if (ok)
+        newspec = spec();
+    else
+        close();
+    return ok;
 }
 
 
 
 bool
-ICOInput::seek_subimage (int subimage, int miplevel, ImageSpec &newspec)
+ICOInput::seek_subimage (int subimage, int miplevel)
 {
     /*std::cerr << "[ico] seeking subimage " << index << " (current "
               << m_subimage << ") out of " << m_ico.count << "\n";*/
@@ -162,7 +163,6 @@ ICOInput::seek_subimage (int subimage, int miplevel, ImageSpec &newspec)
         return false;
 
     if (subimage == m_subimage) {
-        newspec = spec();
         return true;
     }
 
@@ -222,7 +222,6 @@ ICOInput::seek_subimage (int subimage, int miplevel, ImageSpec &newspec)
 
         m_spec.attribute ("oiio:BitsPerSample", m_bpp / m_spec.nchannels);
 
-        newspec = spec ();
         return true;
     }
 
@@ -273,7 +272,6 @@ ICOInput::seek_subimage (int subimage, int miplevel, ImageSpec &newspec)
     /*std::cerr << "[ico] expected bytes: scanline " << m_spec.scanline_bytes()
               << ", image " << m_spec.image_bytes() << "\n";*/
 
-    newspec = spec ();
     return true;
 }
 

@@ -59,7 +59,7 @@ public:
                        const ImageSpec &config);
     virtual bool close ();
     virtual int current_subimage () const { return m_subimage; }
-    virtual bool seek_subimage (int subimage, int miplevel, ImageSpec &newspec);
+    virtual bool seek_subimage (int subimage, int miplevel);
     virtual bool read_native_scanline (int y, int z, void *data);
 
 private:
@@ -622,10 +622,12 @@ PSDInput::open (const std::string &name, ImageSpec &newspec)
     // Setup ImageSpecs and m_channels
     setup ();
 
-    if (!seek_subimage (0, 0, newspec))
-        return false;
-
-    return true;
+    bool ok = seek_subimage (0, 0);
+    if (ok)
+        newspec = spec();
+    else
+        close ();
+    return ok;
 }
 
 
@@ -655,7 +657,7 @@ PSDInput::close ()
 
 
 bool
-PSDInput::seek_subimage (int subimage, int miplevel, ImageSpec &newspec)
+PSDInput::seek_subimage (int subimage, int miplevel)
 {
     if (miplevel != 0)
         return false;
@@ -664,7 +666,7 @@ PSDInput::seek_subimage (int subimage, int miplevel, ImageSpec &newspec)
         return false;
 
     m_subimage = subimage;
-    newspec = m_spec = m_specs[subimage];
+    m_spec = m_specs[subimage];
     return true;
 }
 

@@ -128,11 +128,6 @@ public:
         return m_emulate_mipmap ? m_subimage : 0;
     }
     virtual bool seek_subimage (int subimage, int miplevel);
-    virtual bool seek_subimage (int subimage, int miplevel, ImageSpec &newspec) {
-        bool ok = seek_subimage (subimage, miplevel);
-        newspec = m_spec;
-        return ok;
-    }
     virtual bool read_native_scanline (int y, int z, void *data);
     virtual bool read_native_tile (int subimage, int miplevel,
                                    int x, int y, int z, void *data);
@@ -491,7 +486,12 @@ TIFFInput::open (const std::string &name, ImageSpec &newspec)
     oiio_tiff_set_error_handler ();
     m_filename = name;
     m_subimage = -1;
-    return seek_subimage (0, 0, newspec);
+    bool ok = seek_subimage (0, 0);
+    if (ok)
+        newspec = spec();
+    else
+        close();
+    return ok;
 }
 
 
@@ -1312,7 +1312,7 @@ TIFFInput::read_native_scanline (int y, int z, void *data)
             int old_miplevel = current_miplevel();
             if (! close ()  ||
                 ! open (m_filename, dummyspec)  ||
-                ! seek_subimage (old_subimage, old_miplevel, dummyspec)) {
+                ! seek_subimage (old_subimage, old_miplevel)) {
                 return false;    // Somehow, the re-open failed
             }
             ASSERT (m_next_scanline == 0 &&

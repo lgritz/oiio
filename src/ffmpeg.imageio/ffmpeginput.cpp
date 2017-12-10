@@ -140,7 +140,7 @@ public:
     virtual bool open (const std::string &name, ImageSpec &spec);
     virtual bool close (void);
     virtual int current_subimage (void) const { return m_subimage; }
-    virtual bool seek_subimage (int subimage, int miplevel, ImageSpec &newspec);
+    virtual bool seek_subimage (int subimage, int miplevel);
     virtual bool read_native_scanline (int y, int z, void *data);
     void read_frame(int pos);
 #if 0
@@ -239,7 +239,7 @@ FFmpegInput::~FFmpegInput()
 
 
 bool
-FFmpegInput::open (const std::string &name, ImageSpec &spec)
+FFmpegInput::open (const std::string &name, ImageSpec &newspec)
 {
     // Temporary workaround: refuse to open a file whose name does not
     // indicate that it's a movie file. This avoids the problem that ffmpeg
@@ -436,23 +436,21 @@ FFmpegInput::open (const std::string &name, ImageSpec &spec)
     m_spec.attribute ("oiio:Movie", true);
     m_spec.attribute ("oiio:BitsPerSample", m_codec_context->bits_per_raw_sample);
     m_nsubimages = m_frames;
-    spec = m_spec;
+    newspec = m_spec;
     return true;
 }
 
 
 
 bool
-FFmpegInput::seek_subimage (int subimage, int miplevel, ImageSpec &newspec)
+FFmpegInput::seek_subimage (int subimage, int miplevel)
 {
+    if (subimage == m_subimage) {
+        return true;
+    }
     if (subimage < 0 || subimage >= m_nsubimages || miplevel > 0) {
         return false;
     }
-    if (subimage == m_subimage) {
-        newspec = m_spec;
-        return true;
-    }
-    newspec = m_spec;
     m_subimage = subimage;
     m_read_frame = false;
     return true;

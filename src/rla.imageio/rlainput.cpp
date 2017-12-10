@@ -53,7 +53,7 @@ public:
     virtual const char * format_name (void) const { return "rla"; }
     virtual bool open (const std::string &name, ImageSpec &newspec);
     virtual int current_subimage (void) const { return m_subimage; }
-    virtual bool seek_subimage (int subimage, int miplevel, ImageSpec &newspec);
+    virtual bool seek_subimage (int subimage, int miplevel);
     virtual bool close ();
     virtual bool read_native_scanline (int y, int z, void *data);
 
@@ -172,13 +172,18 @@ RLAInput::open (const std::string &name, ImageSpec &newspec)
 
     m_file = Filesystem::fopen (name, "rb");
     if (! m_file) {
-        error ("Could not open file \"%s\"", name.c_str());
+        error ("Could not open file \"%s\"", name);
         return false;
     }
-    
+
     // set a bogus subimage index so that seek_subimage actually seeks
     m_subimage = 1;
-    return seek_subimage (0, 0, newspec);
+    bool ok = seek_subimage (0, 0);
+    if (ok)
+        newspec = spec();
+    else
+        close();
+    return ok;
 }
 
 
@@ -218,7 +223,7 @@ RLAInput::read_header ()
 
 
 bool
-RLAInput::seek_subimage (int subimage, int miplevel, ImageSpec &newspec)
+RLAInput::seek_subimage (int subimage, int miplevel)
 {
     if (miplevel != 0 || subimage < 0)
         return false;
@@ -427,9 +432,8 @@ RLAInput::seek_subimage (int subimage, int miplevel, ImageSpec &newspec)
                               TypeDesc::POINT), f);
     }
 
-    newspec = spec ();    
     m_subimage = subimage;
-    
+
     // N.B. the file pointer is now immediately after the scanline
     // offset table for this subimage.
     return true;

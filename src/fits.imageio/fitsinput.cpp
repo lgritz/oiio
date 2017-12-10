@@ -156,7 +156,7 @@ FitsInput::read_native_scanline (int y, int z, void *data)
 
 
 bool
-FitsInput::seek_subimage (int subimage, int miplevel, ImageSpec &newspec)
+FitsInput::seek_subimage (int subimage, int miplevel)
 {
     if (miplevel != 0)
         return false;
@@ -164,7 +164,6 @@ FitsInput::seek_subimage (int subimage, int miplevel, ImageSpec &newspec)
         return false;
 
     if (subimage == m_cur_subimage) {
-        newspec = m_spec;
         return true;
     }
 
@@ -175,7 +174,6 @@ FitsInput::seek_subimage (int subimage, int miplevel, ImageSpec &newspec)
     if (! set_spec_info ())
         return false;
 
-    newspec = m_spec;
     return true;
 }
 

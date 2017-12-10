@@ -565,28 +565,21 @@ public:
     /// if it can't randomly seek to the given subimage/level, it should
     /// transparently close, reopen, and sequentially read through prior
     /// subimages and levels.
-    virtual bool seek_subimage (int subimage, int miplevel,
-                                ImageSpec &newspec) {
-        lock_guard lock (m_mutex);
-        if (subimage == current_subimage() && miplevel == current_miplevel()) {
-            newspec = spec();
-            return true;
-        }
-        return false;
-    }
-
-    /// Seek to the given subimage -- backwards-compatible call that
-    /// doesn't worry about MIP-map levels at all.
-    bool seek_subimage (int subimage, ImageSpec &newspec) {
-        return seek_subimage (subimage, 0 /* miplevel */, newspec);
-    }
-
-    virtual bool seek_subimage (int subimage, int miplevel) {
+    virtual bool seek_subimage (int subimage, int miplevel=0) {
         lock_guard lock (m_mutex);
         if (subimage == current_subimage() && miplevel == current_miplevel())
             return true;
-        ImageSpec dummy_spec;
-        return seek_subimage (subimage, miplevel, dummy_spec);
+        return false;
+    }
+
+    // DEPRECATED(1.9): Back-compatible call to seek_subimage and copy
+    // the new subimage's spec into newspec.
+    bool seek_subimage (int subimage, int miplevel, ImageSpec &newspec) {
+        lock_guard lock (m_mutex);
+        bool ok = seek_subimage (subimage, miplevel);
+        if (ok)
+            newspec = spec();
+        return ok;
     }
 
     /// Read the scanline that includes pixels (*,y,z) into data,

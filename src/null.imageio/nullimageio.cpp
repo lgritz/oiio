@@ -86,7 +86,7 @@ public:
     virtual bool close () { return true; }
     virtual int current_subimage (void) const { return m_subimage; }
     virtual int current_miplevel (void) const { return m_miplevel; }
-    virtual bool seek_subimage (int subimage, int miplevel, ImageSpec &newspec);
+    virtual bool seek_subimage (int subimage, int miplevel);
     virtual bool read_native_scanline (int y, int z, void *data);
     virtual bool read_native_tile (int subimge, int miplevel,
                                    int x, int y, int z, void *data);
@@ -323,16 +323,20 @@ NullInput::open (const std::string &name, ImageSpec &newspec,
                        m_topspec.nchannels);
     }
 
-    return seek_subimage (0, 0, newspec);
+    bool ok = seek_subimage (0, 0);
+    if (ok)
+        newspec = spec();
+    else
+        close();
+    return ok;
 }
 
 
 
 bool
-NullInput::seek_subimage (int subimage, int miplevel, ImageSpec &newspec)
+NullInput::seek_subimage (int subimage, int miplevel)
 {
     if (subimage == current_subimage() && miplevel == current_miplevel()) {
-        newspec = spec();
         return true;
     }
 
@@ -354,7 +358,6 @@ NullInput::seek_subimage (int subimage, int miplevel, ImageSpec &newspec)
         m_spec.full_height = m_spec.height;
         m_spec.full_depth = m_spec.depth;
     }
-    newspec = spec();
     return true;
 }
 

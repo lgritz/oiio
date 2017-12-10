@@ -68,7 +68,7 @@ public:
     virtual bool open (const std::string &name, ImageSpec &newspec,
                        const ImageSpec &config);
     virtual bool close();
-    virtual bool seek_subimage (int subimage, int miplevel, ImageSpec &newspec);
+    virtual bool seek_subimage (int subimage, int miplevel);
     virtual bool read_native_scanline (int y, int z, void *data);
 
 private:
@@ -120,7 +120,12 @@ DICOMInput::open (const std::string &name, ImageSpec &newspec,
     m_filename = name;
     m_subimage = -1;
     m_img.reset ();
-    return seek_subimage (0, 0, newspec);
+    bool ok = seek_subimage (0, 0);
+    if (ok)
+        newspec = spec();
+    else
+        close();
+    return ok;
 }
 
 
@@ -147,13 +152,13 @@ static std::set<std::string> ignore_tags {
 
 
 bool
-DICOMInput::seek_subimage (int subimage, int miplevel, ImageSpec &newspec)
+DICOMInput::seek_subimage (int subimage, int miplevel)
 {
+    lock_guard lock (m_mutex);
     if (miplevel != 0)
         return false;
 
     if (subimage == m_subimage) {
-        newspec = m_spec;
         return true;    // already there
     }
 
@@ -252,8 +257,6 @@ DICOMInput::seek_subimage (int subimage, int miplevel, ImageSpec &newspec)
     }
 
     read_metadata ();
-
-    newspec = m_spec;   // Copy the spec to return to the user
     return true;
 }
 
@@ -335,6 +338,7 @@ DICOMInput::read_metadata ()
 bool
 DICOMInput::read_native_scanline (int y, int z, void *data)
 {
+    lock_guard lock (m_mutex);
     if (y < 0 || y >= m_spec.height) // out of range scanline
         return false;
 

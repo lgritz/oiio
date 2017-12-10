@@ -57,7 +57,7 @@ public:
     virtual bool close ();
     virtual int current_subimage (void) const { return m_subimage; }
     virtual int current_miplevel (void) const { return m_miplevel; }
-    virtual bool seek_subimage (int subimage, int miplevel, ImageSpec &newspec);
+    virtual bool seek_subimage (int subimage, int miplevel);
     virtual bool read_native_scanline (int y, int z, void *data);
     virtual bool read_native_tile (int subimage, int miplevel,
                                    int x, int y, int z, void *data);
@@ -300,10 +300,12 @@ DDSInput::open (const std::string &name, ImageSpec &newspec)
     } else
         m_nfaces = 1;
 
-    seek_subimage(0, 0, m_spec);
-
-    newspec = spec ();
-    return true;
+    bool ok = seek_subimage(0, 0);
+    if (ok)
+        newspec = spec ();
+    else
+        close();
+    return ok;
 }
 
 
@@ -399,16 +401,17 @@ DDSInput::internal_seek_subimage (int cubeface, int miplevel, unsigned int& w,
 
 
 bool
-DDSInput::seek_subimage (int subimage, int miplevel, ImageSpec &newspec)
+DDSInput::seek_subimage (int subimage, int miplevel)
 {
-    if (subimage != 0)
-        return false;
+    lock_guard lock (m_mutex);
 
     // early out
     if (subimage == current_subimage() && miplevel == current_miplevel()) {
-        newspec = m_spec;
         return true;
     }
+
+    if (subimage != 0)
+        return false;
 
     // don't seek if the image doesn't contain mipmaps, isn't 3D or a cube map,
     // and don't seek out of bounds
@@ -510,7 +513,6 @@ DDSInput::seek_subimage (int subimage, int miplevel, ImageSpec &newspec)
 
     m_subimage = subimage;
     m_miplevel = miplevel;
-    newspec = spec ();
     return true;
 }
 

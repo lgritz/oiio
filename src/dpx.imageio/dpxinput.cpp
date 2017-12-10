@@ -48,9 +48,11 @@ public:
     virtual const char * format_name (void) const { return "dpx"; }
     virtual bool valid_file (const std::string &filename) const;
     virtual bool open (const std::string &name, ImageSpec &newspec);
+    virtual bool open (const std::string &name, ImageSpec &newspec,
+                       const ImageSpec &config);
     virtual bool close ();
     virtual int current_subimage (void) const { return m_subimage; }
-    virtual bool seek_subimage (int subimage, int miplevel, ImageSpec &newspec);
+    virtual bool seek_subimage (int subimage, int miplevel);
     virtual bool read_native_scanline (int y, int z, void *data);
 
 private:
@@ -130,7 +132,8 @@ DPXInput::valid_file (const std::string &filename) const
 
 
 bool
-DPXInput::open (const std::string &name, ImageSpec &newspec)
+DPXInput::open (const std::string &name, ImageSpec &newspec,
+                const ImageSpec &config)
 {
     // open the image
     m_stream = new InStream();
@@ -145,25 +148,38 @@ DPXInput::open (const std::string &name, ImageSpec &newspec)
         return false;
     }
 
-    bool ok = seek_subimage (0, 0, newspec);
-    newspec = spec ();
+    // check if the client asked us for raw data
+    m_wantRaw = config.get_int_attribute ("dpx:RawData", 0) != 0;
+
+    bool ok = seek_subimage (0, 0);
+    if (ok)
+        newspec = spec ();
+    else
+        close();
     return ok;
 }
 
 
 
 bool
-DPXInput::seek_subimage (int subimage, int miplevel, ImageSpec &newspec)
+DPXInput::open (const std::string &name, ImageSpec &newspec)
 {
-    if (miplevel != 0)
-        return false;
+    ImageSpec config;
+    return open (name, newspec, config);
+}
+
+
+
+bool
+DPXInput::seek_subimage (int subimage, int miplevel)
+{
+    lock_guard lock (m_mutex);
     if (subimage < 0 || subimage >= m_dpx.header.ImageElementCount ())
+        return false;
+    if (miplevel != 0)
         return false;
 
     m_subimage = subimage;
-
-    // check if the client asked us for raw data
-    m_wantRaw = newspec.get_int_attribute ("dpx:RawData", 0) != 0;
 
     // create imagespec
     TypeDesc typedesc;
@@ -595,8 +611,7 @@ DPXInput::seek_subimage (int subimage, int miplevel, ImageSpec &newspec)
     else
         // no need to allocate another buffer
         m_dataPtr = NULL;
-    
-    newspec = m_spec;
+
     return true;
 }
 

@@ -202,8 +202,7 @@ void declare_imageinput (py::module &m)
         .def("current_miplevel", &ImageInput::current_miplevel)
         .def("seek_subimage",    [](ImageInput &self, int subimage, int miplevel){
                 py::gil_scoped_release gil;
-                ImageSpec dummyspec;
-                return self.seek_subimage (subimage, miplevel, dummyspec);
+                return self.seek_subimage (subimage, miplevel);
             })
         .def("read_image", [](ImageInput &self, TypeDesc format)->py::object{
                 const ImageSpec &spec (self.spec());

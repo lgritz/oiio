@@ -78,7 +78,7 @@ class FitsInput final : public ImageInput {
     virtual bool open (const std::string &name, ImageSpec &spec);
     virtual bool close (void);
     virtual bool read_native_scanline (int y, int z, void *data);
-    virtual bool seek_subimage (int subimage, int miplevel, ImageSpec &newspec);
+    virtual bool seek_subimage (int subimage, int miplevel);
     virtual int current_subimage () const { return m_cur_subimage; }
  private:
     FILE *m_fd;

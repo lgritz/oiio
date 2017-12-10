@@ -158,12 +158,6 @@ public:
     virtual int current_subimage (void) const { return m_subimage; }
     virtual int current_miplevel (void) const { return m_miplevel; }
     virtual bool seek_subimage (int subimage, int miplevel);
-    virtual bool seek_subimage (int subimage, int miplevel, ImageSpec &newspec) {
-        bool ok = seek_subimage (subimage, miplevel);
-        if (ok)
-            newspec = m_spec;
-        return ok;
-    }
     virtual bool read_native_scanline (int y, int z, void *data);
     virtual bool read_native_scanlines (int ybegin, int yend, int z, void *data);
     virtual bool read_native_scanlines (int ybegin, int yend, int z,
@@ -401,8 +395,10 @@ OpenEXRInput::open (const std::string &name, ImageSpec &newspec)
     m_parts.resize (m_nsubimages);
     m_subimage = -1;
     m_miplevel = -1;
-    bool ok = seek_subimage (0, 0, newspec);
-    if (! ok)
+    bool ok = seek_subimage (0, 0);
+    if (ok)
+        newspec = spec();
+    else
         close ();
     return ok;
 }

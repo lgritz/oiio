@@ -53,12 +53,6 @@ public:
     virtual int current_subimage (void) const { return m_subimage; }
     virtual int current_miplevel (void) const { return m_miplevel; }
     virtual bool seek_subimage (int subimage, int miplevel);
-    virtual bool seek_subimage (int subimage, int miplevel, ImageSpec &newspec) {
-        bool ok = seek_subimage (subimage, miplevel);
-        if (ok)
-            newspec = m_spec;
-        return ok;
-    }
     virtual bool read_native_scanline (int y, int z, void *data);
     virtual bool read_native_tile (int subimage, int miplevel,
                                    int x, int y, int z, void *data);
@@ -118,7 +112,7 @@ PtexInput::open (const std::string &name, ImageSpec &newspec)
             m_ptex->release ();
             m_ptex = NULL;
         }
-        error ("%s", perr.c_str());
+        error ("%s", perr);
         return false;
     }
 
@@ -126,7 +120,10 @@ PtexInput::open (const std::string &name, ImageSpec &newspec)
     m_hasMipMaps = m_ptex->hasMipMaps();
 
     bool ok = seek_subimage (0, 0);
-    newspec = spec ();
+    if (ok)
+        newspec = spec ();
+    else
+        close ();
     return ok;
 }
 

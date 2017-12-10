@@ -67,11 +67,6 @@ public:
     virtual bool close ();
     virtual int current_subimage (void) const { return m_subimage; }
     virtual bool seek_subimage (int subimage, int miplevel);
-    virtual bool seek_subimage (int subimage, int miplevel, ImageSpec &newspec) {
-        bool ok = seek_subimage (subimage, miplevel);
-        newspec = m_spec;
-        return ok;
-    }
     virtual bool read_native_scanline (int y, int z, void *data);
     virtual bool read_native_tile (int subimage, int miplevel,
                                    int x, int y, int z, void *data);
@@ -409,8 +404,11 @@ Field3DInput::open (const std::string &name, ImageSpec &newspec)
     }
 
     m_nsubimages = (int) m_layers.size();
-    bool ok = seek_subimage (0, 0, newspec);
-    newspec = spec();
+    bool ok = seek_subimage (0, 0);
+    if (ok)
+        newspec = spec();
+    else
+        close();
     return ok;
 }
 
