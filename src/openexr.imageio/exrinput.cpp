@@ -150,7 +150,8 @@ public:
     virtual int supports (string_view feature) const {
         return (feature == "arbitrary_metadata"
              || feature == "exif"   // Because of arbitrary_metadata
-             || feature == "iptc"); // Because of arbitrary_metadata
+             || feature == "iptc"   // Because of arbitrary_metadata
+             || feature == "concurrent_read_tiles");
     }
     virtual bool valid_file (const std::string &filename) const;
     virtual bool open (const std::string &name, ImageSpec &newspec);
@@ -827,6 +828,7 @@ OpenEXRInput::PartInfo::query_channels (const Imf::Header *header)
 bool
 OpenEXRInput::seek_subimage (int subimage, int miplevel)
 {
+    lock_guard lock (m_mutex);
     if (subimage == m_subimage && miplevel == m_miplevel) {  // no change
         return true;
     }
@@ -975,6 +977,7 @@ bool
 OpenEXRInput::read_native_scanlines (int ybegin, int yend, int z,
                                      int chbegin, int chend, void *data)
 {
+    lock_guard lock (m_mutex);
     chend = clamp (chend, chbegin+1, m_spec.nchannels);
 //    std::cerr << "openexr rns " << ybegin << ' ' << yend << ", channels "
 //              << chbegin << "-" << (chend-1) << "\n";
@@ -1144,6 +1147,7 @@ OpenEXRInput::read_native_deep_scanlines (int ybegin, int yend, int z,
                                           int chbegin, int chend,
                                           DeepData &deepdata)
 {
+    lock_guard lock (m_mutex);
     if (m_deep_scanline_input_part == NULL) {
         error ("called OpenEXRInput::read_native_deep_scanlines without an open file");
         return false;
@@ -1213,6 +1217,7 @@ OpenEXRInput::read_native_deep_tiles (int xbegin, int xend,
                                       int chbegin, int chend,
                                       DeepData &deepdata)
 {
+    lock_guard lock (m_mutex);
     if (m_deep_tiled_input_part == NULL) {
         error ("called OpenEXRInput::read_native_deep_tiles without an open file");
         return false;

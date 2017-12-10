@@ -285,7 +285,7 @@ ImageCacheFile::ImageCacheFile (ImageCacheImpl &imagecache,
       m_swrap(TextureOpt::WrapBlack), m_twrap(TextureOpt::WrapBlack),
       m_rwrap(TextureOpt::WrapBlack),
       m_envlayout(LayoutTexture), m_y_up(false), m_sample_border(false),
-      m_is_udim(false),
+      m_is_udim(false), m_concurrent_tile_reads(false),
       m_tilesread(0), m_bytesread(0),
       m_redundant_tiles(0), m_redundant_bytesread(0),
       m_timesopened(0), m_iotime(0), m_mutex_wait_time(0),
@@ -455,6 +455,12 @@ ImageCacheFile::open (ImageCachePerThreadInfo *thread_info)
     m_imagecache.incr_open_files ();
     use ();
 
+    // Keep track of whether it's safe to do concurrent tile reads for this
+    // image. Only if the format plugin supports it (guarantees thread
+    // safety of read_tile/read_tiles), and also we'll disable this if we
+    // find farther below that it's not MIP-mapped and tiled.
+    m_concurrent_tile_reads = m_input->supports ("concurrent_read_tiles");
+
     // If we are simply re-opening a closed file, and the spec is still
     // valid, we're done, no need to reread the subimage and mip headers.
     if (validspec())
@@ -482,6 +488,7 @@ ImageCacheFile::open (ImageCachePerThreadInfo *thread_info)
                 si.init (tempspec, imagecache().forcefloat());
             }
             if (tempspec.tile_width == 0 || tempspec.tile_height == 0) {
+                m_concurrent_tile_reads = false;
                 si.untiled = true;
                 int autotile = imagecache().autotile();
                 if (autotile) {
@@ -531,6 +538,7 @@ ImageCacheFile::open (ImageCachePerThreadInfo *thread_info)
             si.unmipped = true;
         if (si.unmipped && imagecache().automip() &&
             ! tempspec.find_attribute ("textureformat", TypeString)) {
+            m_concurrent_tile_reads = false;
             int w = tempspec.full_width;
             int h = tempspec.full_height;
             int d = tempspec.full_depth;

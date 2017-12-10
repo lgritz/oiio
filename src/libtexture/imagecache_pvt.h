@@ -351,6 +351,7 @@ private:
     bool m_y_up;                    ///< latlong: is y "up"? (else z is up)
     bool m_sample_border;           ///< are edge samples exactly on the border?
     bool m_is_udim;                 ///< Is tiled/UDIM?
+    bool m_concurrent_tile_reads;   ///< Support concurrent tile reads
     ustring m_fileformat;           ///< File format name
     size_t m_tilesread;             ///< Tiles read from this file
     imagesize_t m_bytesread;        ///< Bytes read from this file

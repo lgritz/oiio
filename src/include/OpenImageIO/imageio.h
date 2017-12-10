@@ -534,7 +534,7 @@ public:
     /// current subimage/MIPlevel.  Note that the contents of the spec
     /// are invalid before open() or after close(), and may change with
     /// a call to seek_subimage().
-    const ImageSpec &spec (void) const { return m_spec; }
+    virtual const ImageSpec &spec (void) const { return m_spec; }
 
     /// Close an image that we are totally done with.
     ///
@@ -911,8 +911,8 @@ public:
     void unlock () { m_mutex.unlock(); }
 
 protected:
-    ImageSpec m_spec;  // format spec of the current open subimage/MIPlevel
     mutable mutex m_mutex;   // lock of the thread-safe methods
+    ImageSpec m_spec;  // format spec of the current open subimage/MIPlevel
 
 private:
     mutable std::string m_errmessage;  // private storage of error message
