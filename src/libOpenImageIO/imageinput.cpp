@@ -431,47 +431,36 @@ ImageInput::read_tiles (int subimage, int miplevel,
                         TypeDesc format, void *data,
                         stride_t xstride, stride_t ystride, stride_t zstride)
 {
-    // Values we need to set while we hold the lock, but that we want to
-    // retain after releasing the lock, even if m_spec changes.
-    int tile_width, tile_height, tile_depth;
-    int spec_nchannels; // channels in the file
-    int nchans;  // channels we're reading
-    TypeDesc spec_format;
-    stride_t native_pixel_bytes;
-    stride_t prefix_bytes, subset_bytes;
-    bool perchanfile;
-    bool native_data;
+    lock();   // BEWARE! This very performance-sensitive method manages
+              // the lock by hand, not using a lock_guard, because we need
+              // total control. If future-you are editing this file, you
+              // MUST unlock() before returning!
 
-    {
-        if (! seek_subimage (subimage, miplevel))
-            return false;
-        if (! m_spec.valid_tile_range (xbegin, xend, ybegin, yend, zbegin, zend))
-            return false;
-
-        spec_nchannels = m_spec.nchannels;
-        chend = clamp (chend, chbegin+1, spec_nchannels);
-        nchans = chend - chbegin;
-        tile_width = m_spec.tile_width;
-        tile_height = m_spec.tile_height;
-        tile_depth = m_spec.tile_depth;
-        spec_format = m_spec.format;
-
-        // native_pixel_bytes is the size of a pixel in the FILE, including
-        // the per-channel format.
-        subset_bytes = (stride_t) m_spec.pixel_bytes (chbegin, chend, true);
-        native_pixel_bytes = (stride_t) m_spec.pixel_bytes (true);
-        prefix_bytes = m_spec.pixel_bytes (0,chbegin,true);
-        subset_bytes = m_spec.pixel_bytes (chbegin,chend,true);
-        // perchanfile is true if the file has different per-channel formats
-        perchanfile = m_spec.channelformats.size();
-        // native_data is true if the user asking for data in the native format
-        native_data = (format == TypeDesc::UNKNOWN ||
-                      (format == spec_format && !perchanfile));
-        if (format == TypeDesc::UNKNOWN && xstride == AutoStride)
-            xstride = subset_bytes;
-        m_spec.auto_stride (xstride, ystride, zstride, format, nchans,
-                            xend-xbegin, yend-ybegin);
+    if (! seek_subimage (subimage, miplevel) ||
+        ! m_spec.valid_tile_range (xbegin, xend, ybegin, yend, zbegin, zend)) {
+        unlock();
+        return false;
     }
+    // At this point, we hold the lock, so it's safe to access m_spec.
+    int spec_nchannels = m_spec.nchannels;
+    chend = clamp (chend, chbegin+1, spec_nchannels);
+    int nchans = chend - chbegin;
+    TypeDesc spec_format = m_spec.format;
+
+    // native_pixel_bytes is the size of a pixel in the FILE, including
+    // the per-channel format.
+    stride_t native_pixel_bytes = (stride_t) m_spec.pixel_bytes (true);
+    stride_t prefix_bytes = m_spec.pixel_bytes (0,chbegin,true);
+    stride_t subset_bytes = m_spec.pixel_bytes (chbegin,chend,true);
+    // perchanfile is true if the file has different per-channel formats
+    bool perchanfile = m_spec.channelformats.size();
+    // native_data is true if the user asking for data in the native format
+    bool native_data = (format == TypeDesc::UNKNOWN ||
+                       (format == spec_format && !perchanfile));
+    if (format == TypeDesc::UNKNOWN && xstride == AutoStride)
+        xstride = subset_bytes;
+    m_spec.auto_stride (xstride, ystride, zstride, format, nchans,
+                        xend-xbegin, yend-ybegin);
 
     // Do the strides indicate that the data area is contiguous?
     bool contiguous = ( native_data && xstride == subset_bytes) ||
@@ -479,25 +468,62 @@ ImageInput::read_tiles (int subimage, int miplevel,
     contiguous &= (ystride == xstride*(xend-xbegin) &&
                   (zstride == ystride*(yend-ybegin) || (zend-zbegin) <= 1));
 
+    int tile_width = m_spec.tile_width;
+    int tile_height = m_spec.tile_height;
+    int tile_depth = m_spec.tile_depth;
     int nxtiles = (xend - xbegin + tile_width - 1) / tile_width;
     int nytiles = (yend - ybegin + tile_height - 1) / tile_height;
     int nztiles = (zend - zbegin + tile_depth - 1) / tile_depth;
+    bool partial_tile = ((xend-xbegin) != nxtiles*tile_width ||
+                         (yend-ybegin) != nytiles*tile_height ||
+                         (zend-zbegin) != nztiles*tile_depth);
 
+    bool ok = true;
+
+    // Trivial special case:
     // If user's format and strides are set up to accept the native data
     // layout, and we're asking for a whole number of tiles (no partial
     // tiles at the edges), then read the tile directly into the user's
     // buffer.
-    if (native_data && contiguous &&
-        (xend-xbegin) == nxtiles*tile_width &&
-        (yend-ybegin) == nytiles*tile_height &&
-        (zend-zbegin) == nztiles*tile_depth) {
-            return read_native_tiles (subimage, miplevel,
-                                      xbegin, xend, ybegin, yend, zbegin, zend,
-                                      chbegin, chend, data);
+    if (native_data && contiguous && !partial_tile) {
+        ok = read_native_tiles (subimage, miplevel,
+                                xbegin, xend, ybegin, yend, zbegin, zend,
+                                chbegin, chend, data);
+        unlock();
+        return ok;
+    }
+
+    // Next special case: we can't read straight into the caller's buffer,
+    // but it's a simple case of a single non-partial tile read of all
+    // channels from an image with homogeneous-data format.
+    if (nxtiles*nytiles*nztiles == 1 && chbegin == 0 && chend == spec_nchannels && !perchanfile && !partial_tile) {
+        if (native_data && contiguous && !partial_tile) {
+            // If user's format and strides are set up to accept the native
+            // data layout, read the tile directly into the user's buffer.
+            ok = read_native_tile (subimage, miplevel, xbegin, ybegin, zbegin, data);
+            unlock();
+            return ok;
+        }
+
+        // Complex case -- either changing data type or stride
+        stride_t tile_values = tile_width*tile_height*tile_depth*nchans;
+        stride_t native_tile_bytes = tile_values * spec_format.size();
+        std::unique_ptr<char[]> buf (new char [native_tile_bytes]);
+        ok = read_native_tile (subimage, miplevel, xbegin, ybegin, zbegin, &buf[0]);
+
+        unlock();  // Everything between now and return is data copying.
+                   // We don't want to hold the lock for that!
+        if (ok) {
+            ok = contiguous
+                ? convert_types (spec_format, &buf[0], format, data, tile_values)
+                : convert_image (spec_nchannels, tile_width, tile_height, tile_depth, 
+                                 &buf[0], spec_format, AutoStride, AutoStride, AutoStride,
+                                 data, format, xstride, ystride, zstride);
+        }
+        return ok;
     }
 
     // No such luck.  Just punt and read tiles individually.
-    bool ok = true;
     stride_t pixelsize = native_data ? subset_bytes
                                      : (format.size() * nchans);
     stride_t full_pixelsize = native_data ? native_pixel_bytes
@@ -508,9 +534,9 @@ ImageInput::read_tiles (int subimage, int miplevel,
     size_t full_prefix_bytes = native_data ? prefix_bytes
                                       : format.size() * chbegin;
     std::vector<char> buf;
-    for (int z = zbegin;  z < zend;  z += std::max(1,tile_depth)) {
+    for (int z = zbegin;  z < zend && ok;  z += std::max(1,tile_depth)) {
         int zd = std::min (zend-z, tile_depth);
-        for (int y = ybegin;  y < yend;  y += tile_height) {
+        for (int y = ybegin;  y < yend && ok;  y += tile_height) {
             char *tilestart = ((char *)data + (z-zbegin)*zstride
                                + (y-ybegin)*ystride);
             int yh = std::min (yend-y, tile_height);
@@ -527,8 +553,6 @@ ImageInput::read_tiles (int subimage, int miplevel,
                     // per-tile data format conversion.
                     ok &= read_tile (x, y, z, format, tilestart,
                                      xstride, ystride, zstride);
-                    if (! ok)
-                        return false;
                 } else {
                     buf.resize (full_tilebytes);
                     ok &= read_tile (x, y, z, format,
@@ -548,14 +572,12 @@ ImageInput::read_tiles (int subimage, int miplevel,
                 }
                 tilestart += tile_width * xstride;
             }
-            if (! ok)
-                break;
         }
     }
-
     if (! ok)
         error ("ImageInput::read_tiles : no support for format %s",
                spec_format);
+    unlock();
     return ok;
 }
 
@@ -595,7 +617,8 @@ ImageInput::read_native_tiles (int subimage, int miplevel,
     lock_guard lock (m_mutex);
     if (! seek_subimage (subimage, miplevel))
         return false;
-
+    // Safe to use m_spec holding the spec of the subimage we seeked to,
+    // as long as we're holding the lock.
     spec_nchannels = m_spec.nchannels;
     chend = clamp (chend, chbegin+1, spec_nchannels);
     nchans = chend - chbegin;
@@ -631,8 +654,17 @@ ImageInput::read_native_tiles (int subimage, int miplevel,
     } else {
         // For multiple tiles or channel subsets, allocate our own temp
         // buffer big enough for all the raw native tiles we're reading.
-        pels_tmp.reset (new char [tile_bytes * ntiles]);
-        peldata = pels_tmp.get();
+        size_t alloc_size = tile_bytes*ntiles;
+        if (alloc_size <= 64*64*4*4) {
+            // For "small" allocatiosn -- a single tile of up to 64x64
+            // RGBA float, or smaller (but note this is the common case) --
+            // just allocate on the stack, no expensive malloc.
+            peldata = OIIO_ALLOCA (char, alloc_size);
+        } else {
+            // Bigger allocation needed -- dynamically allocate.
+            pels_tmp.reset (new char [alloc_size]);
+            peldata = pels_tmp.get();
+        }
     }
     size_t itile = 0;  // tile index
     for (int z = zbegin;  z < zend;  z += m_spec.tile_depth) {
@@ -647,8 +679,11 @@ ImageInput::read_native_tiles (int subimage, int miplevel,
         }
     }
     }  // exit the scope that hold the exclusive lock
+    // DO NOT use m_spec below here, it's not safe because another thread
+    // may reposition with a seek_subimage() call. But it's safe to do
+    // buffer copying and whatnot.
 
-    if (pels_tmp.get()) {
+    if ((void *)peldata != (void *)data) {
         // If we read the raw tiles into a temporary buffer, now we have to
         // copy back to the caller's buffer, heeding the differences in data
         // layout and number of channels.

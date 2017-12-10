@@ -496,6 +496,8 @@ public:
     ///    "iptc"           Can this format store IPTC data?
     ///    "procedural"     Can this format create images without reading
     ///                        from a disk file?
+    ///    "concurrent_read_tiles"  Can this format reader support thread-
+    ///                        safe concurrent calls to read_tiles?
     ///
     /// Note that main advantage of this approach, versus having
     /// separate individual supports_foo() methods, is that this allows

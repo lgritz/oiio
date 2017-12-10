@@ -112,7 +112,8 @@ public:
     virtual bool valid_file (const std::string &filename) const;
     virtual int supports (string_view feature) const {
         return (feature == "exif"
-             || feature == "iptc");
+             || feature == "iptc"
+             || feature == "concurrent_read_tiles");
         // N.B. No support for arbitrary metadata.
     }
     virtual bool open (const std::string &name, ImageSpec &newspec);
