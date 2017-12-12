@@ -192,14 +192,14 @@ public:
         /// Lock the bin we point to, if not already locked.
         void lock () {
             if (m_bin >= 0 && !m_locked) {
-                m_umc->m_bins[m_bin].lock();
+                m_umc->m_bins[m_bin].write_lock();
                 m_locked = true;
             }
         }
         /// Unlock the bin we point to, if locked.
         void unlock () {
             if (m_bin >= 0 && m_locked) {
-                m_umc->m_bins[m_bin].unlock();
+                m_umc->m_bins[m_bin].write_unlock();
                 m_locked = false;
             }
         }
@@ -218,11 +218,8 @@ public:
         // No longer refer to a particular bin, release lock on the bin
         // it had (if any).
         void unbin () {
-            if (m_bin >= 0) {
-                if (m_locked)
-                    unlock ();
-                m_bin = -1;
-            }
+            unlock ();
+            m_bin = -1;
         }
 
         // Point this iterator to a different bin, releasing locks on
@@ -276,12 +273,12 @@ public:
         size_t b = whichbin(key);
         Bin &bin (m_bins[b]);
         if (do_lock)
-            bin.lock ();
+            bin.write_lock ();
         typename BinMap_t::iterator it = bin.map.find (key);
         if (it == bin.map.end()) {
             // not found -- return the 'end' iterator
             if (do_lock)
-                bin.unlock();
+                bin.write_unlock();
             return end();
         }
         // Found 
@@ -301,13 +298,13 @@ public:
         size_t b = whichbin(key);
         Bin &bin (m_bins[b]);
         if (do_lock)
-            bin.lock ();
+            bin.read_lock ();
         typename BinMap_t::iterator it = bin.map.find (key);
         bool found = (it != bin.map.end());
         if (found)
             value = it->second;
         if (do_lock)
-            bin.unlock();
+            bin.read_unlock();
         return found;
     }
 
@@ -321,14 +318,14 @@ public:
         size_t b = whichbin(key);
         Bin &bin (m_bins[b]);
         if (do_lock)
-            bin.lock ();
+            bin.write_lock ();
         auto result = bin.map.emplace(key, value);
         if (result.second) {
             // the insert was succesful!
             ++m_size;
         }
         if (do_lock)
-            bin.unlock();
+            bin.write_unlock();
         return result.second;
     }
 
@@ -340,10 +337,10 @@ public:
         size_t b = whichbin(key);
         Bin &bin (m_bins[b]);
         if (do_lock)
-            bin.lock ();
+            bin.write_lock ();
         bin.map.erase (key);
         if (do_lock)
-            bin.unlock();
+            bin.write_unlock();
     }
 
     /// Return true if the entire map is empty.
@@ -357,23 +354,24 @@ public:
     /// number.
     size_t lock_bin (const KEY &key) {
         size_t b = whichbin(key);
-        m_bins[b].lock ();
+        m_bins[b].write_lock ();
         return b;
     }
 
     /// Explicitly unlock the specified bin (this assumes that the caller
     /// holds the lock).
     void unlock_bin (size_t bin) {
-        m_bins[bin].unlock ();
+        m_bins[bin].write_unlock ();
     }
 
 private:
     struct Bin {
         OIIO_CACHE_ALIGN             // align bin to cache line
-        mutable spin_mutex mutex;    // mutex for this bin
+        mutable spin_rw_mutex mutex; // mutex for this bin
         BinMap_t map;                // hash map for this bin
 #ifndef NDEBUG
-        mutable atomic_int m_nlocks; // for debugging
+        mutable atomic_int m_nrlocks; // for debugging
+        mutable atomic_int m_nwlocks; // for debugging
 #endif
 
         Bin () {
@@ -383,22 +381,49 @@ private:
         }
         ~Bin () {
 #ifndef NDEBUG
-            DASSERT (m_nlocks == 0);
+            DASSERT (m_nrlocks == 0 && m_nwlocks == 0);
 #endif
         }
-        void lock () const {
-            mutex.lock();
+
+        // Make lock()/unlock() synonyms for exclusive (write) locks.
+        // void lock () { write_lock(); }
+        // void unlock () { write_unlock(); }
+
+        void read_lock () const {
+            mutex.read_lock();
 #ifndef NDEBUG
-            ++m_nlocks;
-            DASSERT_MSG (m_nlocks == 1, "oops, m_nlocks = %d", (int)m_nlocks);
+            ++m_nrlocks;
+            DASSERT_MSG (m_nwlocks == 0, "oops, m_nrlocks = %d, m_nwlocks = %d",
+                         (int)m_nrlocks, (int)m_wlocks);
 #endif
         }
-        void unlock () const {
+        void read_unlock () const {
 #ifndef NDEBUG
-            DASSERT_MSG (m_nlocks == 1, "oops, m_nlocks = %d", (int)m_nlocks);
-            --m_nlocks;
+            DASSERT_MSG (m_nwlocks == 0 && m_nrlocks >= 1,
+                         "oops, m_nrlocks = %d, m_nwlocks = %d",
+                         (int)m_nrlocks, (int)m_wlocks);
+            --m_nrlocks;
 #endif
-            mutex.unlock();
+            mutex.read_unlock();
+        }
+
+        void write_lock () const {
+            mutex.write_lock();
+#ifndef NDEBUG
+            ++m_nwlocks;
+            DASSERT_MSG (m_nwlocks == 1 && m_nrlocks == 0,
+                         "oops, m_nrlocks = %d, m_nwlocks = %d",
+                         (int)m_nrlocks, (int)m_wlocks);
+#endif
+        }
+        void write_unlock () const {
+#ifndef NDEBUG
+            DASSERT_MSG (m_nwlocks == 1 && m_nrlocks == 0,
+                         "oops, m_nrlocks = %d, m_nwlocks = %d",
+                         (int)m_nrlocks, (int)m_wlocks);
+            --m_nwlocks;
+#endif
+            mutex.write_unlock();
         }
     };
 

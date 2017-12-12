@@ -475,6 +475,10 @@ public:
         m_bits.fetch_sub (WRITER, std::memory_order_release);
     }
 
+    // Make lock()/unlock() synonyms for exclusive (write) locks.
+    void lock () { write_lock(); }
+    void unlock () { write_unlock(); }
+
     /// Helper class: scoped read lock for a spin_rw_mutex -- grabs the
     /// read lock upon construction, releases the lock when it exits scope.
     class read_lock_guard {
