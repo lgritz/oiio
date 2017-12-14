@@ -473,7 +473,7 @@ public:
             int x, int y, int z=0, int chbegin=0, int chend=-1)
         : m_x(x), m_y(y), m_z(z), m_subimage(subimage),
           m_miplevel(miplevel), m_chbegin(chbegin), m_chend(chend),
-          m_file(&file)
+          m_filenamehash(file.filename().hash()), m_file(&file)
     {
         int nc = file.spec(subimage,miplevel).nchannels;
         if (chend < chbegin || chend > nc)
@@ -585,7 +585,7 @@ public:
         return bjhash::bjfinal (m_x+1543, m_y + 6151 + m_z*769,
                                 m_miplevel + (m_subimage<<8) +
                                 (chbegin()<<4) + nchannels())
-                           + m_file->filename().hash();
+                           ^ m_filenamehash;
 #endif
     }
 
@@ -619,6 +619,7 @@ private:
     int m_subimage;           ///< subimage
     int m_miplevel;           ///< MIP-map level
     short m_chbegin, m_chend; ///< Channel range
+    size_t m_filenamehash;    ///< Local copy of filename hash
     ImageCacheFile *m_file;   ///< Which ImageCacheFile we refer to
 };
 
