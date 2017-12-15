@@ -603,47 +603,48 @@ endmacro()
 ###########################################################################
 # TBB
 
-macro (find_or_download_pybind11)
-    # If we weren't told to force our own download/build of pybind11, look
+option (BUILD_TBB_FORCE "Force local download/build of TBB even if installed" OFF)
+option (BUILD_MISSING_TBB "Local download/build of TBB if not installed" ${BUILD_MISSING_DEPS})
+set (BUILD_TBB_VERSION "tbb_2018" CACHE STRING "Preferred TBB version tag, when downloading/building our own")
+set (TBB_HOME "" CACHE STRING "Installed TBB location hint")
+
+macro (find_or_download_tbb)
+    # If we weren't told to force our own download/build of tbb, look
     # for an installed version. Still prefer a copy that seems to be
     # locally installed in this tree.
-    if (NOT BUILD_PYBIND11_FORCE)
-        find_path (PYBIND11_INCLUDE_DIR pybind11/pybind11.h
-               "${PROJECT_SOURCE_DIR}/ext/pybind11/include"
-               "${PYBIND11_HOME}"
-               "$ENV{PYBIND11_HOME}"
-               )
+    if (NOT BUILD_TBB_FORCE)
+        find_package (TBB)
     endif ()
     # If an external copy wasn't found and we requested that missing
     # packages be built, or we we are forcing a local copy to be built, then
     # download and build it.
-    if ((BUILD_MISSING_PYBIND11 AND NOT PYBIND11_INCLUDE_DIR) OR BUILD_PYBIND11_FORCE)
-        message (STATUS "Building local Pybind11")
-        set (PYBIND11_INSTALL_DIR "${PROJECT_SOURCE_DIR}/ext/pybind11")
-        set (PYBIND11_GIT_REPOSITORY "https://github.com/pybind/pybind11")
-        if (NOT IS_DIRECTORY ${PYBIND11_INSTALL_DIR}/include)
+    if ((BUILD_MISSING_TBB AND NOT TBB_FOUND) OR BUILD_TBB_FORCE)
+        message (STATUS "Building local TBB")
+        set (TBB_INSTALL_DIR "${PROJECT_SOURCE_DIR}/ext/tbb")
+        set (TBB_GIT_REPOSITORY "https://github.com/tbb/tbb")
+        if (NOT IS_DIRECTORY ${TBB_INSTALL_DIR}/include)
             find_package (Git REQUIRED)
             execute_process(COMMAND
-                            ${GIT_EXECUTABLE} clone ${PYBIND11_GIT_REPOSITORY}
-                            --branch ${BUILD_PYBIND11_VERSION}
-                            ${PYBIND11_INSTALL_DIR}
+                            ${GIT_EXECUTABLE} clone ${TBB_GIT_REPOSITORY}
+                            --branch ${BUILD_TBB_VERSION}
+                            ${TBB_INSTALL_DIR}
                             )
-            if (IS_DIRECTORY ${PYBIND11_INSTALL_DIR}/include)
-                message (STATUS "DOWNLOADED pybind11 to ${PYBIND11_INSTALL_DIR}.\n"
+            if (IS_DIRECTORY ${TBB_INSTALL_DIR}/include)
+                message (STATUS "DOWNLOADED tbb to ${TBB_INSTALL_DIR}.\n"
                          "Remove that dir to get rid of it.")
             else ()
-                message (FATAL_ERROR "Could not download pybind11")
+                message (FATAL_ERROR "Could not download TBB")
             endif ()
         endif ()
-        set (PYBIND11_INCLUDE_DIR "${PYBIND11_INSTALL_DIR}/include")
+        set (TBB_INCLUDE_DIR "${TBB_INSTALL_DIR}/include")
     endif ()
 
-    if (PYBIND11_INCLUDE_DIR)
-        message (STATUS "pybind11 include dir: ${PYBIND11_INCLUDE_DIR}")
+    if (TBB_INCLUDE_DIR)
+        message (STATUS "TBB include dir: ${TBB_INCLUDE_DIR}")
     else ()
-        message (FATAL_ERROR "pybind11 is missing! If it's not on your "
+        message (FATAL_ERROR "TBB is missing! If it's not on your "
                  "system, you need to install it, or build with either "
-                 "-DBUILD_MISSING_DEPS=ON or -DBUILD_PYBIND11_FORCE=ON. "
+                 "-DBUILD_MISSING_DEPS=ON or -DBUILD_TBB_FORCE=ON. "
                  "Or build with -DUSE_PYTHON=OFF.")
     endif ()
 endmacro()
