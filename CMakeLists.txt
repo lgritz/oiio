@@ -118,6 +118,10 @@ message(STATUS "Setting Namespace to: ${PROJ_NAMESPACE_V}")
 include (externalpackages)
 include (install)
 
+find_or_download_robin_map ()
+find_or_download_tbb ()
+
+
 include_directories (
     BEFORE
     "${CMAKE_SOURCE_DIR}/src/include"
@@ -134,8 +138,6 @@ include (CTest)
 
 # Tell CMake to process the sub-directories
 add_subdirectory (src/libutil)
-
-find_or_download_robin_map ()
 
 
 # Add IO plugin directories -- if we are embedding plugins, we need to visit

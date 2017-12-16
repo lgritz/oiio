@@ -603,12 +603,14 @@ endmacro()
 ###########################################################################
 # TBB
 
+option (USE_TBB "Use TBB if available" ON)
 option (BUILD_TBB_FORCE "Force local download/build of TBB even if installed" OFF)
 option (BUILD_MISSING_TBB "Local download/build of TBB if not installed" ${BUILD_MISSING_DEPS})
-set (BUILD_TBB_VERSION "tbb_2018" CACHE STRING "Preferred TBB version tag, when downloading/building our own")
+set (BUILD_TBB_VERSION "2018_U2" CACHE STRING "Preferred TBB version tag, when downloading/building our own")
 set (TBB_HOME "" CACHE STRING "Installed TBB location hint")
 
 macro (find_or_download_tbb)
+    if (USE_TBB)
     # If we weren't told to force our own download/build of tbb, look
     # for an installed version. Still prefer a copy that seems to be
     # locally installed in this tree.
@@ -620,33 +622,40 @@ macro (find_or_download_tbb)
     # download and build it.
     if ((BUILD_MISSING_TBB AND NOT TBB_FOUND) OR BUILD_TBB_FORCE)
         message (STATUS "Building local TBB")
-        set (TBB_INSTALL_DIR "${PROJECT_SOURCE_DIR}/ext/tbb")
-        set (TBB_GIT_REPOSITORY "https://github.com/tbb/tbb")
-        if (NOT IS_DIRECTORY ${TBB_INSTALL_DIR}/include)
+        set (TBB_SRC_DIR "${PROJECT_SOURCE_DIR}/ext/tbb")
+        set (TBB_GIT_REPOSITORY "https://github.com/01org/tbb.git")
+        if (NOT IS_DIRECTORY ${TBB_SRC_DIR}/include)
             find_package (Git REQUIRED)
-            execute_process(COMMAND
-                            ${GIT_EXECUTABLE} clone ${TBB_GIT_REPOSITORY}
-                            --branch ${BUILD_TBB_VERSION}
-                            ${TBB_INSTALL_DIR}
-                            )
-            if (IS_DIRECTORY ${TBB_INSTALL_DIR}/include)
-                message (STATUS "DOWNLOADED tbb to ${TBB_INSTALL_DIR}.\n"
+            execute_process (COMMAND
+                                 ${GIT_EXECUTABLE} clone ${TBB_GIT_REPOSITORY}
+                                 --branch ${BUILD_TBB_VERSION}
+                                 ${TBB_SRC_DIR} )
+            if (IS_DIRECTORY ${TBB_SRC_DIR}/include)
+                message (STATUS "DOWNLOADED tbb to ${TBB_SRC_DIR}.\n"
                          "Remove that dir to get rid of it.")
             else ()
                 message (FATAL_ERROR "Could not download TBB")
             endif ()
         endif ()
-        set (TBB_INCLUDE_DIR "${TBB_INSTALL_DIR}/include")
+        execute_process (COMMAND ${GIT_EXECUTABLE} checkout ${BUILD_TBB_VERSION} --force
+                         WORKING_DIRECTORY ${TBB_SRC_DIR} )
+        set (TBB_INCLUDE_DIRS "${TBB_SRC_DIR}/include")
+        set (TBB_FOUND 1)
     endif ()
 
-    if (TBB_INCLUDE_DIR)
-        message (STATUS "TBB include dir: ${TBB_INCLUDE_DIR}")
+    if (TBB_FOUND)
+        message (STATUS "TBB_INCLUDE_DIRS: ${TBB_INCLUDE_DIRS}")
+        message (STATUS "TBB_LIBRARIES   : ${TBB_LIBRARIES}")
+        message (STATUS "TBB_DEFINITIONS : ${TBB_DEFINITIONS}")
+        add_definitions (-DUSE_TBB)
     else ()
-        message (FATAL_ERROR "TBB is missing! If it's not on your "
+        set (USE_TBB 0)
+        message (WARNING "TBB is missing! If it's not on your "
                  "system, you need to install it, or build with either "
                  "-DBUILD_MISSING_DEPS=ON or -DBUILD_TBB_FORCE=ON. "
                  "Or build with -DUSE_PYTHON=OFF.")
     endif ()
+    endif (USE_TBB)
 endmacro()
 
 ###########################################################################
