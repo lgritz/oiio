@@ -73,7 +73,7 @@ static float sblur = 0, tblur = -1;
 static float width = 1;
 static float anisoaspect = 1.0;  // anisotropic aspect ratio
 static std::string wrapmodes ("periodic");
-static int anisomax = TextureOpt().anisotropic;
+static float anisomax = TextureOpt().anisotropic;
 static int iters = 1;
 static int autotile = 0;
 static bool automip = false;
@@ -162,8 +162,8 @@ getargs (int argc, const char *argv[])
                   "--fill %f", &fill, "Set fill value for missing channels",
                   "--wrap %s", &wrapmodes, "Set wrap mode (default, black, clamp, periodic, mirror, overscan)",
                   "--anisoaspect %f", &anisoaspect, "Set anisotropic ellipse aspect ratio for threadtimes tests (default: 2.0)",
-                  "--anisomax %d", &anisomax,
-                      Strutil::format("Set max anisotropy (default: %d)", anisomax).c_str(),
+                  "--anisomax %f", &anisomax,
+                      Strutil::format("Set max anisotropy (default: %g)", anisomax).c_str(),
                   "--mipmode %d", &mipmode, "Set mip mode (default: 0 = aniso)",
                   "--interpmode %d", &interpmode, "Set interp mode (default: 3 = smart bicubic)",
                   "--missing %f %f %f", &missing[0], &missing[1], &missing[2],

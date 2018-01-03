@@ -1347,7 +1347,7 @@ compute_miplevels (TextureSystemImpl::TextureFile &texturefile,
         // at the finest resolution, clamp it and recalculate aspect.
         int r = std::max (subinfo.spec(0).full_width, subinfo.spec(0).full_height);
         if (minorlength*r < 0.5f) {
-            aspect = Imath::clamp (majorlength * r * 2.0f, 1.0f, float(options.anisotropic));
+            aspect = Imath::clamp (majorlength * r * 2.0f, 1.0f, options.anisotropic);
         }
     }
     if (options.mipmode == TextureOpt::MipModeOneLevel) {
@@ -1612,7 +1612,7 @@ TextureSystemImpl::texture_lookup (TextureFile &texturefile,
     compute_miplevels (texturefile, options, majorlength, minorlength, aspect,
                        miplevel, levelweight);
 
-    float *lineweight = ALLOCA (float, round_to_multiple_of_pow2(2*options.anisotropic, 4));
+    float *lineweight = ALLOCA (float, round_to_multiple_of_pow2(2*(int(options.anisotropic)+1), 4));
     float invsamples;
     int nsamples = compute_ellipse_sampling (aspect, theta, majorlength,
                                              minorlength, smajor, tmajor,
@@ -2638,7 +2638,7 @@ TextureSystemImpl::visualize_ellipse (const std::string &name,
     TextureOpt options;
     float trueaspect;
     float aspect = TextureSystemImpl::anisotropic_aspect (majorlength, minorlength, options, trueaspect);
-    float *lineweight = ALLOCA (float, 2*options.anisotropic);
+    float *lineweight = ALLOCA (float, 2*(int(options.anisotropic)+1));
     float smajor, tmajor, invsamples;
     int nsamples = compute_ellipse_sampling (aspect, theta, majorlength,
                                              minorlength, smajor, tmajor,

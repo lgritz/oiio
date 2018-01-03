@@ -204,7 +204,7 @@ public:
         : firstchannel(0), subimage(0),
         swrap(WrapDefault), twrap(WrapDefault),
         mipmode(MipModeDefault), interpmode(InterpSmartBicubic),
-        anisotropic(32), conservative_filter(true),
+        anisotropic(32.0f), conservative_filter(true),
         sblur(0.0f), tblur(0.0f), swidth(1.0f), twidth(1.0f),
         fill(0.0f), missingcolor(NULL),
         // dresultds(NULL), dresultdt(NULL),
@@ -225,7 +225,7 @@ public:
     Wrap twrap;               ///< Wrap mode in the t direction
     MipMode mipmode;          ///< Mip mode
     InterpMode interpmode;    ///< Interpolation mode
-    int anisotropic;          ///< Maximum anisotropic ratio
+    float anisotropic;        ///< Maximum anisotropic ratio
     bool conservative_filter; ///< True == over-blur rather than alias
     float sblur, tblur;       ///< Blur amount
     float swidth, twidth;     ///< Multiplier for derivatives
@@ -285,7 +285,7 @@ public:
     Tex::Wrap rwrap = Tex::Wrap::Default; ///< Wrap mode in the r direction (volumetric)
     Tex::MipMode mipmode = Tex::MipMode::Default;  ///< Mip mode
     Tex::InterpMode interpmode = Tex::InterpMode::SmartBicubic;  ///< Interpolation mode
-    int anisotropic = 32;                 ///< Maximum anisotropic ratio
+    float anisotropic = 32.0f;            ///< Maximum anisotropic ratio
     bool conservative_filter = true;      ///< True: over-blur rather than alias
     float fill = 0.0f;                    ///< Fill value for missing channels
     const float *missingcolor = nullptr;  ///< Color for missing texture
@@ -366,7 +366,7 @@ public:
     Wrap twrap;               ///< Wrap mode in the t direction
     MipMode mipmode;          ///< Mip mode
     InterpMode interpmode;    ///< Interpolation mode
-    int anisotropic;          ///< Maximum anisotropic ratio
+    float anisotropic;        ///< Maximum anisotropic ratio
     bool conservative_filter; ///< True == over-blur rather than alias
 
     // Options that may be different for each point we're texturing
