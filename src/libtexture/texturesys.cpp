@@ -1510,6 +1510,28 @@ ellipse_axes (float dsdx, float dtdx, float dsdy, float dtdy,
 
 // Given the aspect ratio, major axis orientation angle, and axis lengths,
 // calculate the smajor & tmajor values that give the orientation of the
+// line on which samples should be distributed.
+inline void
+compute_ellipse_angle (float aspect, float theta,
+                       float majorlength, float minorlength,
+                       float &smajor, float &tmajor)
+{
+    // Compute the sin and cos of the sampling direction, given major
+    // axis angle
+#ifdef TEX_FAST_MATH
+    fast_sincos (theta, &tmajor, &smajor);
+#else
+    sincos (theta, &tmajor, &smajor);
+#endif
+    float L = 2.0f * (majorlength - minorlength);
+    smajor *= L;
+    tmajor *= L;
+}
+
+
+
+// Given the aspect ratio, major axis orientation angle, and axis lengths,
+// calculate the smajor & tmajor values that give the orientation of the
 // line on which samples should be distributed.  If there are n samples,
 // they should be positioned as:
 //     p_i = 2*(i+0.5)/n - 1.0;
@@ -1521,14 +1543,15 @@ compute_ellipse_sampling (float aspect, float theta,
                           float majorlength, float minorlength,
                           float &smajor, float &tmajor,
                           float &invsamples,
-                          float *weights=NULL)
+                          float *weights)
 {
+    ASSERT (weights);
     // Compute the sin and cos of the sampling direction, given major
     // axis angle
-    sincos (theta, &tmajor, &smajor);
+    // sincos (theta, &tmajor, &smajor);
     float L = 2.0f * (majorlength - minorlength);
-    smajor *= L;
-    tmajor *= L;
+    // smajor *= L;
+    // tmajor *= L;
 #if 1
     // This is the theoretically correct number of samples.
     int nsamples = std::max (1, int(2.0f*aspect-1.0f));
@@ -1537,29 +1560,29 @@ compute_ellipse_sampling (float aspect, float theta,
     // This approach does fewer samples for high aspect ratios, but I see
     // artifacts.
 #endif
-    invsamples = 1.0f / nsamples;
-    if (weights) {
-        if (nsamples == 1) {
-            weights[0] = 1.0f;
-        } else if (nsamples == 2) {
-            weights[0] = 0.5f;  weights[1] = 0.5f;
-        } else {
-            float scale = majorlength / L;  // 1/(L/major)
-            for (int i = 0, e = (nsamples+1)/2;  i < e;  ++i) {
-                float x = (2.0f*(i+0.5f)*invsamples - 1.0f) * scale;
+    if (nsamples == 1) {
+        weights[0] = 1.0f;
+        invsamples = 1.0f;
+    } else if (nsamples == 2) {
+        weights[0] = 0.5f;  weights[1] = 0.5f;
+        invsamples = 0.5f;
+    } else {
+        invsamples = 1.0f / nsamples;
+        float scale = majorlength / L;  // 1/(L/major)
+        for (int i = 0, e = (nsamples+1)/2;  i < e;  ++i) {
+            float x = (2.0f*(i+0.5f)*invsamples - 1.0f) * scale;
 #ifdef TEX_FAST_MATH
-                float w = fast_exp(-2.0f*x*x);
+            float w = fast_exp(-2.0f*x*x);
 #else
-                float w = expf(-2.0f*x*x);
+            float w = expf(-2.0f*x*x);
 #endif
-                weights[nsamples-i-1] = weights[i] = w;
-            }
-            float sumw = 0.0f;
-            for (int i = 0; i < nsamples; ++i)
-                sumw += weights[i];
-            for (int i = 0; i < nsamples; ++i)
-                weights[i] /= sumw;
+            weights[nsamples-i-1] = weights[i] = w;
         }
+        float sumw = 0.0f;
+        for (int i = 0; i < nsamples; ++i)
+            sumw += weights[i];
+        for (int i = 0; i < nsamples; ++i)
+            weights[i] /= sumw;
     }
     return nsamples;
 }
@@ -1611,6 +1634,9 @@ TextureSystemImpl::texture_lookup (TextureFile &texturefile,
     float levelweight[2] = { 0, 0 };
     compute_miplevels (texturefile, options, majorlength, minorlength, aspect,
                        miplevel, levelweight);
+
+    compute_ellipse_angle (aspect, theta, majorlength, minorlength,
+                           smajor, tmajor);
 
     float *lineweight = ALLOCA (float, round_to_multiple_of_pow2(2*options.anisotropic, 4));
     float invsamples;
@@ -2640,6 +2666,8 @@ TextureSystemImpl::visualize_ellipse (const std::string &name,
     float aspect = TextureSystemImpl::anisotropic_aspect (majorlength, minorlength, options, trueaspect);
     float *lineweight = ALLOCA (float, 2*options.anisotropic);
     float smajor, tmajor, invsamples;
+    compute_ellipse_angle (aspect, theta, majorlength, minorlength,
+                           smajor, tmajor);
     int nsamples = compute_ellipse_sampling (aspect, theta, majorlength,
                                              minorlength, smajor, tmajor,
                                              invsamples, lineweight);
