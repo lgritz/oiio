@@ -1545,13 +1545,6 @@ compute_ellipse_sampling (float aspect, float theta,
                           float &invsamples,
                           float *weights)
 {
-    ASSERT (weights);
-    // Compute the sin and cos of the sampling direction, given major
-    // axis angle
-    // sincos (theta, &tmajor, &smajor);
-    float L = 2.0f * (majorlength - minorlength);
-    // smajor *= L;
-    // tmajor *= L;
 #if 1
     // This is the theoretically correct number of samples.
     int nsamples = std::max (1, int(2.0f*aspect-1.0f));
@@ -1567,7 +1560,14 @@ compute_ellipse_sampling (float aspect, float theta,
         weights[0] = 0.5f;  weights[1] = 0.5f;
         invsamples = 0.5f;
     } else {
-        invsamples = 1.0f / nsamples;
+        // Table to avoid the divide for low sample numbers
+        static const float invsamptable[] = {
+            1.0, 1.0/1, 1.0/2, 1.0/3, 1.0/4, 1.0/5, 1.0/6, 1.0/7, 1.0/8, 1.0/9,
+            1.0/10, 1.0/11, 1.0/12, 1.0/13, 1.0/14, 1.0/15, 1.0/16, 1.0/17, 1.0/18, 1.0/19,
+            1.0/20, 1.0/21, 1.0/22, 1.0/23, 1.0/24, 1.0/25, 1.0/26, 1.0/27, 1.0/28, 1.0/29
+        };
+        invsamples = (nsamples < 30) ? invsamptable[nsamples] : (1.0f/nsamples);
+        float L = 2.0f * (majorlength - minorlength);
         float scale = majorlength / L;  // 1/(L/major)
         for (int i = 0, e = (nsamples+1)/2;  i < e;  ++i) {
             float x = (2.0f*(i+0.5f)*invsamples - 1.0f) * scale;
@@ -1581,8 +1581,14 @@ compute_ellipse_sampling (float aspect, float theta,
         float sumw = 0.0f;
         for (int i = 0; i < nsamples; ++i)
             sumw += weights[i];
+#if 0 /* Believe it or not, this way is slower! */
+        float sumwinv = 1.0f/sumw;
+        for (int i = 0; i < nsamples; ++i)
+            weights[i] *= sumwinv;
+#else
         for (int i = 0; i < nsamples; ++i)
             weights[i] /= sumw;
+#endif
     }
     return nsamples;
 }
