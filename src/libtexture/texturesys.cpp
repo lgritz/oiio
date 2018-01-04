@@ -1543,11 +1543,11 @@ compute_ellipse_sampling (float aspect, float theta,
                           float majorlength, float minorlength,
                           float &smajor, float &tmajor,
                           float &invsamples,
-                          float *weights)
+                          float *weights, float aspectscale=1.0f)
 {
 #if 1
     // This is the theoretically correct number of samples.
-    int nsamples = std::max (1, int(2.0f*aspect-1.0f));
+    int nsamples = std::max (1, int(2.0f*aspect*aspectscale-1.0f));
 #else
     int nsamples = std::max (1, (int) ceilf (aspect - 0.3f));
     // This approach does fewer samples for high aspect ratios, but I see
@@ -1568,6 +1568,41 @@ compute_ellipse_sampling (float aspect, float theta,
         };
         invsamples = (nsamples < 30) ? invsamptable[nsamples] : (1.0f/nsamples);
         float L = 2.0f * (majorlength - minorlength);
+#if OIIO_SIMD && 1
+        static const OIIO_SIMD4_ALIGN float iota_start[4] = { 0.5f, 1.5f, 2.5f, 3.5f };
+        vfloat4 iota = *(const vfloat4 *)iota_start;
+        vfloat4 scale = majorlength / L;  // 1/(L/major)
+//        static const OIIO_SIMD4_ALIGN int index_start[4] = { 0, 1, 2, 3 };
+//        vint4 index = *(const vint4 *)index_start;
+        vfloat4 sumw_simd = 0.0f;
+        int i;
+        vfloat4 x = (iota*(2.0f * invsamples) - 1.0f) * scale;
+        // vfloat4 x = (iota*(2.0f * invsamples)*scale - scale;
+        //    nextx  = ((iota+4)*(2*invsample)*scale) - scale
+        //   deltax = 4 * (2*invsample*scale)
+        vfloat4 deltax = (4.0f/*simd*/ * 2.0f * invsamples) * scale;
+        for (i = 0; i < (nsamples&(~3)); i += 4) { // all the whole-4's
+//            vfloat4 x = (iota*(2.0f * invsamples) - 1.0f) * scale;
+            vfloat4 w = fast_exp(-2.0f*x*x);
+            //w = blend0 (w, iota<nsamples); // makes 0 when index >= nsamples
+            w.store (weights+i);
+            sumw_simd += w;
+//            iota += 4.0f;
+            x += deltax;
+        }
+        if (i < nsamples) { // there's one last group of less than 4
+        //for ( ; i < nsamples; i += 4) {
+//            vfloat4 x = (iota*(2.0f * invsamples) - 1.0f) * scale;
+            vfloat4 w = fast_exp(-2.0f*x*x);
+            w = blend0 (w, vint4::Iota(i)<nsamples); // makes 0 when index >= nsamples
+            w.store (weights+i);
+            sumw_simd += w;
+        }
+        float sumw = reduce_add (sumw_simd);
+        for (int i = 0; i < nsamples; ++i)
+            weights[i] /= sumw;
+#else
+        // Non-SIMD, reference code
         float scale = majorlength / L;  // 1/(L/major)
         for (int i = 0, e = (nsamples+1)/2;  i < e;  ++i) {
             float x = (2.0f*(i+0.5f)*invsamples - 1.0f) * scale;
@@ -1581,14 +1616,9 @@ compute_ellipse_sampling (float aspect, float theta,
         float sumw = 0.0f;
         for (int i = 0; i < nsamples; ++i)
             sumw += weights[i];
-#if 0 /* Believe it or not, this way is slower! */
-        float sumwinv = 1.0f/sumw;
-        for (int i = 0; i < nsamples; ++i)
-            weights[i] *= sumwinv;
-#else
         for (int i = 0; i < nsamples; ++i)
             weights[i] /= sumw;
-#endif
+#endif /*OIIO_SIMD*/
     }
     return nsamples;
 }
@@ -1644,7 +1674,8 @@ TextureSystemImpl::texture_lookup (TextureFile &texturefile,
     compute_ellipse_angle (aspect, theta, majorlength, minorlength,
                            smajor, tmajor);
 
-    float *lineweight = ALLOCA (float, round_to_multiple_of_pow2(2*options.anisotropic, 4));
+    int nsamples_padded = round_to_multiple_of_pow2 (2*options.anisotropic, 4);
+    float *lineweight = ALLOCA (float, nsamples_padded);
     float invsamples;
     int nsamples = compute_ellipse_sampling (aspect, theta, majorlength,
                                              minorlength, smajor, tmajor,
@@ -1659,9 +1690,8 @@ TextureSystemImpl::texture_lookup (TextureFile &texturefile,
     bool ok = true;
     int npointson = 0;
     int closestprobes = 0, bilinearprobes = 0, bicubicprobes = 0;
-    int nsamples_padded = round_to_multiple_of_pow2 (nsamples, 4);
-    float *sval = OIIO_ALLOCA (float, nsamples_padded);
-    float *tval = OIIO_ALLOCA (float, nsamples_padded);
+    float *sval = OIIO_ALLOCA (float, 2*nsamples_padded);
+    float *tval = sval + nsamples_padded;
 
     // Compute the s and t positions of the samples along the major axis.
 #if OIIO_SIMD
