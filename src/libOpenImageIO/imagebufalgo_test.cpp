@@ -47,13 +47,52 @@
 
 using namespace OIIO;
 
-
+// Program options
 static int iterations = 1;
 static int numthreads = 16;
 static int ntrials = 1;
 static bool verbose = false;
 static bool wedge = false;
 static int threadcounts[] = { 1, 2, 4, 8, 12, 16, 20, 24, 28, 32, 64, 128, 1024, 1<<30 };
+
+// Some pre-made specs and buffers -- make these once to unclutter the
+// test functions themselves.
+ImageSpec spec_2x2_f       (2, 2, 1, TypeFloat);
+ImageSpec spec_2x2_rgb_f   (2, 2, 3, TypeFloat);
+ImageSpec spec_1k_rgb_f    (1024, 1024, 3, TypeFloat);
+ImageSpec spec_1k_rgb_u8   (1024, 1024, 3, TypeUInt8);
+ImageSpec spec_1k_rgb_u16  (1024, 1024, 3, TypeUInt16);
+ImageSpec spec_1k_rgba_f   (1024, 1024, 4, TypeFloat);
+ImageSpec spec_1k_rgba_h   (1024, 1024, 4, TypeHalf);
+ImageSpec spec_1k_rgba_u8  (1024, 1024, 4, TypeUInt8);
+ImageSpec spec_1k_rgba_u16 (1024, 1024, 4, TypeUInt16);
+ImageSpec spec_hd_rgb_f    (1920, 1080, 3, TypeFloat);
+ImageSpec spec_hd_rgb_h    (1920, 1080, 3, TypeHalf);
+ImageSpec spec_hd_rgb_u8   (1920, 1080, 3, TypeUInt8);
+ImageSpec spec_hd_rgb_u16  (1920, 1080, 3, TypeUInt16);
+ImageSpec spec_hd_rgba_f   (1920, 1080, 4, TypeFloat);
+ImageSpec spec_hd_rgba_h   (1920, 1080, 4, TypeHalf);
+ImageSpec spec_hd_rgba_u8  (1920, 1080, 4, TypeUInt8);
+ImageSpec spec_hd_rgba_u16 (1920, 1080, 4, TypeUInt16);
+
+ImageBuf buf_2x2_f      (spec_2x2_f);
+ImageBuf buf_2x2_rgb    (spec_2x2_rgb_f);
+ImageBuf buf_1k_rgb_f   (spec_1k_rgb_f);
+ImageBuf buf_1k_rgb_u8  (spec_1k_rgb_u8);
+ImageBuf buf_1k_rgb_u16 (spec_1k_rgb_u16);
+ImageBuf buf_1k_rgba_f  (spec_1k_rgba_f);
+ImageBuf buf_1k_rgba_h  (spec_1k_rgba_h);
+ImageBuf buf_1k_rgba_u8 (spec_1k_rgba_u8);
+ImageBuf buf_1k_rgba_u16(spec_1k_rgba_u16);
+ImageBuf buf_hd_rgb_f   (spec_hd_rgb_f);
+ImageBuf buf_hd_rgb_h   (spec_hd_rgb_h);
+ImageBuf buf_hd_rgb_u8  (spec_hd_rgb_u8);
+ImageBuf buf_hd_rgb_u16 (spec_hd_rgb_u16);
+ImageBuf buf_hd_rgba_f  (spec_hd_rgba_f);
+ImageBuf buf_hd_rgba_h  (spec_hd_rgba_h);
+ImageBuf buf_hd_rgba_u8 (spec_hd_rgba_u8);
+ImageBuf buf_hd_rgba_u16(spec_hd_rgba_u16);
+
 
 
 static void
@@ -346,6 +385,57 @@ void test_paste ()
     OIIO_CHECK_EQUAL (b[0], gray[0]);
     OIIO_CHECK_EQUAL (b[1], a[0]);
     OIIO_CHECK_EQUAL (b[2], a[1]);
+}
+
+
+
+void test_channels ()
+{
+    std::cout << "test channels\n";
+
+    float vals[3] = {1.0, 2.0, 3.0};
+    ImageBufAlgo::fill (buf_2x2_rgb, vals);
+    ImageBuf R;
+    int channelorder[] = { 2, 0, 1, -1 };
+    float channelvalues[] = { 0, 0, 0, 14.5 };
+    std::string channelnames[] = { "Alice", "Bob", "Charlie", "Donna" };
+    ImageBufAlgo::channels (R, buf_2x2_rgb, 4, channelorder, channelvalues,
+                            channelnames);
+    OIIO_CHECK_EQUAL (R.spec().nchannels, 4);
+    for (int i = 0; i < 4; ++i)
+        OIIO_CHECK_EQUAL (R.spec().channelnames[i], channelnames[i]);
+    for (ImageBuf::ConstIterator<float> r(R); !r.done(); ++r) {
+        OIIO_CHECK_EQUAL (r[0], 3.0f);
+        OIIO_CHECK_EQUAL (r[1], 1.0f);
+        OIIO_CHECK_EQUAL (r[2], 2.0f);
+        OIIO_CHECK_EQUAL (r[3], 14.5f);
+    }
+
+    // Timing of common cases
+    Benchmarker bench;
+    // Add alpha channel
+    int order_rgb[] = { 0, 1, 2, -1 };
+    float ones[] = { 1.0f, 1.0f, 1.0f, 1.0f };
+    bench ("  IBA::channels HD float RGB -> float RGBA", [&](){
+        ImageBuf R;
+        ImageBufAlgo::channels (R, buf_hd_rgb_f, 4, order_rgb, ones);
+      });
+    bench ("  IBA::channels HD half RGB -> half RGBA", [&](){
+        ImageBuf R;
+        ImageBufAlgo::channels (R, buf_hd_rgb_h, 4, order_rgb, ones);
+      });
+    bench ("  IBA::channels HD float RGBA -> float RGB", [&](){
+        ImageBuf R;
+        ImageBufAlgo::channels (R, buf_hd_rgba_f, 3, order_rgb);
+      });
+    bench ("  IBA::channels HD float RGBA -> uint8 RGB", [&](){
+        ImageBuf R (spec_hd_rgb_u8);
+        ImageBufAlgo::channels (R, buf_hd_rgba_f, 3, order_rgb);
+      });
+    bench ("  IBA::channels HD float RGB -> float RGB (identity)", [&](){
+        ImageBuf R;
+        ImageBufAlgo::channels (R, buf_hd_rgb_f, 3, order_rgb, ones);
+      });
 }
 
 
@@ -935,6 +1025,7 @@ main (int argc, char **argv)
     test_copy ();
     test_crop ();
     test_paste ();
+    test_channels ();
     test_channel_append ();
     test_add ();
     test_sub ();
