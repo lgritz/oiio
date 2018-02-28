@@ -50,23 +50,29 @@
 OIIO_NAMESPACE_BEGIN
 
 
-template<typename DSTTYPE>
+template<typename D>
 static bool
 channels_ (ImageBuf &dst, const ImageBuf &src,
            const int *channelorder, const float *channelvalues,
            ROI roi, int nthreads=0)
 {
     ImageBufAlgo::parallel_image (roi, nthreads, [&](ROI roi){
-        int nchannels = src.nchannels();
-        ImageBuf::ConstIterator<DSTTYPE> s (src, roi);
-        ImageBuf::Iterator<DSTTYPE> d (dst, roi);
+        int nchannels = roi.nchannels();
+        int *order = ALLOCA (int, nchannels);
+        for (int i = 0; i < nchannels; ++i)
+            order[i] = channelorder[i] >= 0 && channelorder[i] < nchannels ? channelorder[i] : -1;
+        D *values = ALLOCA (D, nchannels);
+        for (int i = 0; i < nchannels; ++i)
+            values[i] = channelvalues ? convert_type<float,D>(channelvalues[i]) : D(0);
+        ImageBuf::ConstIterator<D,D> s (src, roi);
+        ImageBuf::Iterator<D,D> d (dst, roi);
         for (  ;  ! s.done();  ++s, ++d) {
-            for (int c = roi.chbegin;  c < roi.chend;  ++c) {
-                int cc = channelorder[c];
-                if (cc >= 0 && cc < nchannels)
+            for (int c = 0;  c < nchannels;  ++c) {
+                int cc = order[c];
+                if (cc >= 0)
                     d[c] = s[cc];
-                else if (channelvalues)
-                    d[c] = channelvalues[c];
+                else
+                    d[c] = values[c];
             }
         }
     });
@@ -114,7 +120,7 @@ ImageBufAlgo::channels (ImageBuf &dst, const ImageBuf &src,
             inorder &= (newchannelnames[c] == src.spec().channelnames[c]);
     }
     if (nchannels == src.spec().nchannels && inorder) {
-        return dst.copy (src);
+        return ImageBufAlgo::copy (dst, src);
     }
 
     // Construct a new ImageSpec that describes the desired channel ordering.
