@@ -1,0 +1,21 @@
+
+Get last day's pix dirs:
+    bash get-todays-shots.bash
+
+
+Filter to catch the image dirs we care about:
+
+cat stsearch.*.*.txt | grep /shots | grep -v aov_ | grep -v util_ | grep -v headers | grep -v script | grep -v /vcr | grep -v _ncf_ | grep -v _nch_ | grep -v checkpoint | grep -v _txtif |tee imagedirs.txt
+
+
+Extract one representative image file from each directory:
+
+sample-each-image-dir.bash imagedirs.txt > workimages.txt
+
+
+At home, generate list of all the image files:
+
+find ~/Pictures -name "*jpg" -print > homeimages.txt
+
+
+
