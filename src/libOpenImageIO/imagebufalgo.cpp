@@ -91,7 +91,7 @@ OIIO_NAMESPACE_BEGIN
 bool
 ImageBufAlgo::IBAprep (ROI &roi, ImageBuf *dst, const ImageBuf *A,
                        const ImageBuf *B, const ImageBuf *C,
-                       ImageSpec *force_spec, int prepflags)
+                       const ImageSpec *force_spec, int prepflags)
 {
     ASSERT (dst);
     if ((A && !A->initialized()) ||
@@ -173,7 +173,9 @@ ImageBufAlgo::IBAprep (ROI &roi, ImageBuf *dst, const ImageBuf *A,
         // Now we allocate space for dst.  Give it A's spec, but adjust
         // the dimensions to match the ROI.
         ImageSpec spec;
-        if (A) {
+        if (force_spec) {
+            spec = *force_spec;
+        } else if (A) {
             // If there's an input image, give dst A's spec (with
             // modifications detailed below...)
             if (force_spec) {
@@ -224,13 +226,6 @@ ImageBufAlgo::IBAprep (ROI &roi, ImageBuf *dst, const ImageBuf *A,
             if (C && (A->spec().format != C->spec().format ||
                       B->spec().format != C->spec().format))
                 spec.set_format (TypeDesc::FLOAT);
-            // No good can come from automatically polluting an ImageBuf
-            // with some other ImageBuf's tile sizes.
-            spec.tile_width = 0;
-            spec.tile_height = 0;
-            spec.tile_depth = 0;
-        } else if (force_spec) {
-            spec = *force_spec;
         } else {
             spec.set_format (TypeDesc::FLOAT);
             spec.nchannels = roi.chend;
@@ -242,6 +237,12 @@ ImageBufAlgo::IBAprep (ROI &roi, ImageBuf *dst, const ImageBuf *A,
             set_roi_full (spec, full_roi);
         else
             set_roi_full (spec, roi);
+
+        // No good can come from automatically polluting an ImageBuf
+        // with some other ImageBuf's tile sizes.
+        spec.tile_width = 0;
+        spec.tile_height = 0;
+        spec.tile_depth = 0;
 
         if (prepflags & IBAprep_NO_COPY_METADATA)
             spec.extra_attribs.clear();

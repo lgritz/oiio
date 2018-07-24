@@ -41,6 +41,55 @@ formats supported by OIIO.
 \end{code}
 
 
+\apiitem{ROI {\ce parse_roi} (string_view geom, const ROI *roibase=nullptr, \\
+\bigspc                    bool allow_scaling=true)}
+\NEW % 1.8
+Parses a string to create an ROI specification, in one of the
+following formats:
+
+\begin{tabular}{p{1.5in} p{3.5in}}
+{\cf 0,640,0,480}        & 2D range: xbegin/end, ybegin/end \\
+{\cf 0,640,0,480,0,16}   & 3D range: xbegin/end, ybegin/end, zbegin/end \\
+{\cf 640x480}            & 2D geometry: size \\
+{\cf 640x480x16}         & 3D geometry: size \\
+{\cf 640x480+10+20}      & 2D geometry: size, with new origin \\
+{\cf 640x480x15}         & 3D geometry: size, with new origin \\
+%{\cf 0,0,639,479}        & 2D min x,y, max x,y \\
+%{\cf 0,0,0,639,479,15}   & 3D min x.u,z, max x,y,z \\
+\end{tabular}
+
+For ghe geometry style specifications, when origin is not specified, it will
+be 0,0,0 if roibase is NULL or points to an empty ROI; otherwise will keep
+roibase's existing origin. Note that the min/max are \emph{inclusive}
+bounds.
+
+\noindent When {\cf roibase} points to a non-empty ROI, the following are
+also valid:
+
+\begin{tabular}{p{1.5in} p{3.5in}}
+{\cf +10+20}             & Alter the origin, keep the size \\
+{\cf +10+20+30}          & Alter the origin, keep the size (3D) \\
+\end{tabular}
+
+\noindent And additionally, if {\cf roibase} is valid and {\cf allow_scaling}
+is {\cf true}:
+
+\begin{tabular}{p{1.5in} p{3.5in}}
+{\cf 640x0}              & 2D set horizontal, auto vertical to keep aspect \\
+{\cf 0x480}              & 2D set vertical, auto horizontal to keep aspect \\
+{\cf 200\%}              & Uniform scale of width \& height, keep origin \\
+{\cf 200\%x50\%}         & Scale of width \& height, keep origin \\
+{\cf 200\%x50\%x100\%}   & 3D scale, keep origin \\
+\end{tabular}
+
+If an error was found (such as invalid ROI specification, one that does
+not conform to any of these), an uninitilized ROI will be returned whose
+defined() method returns true.
+
+Note that in the case of no {\cf roibase}, the ROI returned is just used to
+communicate an image area, and the chbegin and chend fields will need to be
+set or clamped by the caller.
+\apiend
 
 
 \section{Constructing, reading, and writing an \ImageBuf}

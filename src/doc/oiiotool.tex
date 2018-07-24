@@ -794,9 +794,16 @@ Print to the console detailed information about the values in every pixel.
 
 \noindent Optional appended arguments include:
 
-\begin{tabular}{p{10pt} p{0.75in} p{3.75in}}
-  & {\cf empty=}{\verb&0|1&} & If 0, will cause deep images to skip printing
-                            of information about pixels with no samples.
+\begin{tabular}{p{0.75in} p{4.25in}}
+  {\cf empty=}\emph{bool} & If 0, will cause deep images to skip printing
+                            of information about pixels with no samples, and
+                            cause non-deep images to skip printing information
+                            about pixels that are entirely 0.0 value in all
+                            channels. \\
+  {\cf roi=}\emph{xb,xe,yb,ye}[\emph{,zb,ze}] & \\ & Specify a region of interest
+        to restrict what pixel range will be printed. The ROI uses
+        standard begin/end range form (with each `end' one past the last
+        pixel).
 \end{tabular}
 \apiend
 
@@ -3082,9 +3089,18 @@ channel.
 \apiitem{\ce --deepholdout}
 \index{composite}
 Replace the \emph{two} top images with a new deep image that is the ``deep
-holdout'' of the first image by the second --- that is, the samples from
-the first image that are closer than the opaque frontier of the second
-image. Both input inputs must be deep images.
+holdout'' of the first image by the second --- that is, the second image
+will hold out (block) samples behind them, but not themselves contribute
+directly to the output image. This is the ``deep'' equivalent to a matte
+holdout operation.
+\apiend
+
+\apiitem{\ce --deepcull}
+\index{composite}
+\NEW % 1.8
+Replace the \emph{two} top images with a new deep image that is the first
+(source) image with all samples deleted that are behind the opaque depth of
+each pixel in the second (holdout) image.
 \apiend
 
 
@@ -3124,12 +3140,16 @@ Print to the console detailed information about the values in every pixel.
 
 \noindent Optional appended arguments include:
 
-\begin{tabular}{p{10pt} p{0.75in} p{3.75in}}
-  & {\cf empty=}{\verb&0|1&} & If 0, will cause deep images to skip printing
+\begin{tabular}{p{0.75in} p{4.25in}}
+  {\cf empty=}\emph{bool} & If 0, will cause deep images to skip printing
                             of information about pixels with no samples, and
                             cause non-deep images to skip printing information
                             about pixels that are entirely 0.0 value in all
-                            channels.
+                            channels. \\
+  {\cf roi=}\emph{xb,xe,yb,ye}[\emph{,zb,ze}] & \\ & Specify a region of interest
+        to restrict what pixel range will be printed. The ROI uses
+        standard begin/end range form (with each `end' one past the last
+        pixel).
 \end{tabular}
 \apiend
 

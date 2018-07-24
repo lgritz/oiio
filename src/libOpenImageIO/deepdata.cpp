@@ -263,6 +263,15 @@ int DeepData::AB_channel () const
 
 
 
+int
+DeepData::alpha_channel_for (int c) const
+{
+    DASSERT (m_impl);
+    return (c >= 0 && c < m_nchannels) ? m_impl->m_myalphachannel[c] : -1;
+}
+
+
+
 string_view
 DeepData::channelname (int c) const
 {
@@ -548,7 +557,7 @@ DeepData::insert_samples (int pixel, int samplepos, int n)
 {
     int oldsamps = samples(pixel);
     if (oldsamps+n > int(m_impl->m_capacity[pixel]))
-        set_capacity (pixel, oldsamps + n);
+        set_capacity (pixel, std::max (oldsamps + n, samplepos+n));
     // set_capacity is thread-safe, it locks internally. Once the capacity
     // is adjusted, we can alter nsamples or copy the data around within
     // the pixel without a lock, we presume that if multiple threads are
@@ -767,6 +776,15 @@ DeepData::all_channeltypes () const
 
 
 
+array_view<const std::string>
+DeepData::all_channelnames () const
+{
+    ASSERT (m_impl);
+    return m_impl->m_channelnames;
+}
+
+
+
 array_view<const unsigned int>
 DeepData::all_samples () const
 {
@@ -810,17 +828,21 @@ DeepData::copy_deep_sample (int pixel, int sample,
 {
     const void *srcdata = src.data_ptr (srcpixel, 0, srcsample);
     int nchans = channels();
-    if (! srcdata || nchans != src.channels())
+    if (! srcdata || nchans != src.channels()) {
+        erase_samples (pixel, 0, samples(pixel));
         return false;
-    int nsamples = src.samples(srcpixel);
-    set_samples (pixel, std::max (samples(pixel), nsamples));
+    }
+    set_samples (pixel, std::max (samples(pixel), sample+1));
     for (int c = 0; c < m_nchannels; ++c) {
         if (channeltype(c) == TypeDesc::UINT32 && src.channeltype(c) == TypeDesc::UINT32)
             set_deep_value (pixel, c, sample,
                             src.deep_value_uint (srcpixel, c, srcsample));
-        else
+        else {
+            // float f;
             set_deep_value (pixel, c, sample,
                             src.deep_value (srcpixel, c, srcsample));
+            // Strutil::printf ("> copying chan %d = %g\n", c, f);
+        }
     }
     return true;
 }
@@ -875,76 +897,135 @@ DeepData::copy_deep_pixel (int pixel, const DeepData &src, int srcpixel)
 
 
 bool
-DeepData::split (int pixel, float depth)
+DeepData::split_sample (int pixel, int sample, float zsplit)
 {
     using std::log1p;
     using std::expm1;
     bool splits_occurred = false;
-    int zchan = m_impl->m_z_channel;
-    int zbackchan = m_impl->m_zback_channel;
+    int zchan = Z_channel();
+    int zbackchan = Zback_channel();
     if (zchan < 0)
         return false;   // No channel labeled Z -- we don't know what to do
-    if (zbackchan < 0)
-        return false;   // The samples are not extended -- nothing to split
     int nchans = channels();
-    for (int s = 0; s < samples(pixel); ++s) {
-        float zf = deep_value (pixel, zchan, s);     // z front
-        float zb = deep_value (pixel, zbackchan, s); // z back
-        if (zf < depth && zb > depth) {
-            // The sample spans depth, so split it.
-            // See http://www.openexr.com/InterpretingDeepPixels.pdf
-            splits_occurred = true;
-            insert_samples (pixel, s+1);
-            copy_deep_sample (pixel, s+1, *this, pixel, s);
-            set_deep_value (pixel, zbackchan, s,   depth);
-            set_deep_value (pixel, zchan,     s+1, depth);
-            // We have to proceed in two passes, since we may reuse the
-            // alpha values, we can't overwrite them yet.
-            for (int c = 0; c < nchans; ++c) {
-                int alphachan = m_impl->m_myalphachannel[c];
-                if (alphachan < 0   // No alpha
-                      || alphachan == c)  // This is an alpha!
-                    continue;
-                float a = clamp (deep_value (pixel, alphachan, s), 0.0f, 1.0f);
-                if (a == 1.0f) // Opaque or channels without alpha, we're done.
-                    continue;
-                float xf = (depth - zf) / (zb - zf);
-                float xb = (zb - depth) / (zb - zf);
-                if (a > std::numeric_limits<float>::min()) {
-                    float af = -expm1 (xf * log1p (-a));
-                    float ab = -expm1 (xb * log1p (-a));
-                    float val = deep_value (pixel, c, s);
-                    set_deep_value (pixel, c, s,   (af/a) * val);
-                    set_deep_value (pixel, c, s+1, (ab/a) * val);
-                } else {
-                    float val = deep_value (pixel, c, s);
-                    set_deep_value (pixel, c, s,   val * xf);
-                    set_deep_value (pixel, c, s+1, val * xb);
-                }
+    using Strutil::printf;
+
+    float zf = deep_value (pixel, zchan, sample);     // z front
+    float zb = deep_value (pixel, zbackchan, sample); // z back
+    if (zf < zsplit && zb > zsplit) {
+        // The sample spans zsplit, so split it.
+        // See http://www.openexr.com/InterpretingDeepPixels.pdf
+        splits_occurred = true;
+        insert_samples (pixel, sample);
+        bool ok = copy_deep_sample (pixel, sample+1, *this, pixel, sample);
+        DASSERT (ok);
+        set_deep_value (pixel, zbackchan, sample,   zsplit);
+        set_deep_value (pixel, zchan,     sample+1, zsplit);
+
+        // We have to proceed in two passes, since we may reuse the
+        // alpha values, we can't overwrite them yet.
+        for (int c = 0; c < nchans; ++c) {
+            int alphachan = m_impl->m_myalphachannel[c];
+            if (alphachan < 0   // No alpha
+                  || alphachan == c)  // This is an alpha!
+                continue;
+            float a = clamp (deep_value (pixel, alphachan, sample), 0.0f, 1.0f);
+            if (a == 1.0f) // Opaque or channels without alpha, we're done.
+                continue;
+            float xf = (zsplit - zf) / (zb - zf);
+            float xb = (zb - zsplit) / (zb - zf);
+            if (a > std::numeric_limits<float>::min()) {
+                float af = -expm1 (xf * log1p (-a));
+                float ab = -expm1 (xb * log1p (-a));
+                float val = deep_value (pixel, c, sample);
+                set_deep_value (pixel, c, sample,   (af/a) * val);
+                set_deep_value (pixel, c, sample+1, (ab/a) * val);
+            } else {
+                float val = deep_value (pixel, c, sample);
+                set_deep_value (pixel, c, sample,   val * xf);
+                set_deep_value (pixel, c, sample+1, val * xb);
             }
-            // Now that we've adjusted the colors, do the alphas
-            for (int c = 0; c < nchans; ++c) {
-                int alphachan = m_impl->m_myalphachannel[c];
-                if (alphachan != c)
-                    continue;  // skip if not an alpha
-                float a = clamp (deep_value (pixel, alphachan, s), 0.0f, 1.0f);
-                if (a == 1.0f) // Opaque or channels without alpha, we're done.
-                    continue;
-                float xf = (depth - zf) / (zb - zf);
-                float xb = (zb - depth) / (zb - zf);
-                if (a > std::numeric_limits<float>::min()) {
-                    float af = -expm1 (xf * log1p (-a));
-                    float ab = -expm1 (xb * log1p (-a));
-                    set_deep_value (pixel, c, s,   af);
-                    set_deep_value (pixel, c, s+1, ab);
-                } else {
-                    set_deep_value (pixel, c, s,   a * xf);
-                    set_deep_value (pixel, c, s+1, a * xb);
-                }
+        }
+        // Now that we've adjusted the colors, do the alphas
+        for (int c = 0; c < nchans; ++c) {
+            int alphachan = m_impl->m_myalphachannel[c];
+            if (alphachan != c)
+                continue;  // skip if not an alpha
+            float a = clamp (deep_value (pixel, alphachan, sample), 0.0f, 1.0f);
+            if (a == 1.0f) // Opaque or channels without alpha, we're done.
+                continue;
+            float xf = (zsplit - zf) / (zb - zf);
+            float xb = (zb - zsplit) / (zb - zf);
+            if (a > std::numeric_limits<float>::min()) {
+                float af = -expm1 (xf * log1p (-a));
+                float ab = -expm1 (xb * log1p (-a));
+                set_deep_value (pixel, c, sample,   af);
+                set_deep_value (pixel, c, sample+1, ab);
+            } else {
+                set_deep_value (pixel, c, sample,   a * xf);
+                set_deep_value (pixel, c, sample+1, a * xb);
             }
         }
     }
     return splits_occurred;
+}
+
+
+
+int
+DeepData::split (int pixel, float zsplit)
+{
+    int splits = 0;
+    for (int s = 0; s < samples(pixel); ++s)
+        splits += split_sample (pixel, s, zsplit);
+    return splits;
+}
+
+
+
+int
+DeepData::split_all (int pixel, const DeepData &src, int srcpixel,
+                     bool do_split)
+{
+    int splits = 0;
+    int dstsamples = samples(pixel);
+    if (dstsamples == 0)
+        return splits;   // No samples to split
+    int srcsamples = src.samples(srcpixel);
+    if (srcsamples == 0)
+        return splits;   // No samples to cause splits
+
+    int src_zchan = src.Z_channel();
+    int src_zbackchan = src.Zback_channel();
+    int dst_zchan = m_impl->m_z_channel;
+    int dst_zbackchan = m_impl->m_zback_channel;
+    if (do_split) {
+        sort (pixel);  // sort first so we only loop once
+        for (int s = 0; s < src.samples(srcpixel); ++s) {
+            float src_z = deep_value (srcpixel, src_zchan, s);
+            float src_zback = deep_value (srcpixel, src_zbackchan, s);
+            splits += split (pixel, src_z);
+            if (src_z != src_zback)
+                splits += split (pixel, src_zback);
+        }
+        sort (pixel);
+    } else {
+        sort (pixel);  // sort first so we only loop once
+        for (int s = 0; s < src.samples(srcpixel); ++s) {
+            float src_z = deep_value (srcpixel, src_zchan, s);
+            float src_zback = deep_value (srcpixel, src_zbackchan, s);
+            for (int d = 0, dend = samples(pixel); d < dend; ++d) {
+                float dst_z = deep_value (pixel, dst_zchan, d);
+                float dst_zback = deep_value (pixel, dst_zbackchan, d);
+                if (dst_z > src_z && dst_z < src_zback)
+                    ++splits;
+                if (dst_zback != dst_z &&
+                    dst_zback > src_z && dst_zback < src_zback)
+                    ++splits;
+            }
+        }
+    }
+
+    return splits;
 }
 
 
@@ -1110,7 +1191,8 @@ DeepData::merge_deep_pixels (int pixel, const DeepData &src, int srcpixel)
         float z = deep_value (pixel, zchan, s);
         float zback = deep_value (pixel, zbackchan, s);
         split (pixel, z);
-        split (pixel, zback);
+        if (z != zback)
+            split (pixel, zback);
     }
     sort (pixel);
 
@@ -1165,6 +1247,28 @@ DeepData::opaque_z (int pixel) const
 
 
 
+int
+DeepData::cull_behind (int pixel, float depth)
+{
+    if (pixel < 0 || pixel >= m_npixels)
+        return 0;
+    DASSERT (m_impl);
+    int zchan = m_impl->m_z_channel;
+    int nsamps = m_impl->m_nsamples[pixel];
+    if (deep_value (pixel, zchan, nsamps-1) < depth)
+        return 0;    // None to cull -- early out
+
+    for (int s = 0; s < nsamps; ++s) {
+        if (deep_value (pixel, zchan, s) >= depth) {
+            set_samples (pixel, s);
+            return nsamps - s;
+        }
+    }
+    return 0;   // didn't cull anything
+}
+
+
+
 void
 DeepData::occlusion_cull (int pixel)
 {
@@ -1181,5 +1285,32 @@ DeepData::occlusion_cull (int pixel)
     }
 }
 
+
+
+bool
+DeepData::is_tidy (int pixel) const
+{
+    if (pixel < 0 || pixel >= m_npixels)
+        return 0;
+    DASSERT (m_impl);
+    int nsamples = samples(pixel);
+    if (nsamples <= 1)
+        return true;    // 0 or 1 samples is already tidy
+    int zc = Z_channel();
+    int zbc = Zback_channel();
+    float zlast = deep_value (pixel, zc, 0);
+    float zbacklast = deep_value (pixel, zbc, 0);
+    for (int s = 1; s < nsamples; ++s) {
+        float z = deep_value (pixel, zc, s);
+        float zback = deep_value (pixel, zbc, s);
+        if (z < zbacklast)
+            return false;
+        if (z == zlast && zback == zbacklast)
+            return false;
+        zlast = z;
+        zbacklast = zback;
+    }
+    return true;
+}
 
 OIIO_NAMESPACE_END

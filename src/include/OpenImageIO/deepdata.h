@@ -100,13 +100,21 @@ public:
     int AG_channel () const;
     int AB_channel () const;
 
+    /// Return the channel number that is the alpha channel for channel c.
+    /// (For example, the alpha channel for "R" will be AR_channel().)
+    /// If there is no sensible alpha channel for channel c, -1 will be
+    /// returned.
+    int alpha_channel_for (int c) const;
+
     /// The name of channel c.
     string_view channelname (int c) const;
 
     /// Retrieve the channel type of channel c.
     TypeDesc channeltype (int c) const;
+
     /// The size for each sample of channel c
     size_t channelsize (int c) const;
+
     /// The size for all channels of one sample.
     size_t samplesize () const;
 
@@ -156,6 +164,7 @@ public:
     const void *data_ptr (int pixel, int channel, int sample) const;
 
     array_view<const TypeDesc> all_channeltypes () const;
+    array_view<const std::string> all_channelnames () const;
     array_view<const unsigned int> all_samples () const;
     array_view<const char> all_data () const;
 
@@ -173,14 +182,28 @@ public:
     /// The two DeepData structures need to have the same channel layout.
     bool copy_deep_pixel (int pixel, const DeepData &src, int srcpixel);
 
-    /// Split all samples of that pixel at the given depth zsplit. Samples
-    /// that span z (i.e. z < zsplit < zback) will be split into two samples
-    /// with depth ranges [z,zsplit] and [zsplit,zback] with appropriate
-    /// changes to their color and alpha values. Samples not spanning zsplit
-    /// will remain intact. This operation will have no effect if there are
-    /// not Z and Zback channels present. Return true if any splits
-    /// occurred, false if the pixel was not modified.
-    bool split (int pixel, float depth);
+    /// If the specified sample's depth range spans zsplit, split it into
+    /// two samples with depth ranges [z,zsplit) and [zsplit,zback) with
+    /// appropriate changes to their color and alpha values so that their
+    /// net transparency is the same as before. Return true if a split
+    /// occurred, false if the sample was not modified.
+    bool split_sample (int pixel, int sample, float zsplit);
+
+    /// Split any samples of the pixel whose depth range spans zsplit.
+    /// Return the number of splits that occurred.
+    int split (int pixel, float zsplit);
+
+    /// Split all samples in the this[pixel] by all the sample edges in
+    /// src[srcpixel], returning the number of splits (i.e., the number of
+    /// additional samples that were added). If do_split is false, don't
+    /// actually perform any splits or modify the pixel, just return the
+    /// number of splits that would have been performed.
+    int split_all (int pixel, const DeepData &src, int srcpixel,
+                   bool do_split = true);
+    /// Convenience method: split all against yourself.
+    int split_all (int pixel, bool do_split = true) {
+        return split_all (pixel, *this, pixel, do_split);
+    }
 
     /// Sort the samples of a pixel by Z.
     void sort (int pixel);
@@ -197,8 +220,17 @@ public:
     /// Return the z depth at which the pixel becomes opaque.
     float opaque_z (int pixel) const;
 
+    /// Erase any samples that lie completely behind the depth. Return the
+    /// number of samples culled.
+    int cull_behind (int pixel, float depth);
+
+    float alpha_at (float z) const;
+
     /// Occlusion cull samples hidden behind opaque samples.
     void occlusion_cull (int pixel);
+
+    /// Is the given pixel tidy (samples are sorted and non-overlapping)?
+    bool is_tidy (int pixel) const;
 
 private:
     class Impl;

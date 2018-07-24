@@ -1463,6 +1463,18 @@ bool OIIO_API deep_holdout (ImageBuf &dst, const ImageBuf &src,
                             const ImageBuf &holdout,
                             ROI roi={}, int nthreads=0);
 
+/// Return (or copy into dst) the samples of deep image src that are closer
+/// than the opaque frontier of deep image holdout, returning true upon
+/// success and false for any failures. Samples of src that are farther than
+/// the first opaque sample of holdout (for the corresponding pixel)will not
+/// be copied to dst. Image holdout is only used as the depth threshold; no
+/// sample values from holdout are themselves copied to dst.
+ImageBuf OIIO_API deep_cull (const ImageBuf &src, const ImageBuf &holdout,
+                             ROI roi={}, int nthreads=0);
+bool OIIO_API deep_cull (ImageBuf &dst, const ImageBuf &src,
+                         const ImageBuf &holdout,
+                         ROI roi={}, int nthreads=0);
+
 
 
 /// Render a single point at (x,y) of the given color "over" the existing

@@ -85,6 +85,15 @@ DeepData_set_deep_value_uint (DeepData &dd, int pixel,
 
 
 
+int
+DeepData_split_all (DeepData &dd, int pixel,
+                   const DeepData &src, int srcpixel, bool do_split)
+{
+    return dd.split_all (pixel, src, srcpixel, do_split);
+}
+
+
+
 // Declare the OIIO DeepData class to Python
 void
 declare_deepdata (py::module& m)
@@ -132,6 +141,8 @@ declare_deepdata (py::module& m)
              "pixel"_a, "samplepos"_a, "nsamples"_a=1)
         .def("erase_samples",   &DeepData::erase_samples,
              "pixel"_a, "samplepos"_a, "nsamples"_a=1)
+        .def("alpha_channel_for", &DeepData::alpha_channel_for,
+             "c"_a)
         .def("channelname", [](const DeepData& dd, int c){
                 return (std::string)dd.channelname(c); })
         .def("channeltype",     &DeepData::channeltype)
@@ -153,10 +164,21 @@ declare_deepdata (py::module& m)
         .def("split", &DeepData::split, "pixel"_a, "depth"_a)
         .def("sort", &DeepData::sort, "pixel"_a)
         .def("merge_overlaps", &DeepData::merge_overlaps, "pixel"_a)
+        .def("split_sample", &DeepData::split_sample,
+             "pixel"_a, "sample"_a, "depth"_a)
+        .def("split", &DeepData::split,
+             "pixel"_a, "depth"_a)
+        .def("split_all", &DeepData_split_all,
+             "pixel"_a, "src"_a, "srcpixel"_a, "do_split"_a=true)
+        .def("sort", &DeepData::sort, "pixel"_a)
+        .def("merge_overlaps", &DeepData::merge_overlaps, "pixel"_a)
         .def("merge_deep_pixels", &DeepData::merge_deep_pixels,
              "pixel"_a, "src"_a, "srcpixel"_a)
         .def("occlusion_cull", &DeepData::occlusion_cull, "pixel"_a)
         .def("opaque_z", &DeepData::opaque_z, "pixel"_a)
+        .def("cull_behind", &DeepData::cull_behind,
+             "pixel"_a, "depth"_a)
+        .def("is_tidy", &DeepData::is_tidy, "pixel"_a)
     ;
 }
 

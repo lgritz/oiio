@@ -71,6 +71,38 @@ OIIO_API void set_roi (ImageSpec &spec, const ROI &newroi);
 /// Does NOT change the channels of the spec, regardless of newroi.
 OIIO_API void set_roi_full (ImageSpec &spec, const ROI &newroi);
 
+/// parse_ROI() parses a string for an ROI specification, in one of the
+/// following formats:
+///
+///       640x480            2D size
+///       640x480x16         3D size
+///       640x480+10+20      2D size, with new origin
+///       640x480x15         3D size, with new origin
+///       0,0,639,479        2D min x,y, max x,y
+///       0,0,0,639,479,15   3D min x.u,z, max x,y,z
+///
+/// When origin is not specified, it will be 0,0,0 if roibase is NULL or
+/// points to an empty ROI; otherwise will keep roibase's existing origin.
+///
+/// When roibase points to a non-empty ROI, the following are also valid:
+///       +10+20             Alter the origin, keep the size
+///       +10+20+30          Alter the origin, keep the size (3D)
+/// And additionally, if roibase is non-empty and allow_scaling is true:
+///       640x0              2D set horizontal, auto vertical to keep aspect
+///       0x480              2D set vertical, auto horizontal to keep aspect
+///       200%               Uniform scale of width & height, keep origin
+///       200%x50%           Scale of width & height, keep origin
+///       200%x50%x100%      3D scale, keep origin
+///
+/// If an error was found (such as invalid ROI specification, one that does
+/// not conform to any of these), an uninitilized ROI will be returned whose
+/// defined() method returns true.
+///
+/// Note that for the case of no supplied roibase, the ROI returned is just
+/// used to communicate an image area, and the chbegin and chend fields will
+/// need to be set or clamped by the caller.
+OIIO_API ROI parse_roi (string_view geom, const ROI *roibase=nullptr,
+                        bool allow_scaling=true);
 
 
 class ImageBufImpl;   // Opaque pointer

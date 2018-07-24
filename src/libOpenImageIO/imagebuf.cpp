@@ -106,6 +106,122 @@ set_roi_full (ImageSpec &spec, const ROI &newroi)
 
 
 
+ROI
+parse_roi (string_view geom, const ROI *roibase, bool allow_scaling)
+{
+    ROI roi;
+    if (roibase && roibase->defined())
+        roi = *roibase;
+    else {
+        allow_scaling = false; // No base ROI, no scaling allowed
+        roi.chbegin = 0;
+        roi.chend = 1000;
+    }
+    std::string str (geom);
+
+    float scaleX, scaleY, scaleZ;
+    int ww, hh, dd, xx, yy, zz;
+    int xend, yend, zend;
+    bool do_range = false, do_geom = false, do_scale = false;
+    if (sscanf (str.c_str(), "%d,%d,%d,%d,%d,%d", &xx, &xend, &yy, &yend, &zz, &zend) == 6) {
+        do_range = true;
+    } else if (sscanf (str.c_str(), "%d,%d,%d,%d", &xx, &xend, &yy, &yend) == 4) {
+        zz = 0; zend = 1;
+        do_range = true;
+    } else if (sscanf (str.c_str(), "%dx%dx%d%d%d%d", &ww, &hh, &dd, &xx, &yy, &zz) == 6 ||
+               sscanf (str.c_str(), "%dx%dx%d+%d+%d+%d", &ww, &hh, &dd, &xx, &yy, &zz) == 6) {
+        do_geom = true;
+    } else if (sscanf (str.c_str(), "%dx%d%d%d", &ww, &hh, &xx, &yy) == 4 ||
+               sscanf (str.c_str(), "%dx%d+%d+%d", &ww, &hh, &xx, &yy) == 4) {
+        zz = roi.defined() ? roi.zbegin : 0;
+        dd = roi.defined() ? roi.depth() : 1;
+        do_geom = true;
+    } else if (sscanf (str.c_str(), "%dx%dx%d", &ww, &hh, &dd) == 3) {
+        xx = roi.defined() ? roi.xbegin : 0;
+        yy = roi.defined() ? roi.ybegin : 0;
+        zz = roi.defined() ? roi.zbegin : 0;
+        do_geom = true;
+    } else if (sscanf (str.c_str(), "%dx%d", &ww, &hh) == 2) {
+        xx = roi.defined() ? roi.xbegin : 0;
+        yy = roi.defined() ? roi.ybegin : 0;
+        zz = roi.defined() ? roi.zbegin : 0;
+        dd = roi.defined() ? roi.depth() : 1;
+        do_geom = true;
+    } else if (allow_scaling && sscanf (str.c_str(), "%f%%x%f%%x%f%%", &scaleX, &scaleY, &scaleZ) == 3) {
+        scaleX = std::max(0.0f, scaleX*0.01f);
+        scaleY = std::max(0.0f, scaleY*0.01f);
+        scaleZ = std::max(0.0f, scaleZ*0.01f);
+        xx = roi.defined() ? roi.xbegin : 0;
+        yy = roi.defined() ? roi.ybegin : 0;
+        zz = roi.defined() ? roi.zbegin : 0;
+        do_scale = true;
+    } else if (allow_scaling && sscanf (str.c_str(), "%f%%x%f%%", &scaleX, &scaleY) == 2) {
+        scaleX = std::max(0.0f, scaleX*0.01f);
+        scaleY = std::max(0.0f, scaleY*0.01f);
+        scaleZ = 1.0f;
+        xx = roi.defined() ? roi.xbegin : 0;
+        yy = roi.defined() ? roi.ybegin : 0;
+        zz = roi.defined() ? roi.zbegin : 0;
+        do_scale = true;
+    } else if (roi.defined() && sscanf (str.c_str(), "%d%d%d", &xx, &yy, &zz) == 3) {
+        ww = roi.width();
+        hh = roi.height();
+        dd = roi.depth();
+        do_geom = true;
+    } else if (roi.defined() && sscanf (str.c_str(), "%d%d", &xx, &yy) == 2) {
+        zz = roi.defined() ? roi.zbegin : 0;
+        ww = roi.width();
+        hh = roi.height();
+        dd = roi.depth();
+        do_geom = true;
+    } else if (allow_scaling && sscanf (str.c_str(), "%f%%", &scaleX) == 1) {
+        scaleX = std::max(0.0f, scaleX*0.01f);
+        scaleY = scaleX;
+        scaleZ = 1.0f;
+        xx = roi.defined() ? roi.xbegin : 0;
+        yy = roi.defined() ? roi.ybegin : 0;
+        zz = roi.defined() ? roi.zbegin : 0;
+        do_scale = true;
+    } else if (allow_scaling && sscanf (str.c_str(), "%f", &scaleX) == 1) {
+        scaleX = std::max(0.0f, scaleX);
+        scaleY = scaleX;
+        scaleZ = 1.0f;
+        xx = roi.defined() ? roi.xbegin : 0;
+        yy = roi.defined() ? roi.ybegin : 0;
+        zz = roi.defined() ? roi.zbegin : 0;
+        do_scale = true;
+    }
+
+    if (do_range) {
+        roi = ROI (xx, std::max (xx+1,xend),
+                   yy, std::max (yy+1,yend),
+                   zz, std::max (zz+1,zend),
+                   roi.chbegin, roi.chend);
+    } else if (do_geom) {
+        if (roi.defined() && ww == 0 && roi.height() != 0)
+            ww = int (hh * float(roi.width())/float(roi.height()) + 0.5f);
+        if (roi.defined() && hh == 0 && roi.width() != 0)
+            hh = int (ww * float(roi.height())/float(roi.width()) + 0.5f);
+        roi = ROI (xx, xx+ww, yy, yy+hh, zz, zz+dd, roi.chbegin, roi.chend);
+    } else if (do_scale) {
+        if (scaleX == 0 && scaleY != 0 && allow_scaling)
+            scaleX = scaleY;
+        if (scaleY == 0 && scaleX != 0 && allow_scaling)
+            scaleY = scaleX;
+        ww = (int)(roi.width() * scaleX + 0.5f);
+        hh = (int)(roi.height() * scaleY + 0.5f);
+        dd = (int)(std::max (1, roi.depth()) * scaleZ + 0.5f);
+        roi = ROI (xx, xx+ww, yy, yy+hh, zz, zz+dd, roi.chbegin, roi.chend);
+    } else {
+        roi = ROI();
+    }
+    // Strutil::printf ("ROI %s\n", roi);
+    return roi;
+}
+
+
+
+
 // Expansion of the opaque type that hides all the ImageBuf implementation
 // detail.
 class ImageBufImpl {

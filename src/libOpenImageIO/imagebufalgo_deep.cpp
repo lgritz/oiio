@@ -71,10 +71,13 @@ flatten_ (ImageBuf &dst, const ImageBuf &src,
         float &ARval (val[AR_channel]);
         float &AGval (val[AG_channel]);
         float &ABval (val[AB_channel]);
-
+        DeepData tmpdd;
+        tmpdd.init (1, nc, dd->all_channeltypes(), dd->all_channelnames());
         for (ImageBuf::Iterator<DSTTYPE> r (dst, roi);  !r.done();  ++r) {
             int x = r.x(), y = r.y(), z = r.z();
-            int samps = src.deep_samples (x, y, z);
+            tmpdd.copy_deep_pixel (0, *dd, src.pixelindex (x, y, z, true));
+            tmpdd.sort (0);
+            int samps = tmpdd.samples (0);
             // Clear accumulated values for this pixel (0 for colors, big for Z)
             memset (val, 0, nc*sizeof(float));
             if (Z_channel >= 0 && samps == 0)
@@ -87,7 +90,7 @@ flatten_ (ImageBuf &dst, const ImageBuf &src,
                 if (alpha >= 1.0f)
                     break;
                 for (int c = 0;  c < nc;  ++c) {
-                    float v = src.deep_value (x, y, z, c, s);
+                    float v = tmpdd.deep_value (0, c, s);
                     if (c == Z_channel || c == Zback_channel)
                         val[c] *= alpha;  // because Z are not premultiplied
                     float a;
@@ -390,15 +393,16 @@ ImageBufAlgo::deep_merge (const ImageBuf &A, const ImageBuf &B,
 
 bool
 ImageBufAlgo::deep_holdout (ImageBuf &dst, const ImageBuf &src,
-                            const ImageBuf &thresh,
+                            const ImageBuf &holdout,
                             ROI roi, int nthreads)
 {
     pvt::LoggedTimer logtime("IBA::deep_holdout");
-    if (! src.deep() || ! thresh.deep()) {
+    if (! src.deep() || ! holdout.deep()) {
         dst.error ("deep_holdout can only be performed on deep images");
         return false;
     }
-    if (! IBAprep (roi, &dst, &src, &thresh, NULL, IBAprep_SUPPORT_DEEP))
+    if (! IBAprep (roi, &dst, &src, &holdout, NULL, &src.spec(),
+                   IBAprep_SUPPORT_DEEP))
         return false;
     if (! dst.deep()) {
         dst.error ("Cannot deep_holdout into a flat image");
@@ -406,52 +410,183 @@ ImageBufAlgo::deep_holdout (ImageBuf &dst, const ImageBuf &src,
     }
 
     DeepData &dstdd (*dst.deepdata());
-    const DeepData &srcdd (*src.deepdata());
     // First, reserve enough space in dst, to reduce the number of
     // allocations we'll do later.
-    for (int z = roi.zbegin; z < roi.zend; ++z)
-    for (int y = roi.ybegin; y < roi.yend; ++y)
-    for (int x = roi.xbegin; x < roi.xend; ++x) {
-        int dstpixel = dst.pixelindex (x, y, z, true);
-        int srcpixel = src.pixelindex (x, y, z, true);
-        if (dstpixel >= 0 && srcpixel >= 0)
-            dstdd.set_capacity (dstpixel, srcdd.capacity(srcpixel));
-    }
-    // Now we compute each pixel: We copy the src pixel to dst, then split
-    // any samples that span the opaque threshold, and then delete any
-    // samples that lie beyond the threshold.
-    int Zchan = dstdd.Z_channel();
-    int Zbackchan = dstdd.Zback_channel();
-    const DeepData &threshdd (*thresh.deepdata());
-    for (ImageBuf::Iterator<float> r (dst, roi);  !r.done();  ++r) {
-        int x = r.x(), y = r.y(), z = r.z();
-        int srcpixel = src.pixelindex (x, y, z, true);
-        if (srcpixel < 1)
-            continue;   // Nothing in this pixel
-        int dstpixel = dst.pixelindex (x, y, z, true);
-        dstdd.copy_deep_pixel (dstpixel, srcdd, srcpixel);
-        int threshpixel = thresh.pixelindex (x, y, z, true);
-        if (threshpixel < 0)
-            continue;  // No threshold mask for this pixel
-        float zthresh = threshdd.opaque_z (threshpixel);
-        // Eliminate the samples that are entirely beyond the depth
-        // threshold. Do this before the split; that makes it less
-        // likely that the split will force a re-allocation.
-        for (int s = 0, n = dstdd.samples(dstpixel); s < n; ++s) {
-            if (dstdd.deep_value (dstpixel, Zchan, s) > zthresh) {
-                dstdd.set_samples (dstpixel, s);
-                break;
+    {
+        ImageBuf::ConstIterator<float> s (src, roi);
+        for (ImageBuf::Iterator<float> r (dst, roi); !r.done(); ++r, ++s) {
+            if (r.exists() && s.exists()) {
+                int dstpixel = dst.pixelindex (r.x(), r.y(), r.z(), true);
+                dstdd.set_capacity (dstpixel, s.deep_samples());
             }
         }
-        // Now split any samples that straddle the z.
-        if (dstdd.split (dstpixel, zthresh)) {
-            // If a split did occur, do anohter discard pass.
-            for (int s = 0, n = dstdd.samples(dstpixel); s < n; ++s) {
-                if (dstdd.deep_value (dstpixel, Zbackchan, s) > zthresh) {
-                    dstdd.set_samples (dstpixel, s);
-                    break;
+    }
+
+    // Now we compute each pixel
+    OIIO_UNUSED_OK
+    int dst_ARchan = dstdd.AR_channel();
+    OIIO_UNUSED_OK
+    int dst_AGchan = dstdd.AG_channel();
+    OIIO_UNUSED_OK
+    int dst_ABchan = dstdd.AB_channel();
+    int dst_Zchan = dstdd.Z_channel();
+    int dst_ZBackchan = dstdd.Zback_channel();
+    const DeepData &srcdd (*src.deepdata());
+    const DeepData &holdoutdd (*holdout.deepdata());
+    int holdout_Zchan = holdoutdd.Z_channel();
+    int holdout_ARchan = holdoutdd.AR_channel();
+    int holdout_AGchan = holdoutdd.AG_channel();
+    int holdout_ABchan = holdoutdd.AB_channel();
+
+    // Figure out which chans need adjustment. Exclude non-color chans
+    bool *adjustchan = OIIO_ALLOCA (bool, dstdd.channels());
+    for (int c = 0; c < dstdd.channels(); ++c) {
+        adjustchan[c] = (c != dst_Zchan && c != dst_ZBackchan &&
+                         dstdd.channeltype(c) != TypeDesc::UINT32);
+    }
+
+    // Because we want to split holdout against dst, we need a temporary
+    // holdout pixel. Make a deepdata that's one pixel big for this purpose.
+    DeepData holdouttmp;
+    holdouttmp.init (1, holdoutdd.channels(), holdoutdd.all_channeltypes(),
+                     holdoutdd.all_channelnames());
+
+    for (ImageBuf::Iterator<float> r (dst, roi);  !r.done();  ++r) {
+        // Start by copying src pixel to result. If there's no src
+        // samples, we're done.
+        int x = r.x(), y = r.y(), z = r.z();
+        int srcpixel = src.pixelindex (x, y, z, true);
+        int dstpixel = dst.pixelindex (x, y, z, true);
+        if (srcpixel < 0 || dstpixel < 0 || ! srcdd.samples(srcpixel))
+            continue;
+        dstdd.copy_deep_pixel (dstpixel, srcdd, srcpixel);
+        dstdd.sort (dstpixel);
+        // FIXME - fully tidy it here
+        bool debug = (dstpixel == 3);
+
+        // Copy the holdout image pixel into our scratch space. If there
+        // are no samples in the holdout image, we're done.
+        holdouttmp.copy_deep_pixel (0, holdoutdd, holdout.pixelindex (x, y, z, true));
+        if (holdouttmp.samples(0) == 0)
+            continue;
+        // ASSERT (holdouttmp.is_tidy(0));
+        holdouttmp.sort (0);
+
+        // Now walk the lists and adjust opacities
+        int holdoutsamps = holdouttmp.samples(0);
+        int dstsamples = dstdd.samples (dstpixel);
+
+        float holdout_opacity = 0.0f;  // accumulated holdout opacity
+        float result_opacity = 0.0f;    // accumulated result opacity (without holdout)
+        float adjusted_cum_opacity = 0.0f;
+        float last_adjusted_cum_opacity = 0.0f;
+        bool kill = false;
+        bool reset_next_holdout = false;
+        bool kill_holdouts = false;
+
+        // printf ("Walking...\n");
+        for (int d = 0, h = 0; d < dstsamples; ) {
+            if (debug) printf ("d=%d h=%d\n", d, h);
+            // d and h are the sample numbers of the next sample to consider
+            // for the dst and holdout, respectively.
+
+            // If we've passed full holdout, subsequent intput samples are
+            // hidden.
+            if (holdout_opacity >= 0.9999f) {
+                dstdd.erase_samples (dstpixel, d, dstsamples-d);
+                // printf ("    Fully held out, removing samples after %d\n", d);
+                break;
+            }
+            // If we've passed full opacity, subsequent holdout samples are
+            // irrelevant.
+            if (kill || result_opacity >= 0.9999f) {
+                dstdd.erase_samples (dstpixel, d, dstsamples-d);
+                // printf ("    Hit opaque, removing samples after %d\n", d);
+                break;
+            }
+
+            float dz = dstdd.deep_value (dstpixel, dst_Zchan, d);
+            float hz = h < holdoutsamps ? holdouttmp.deep_value (0, holdout_Zchan, h) : 1e38;
+
+            // If there's a holdout sample in front, adjust the accumulated
+            // holdout opacity and advance the holdout sample.
+            if (h < holdoutsamps && hz <= dz) {
+                if (kill_holdouts) {
+                    ++h;
+                    continue;
+                }
+                if (reset_next_holdout) {
+                    holdout_opacity = 0.0f;
+                    reset_next_holdout = false;
+                }
+                float alpha = (holdouttmp.deep_value (0, holdout_ARchan, h) +
+                               holdouttmp.deep_value (0, holdout_AGchan, h) +
+                               holdouttmp.deep_value (0, holdout_ABchan, h)) / 3.0f;
+                holdout_opacity += (1.0f-holdout_opacity) * alpha;
+                if (debug)
+                printf ("    holdout in front alpha=%g, cum holdout opacity is %g\n", alpha, holdout_opacity);
+                ++h;
+                continue;
+            }
+
+            // If we have no more holdout samples, or if the next holdout
+            // sample is behind the next dst sample, adjust the dest sample
+            // values by the accumulated holdout alpha, and move to the next
+            // one.
+            float alpha = (dstdd.deep_value (dstpixel, dst_ARchan, d) +
+                           dstdd.deep_value (dstpixel, dst_AGchan, d) +
+                           dstdd.deep_value (dstpixel, dst_ABchan, d)) / 3.0f;
+            OIIO_UNUSED_OK float last_result_opacity = result_opacity;
+            result_opacity += (1.0f-result_opacity) * alpha;
+            if (alpha > 0.9999f)
+                kill = true;
+            if (debug) printf ("    source in front alpha=%g, cum holdout opacity is %g\n", alpha, holdout_opacity);
+
+#if 1
+            // Try another way of looking at it
+
+#if 1
+    // We want the new cumulative opacity to be (1-holdout_opacity) * old cum opacity
+    //
+    // cumA[i] = cumA[i-1] + (1-cumA[i-1])*A[i]
+    // A[i] = (cumA[i] - cumA[i-1]) / (1-cumA[i-1])
+    //
+    // cumA'[i] = (1-holdout_opacity) * ( cumA[i-1] + (1-cumA[i-1])*A[i] )
+    // A'[i] = (cumA'[i] - cumA'[i-1]) / (1-cumA'[i-1])
+
+    // This strategy appears to match Nuke on the pig image. But fails
+    // my simple unit test. So I have no idea.
+            adjusted_cum_opacity = (1.0f - holdout_opacity) * (last_result_opacity + (1.0f-last_result_opacity)*alpha);
+            if (debug) printf ("    adjusted_cum_opacity = %g\n", adjusted_cum_opacity);
+            OIIO_UNUSED_OK float adjusted_alpha = OIIO::clamp ((adjusted_cum_opacity - last_adjusted_cum_opacity) / (1.f - last_adjusted_cum_opacity), 0.0f, 1.0f);
+            if (debug) printf ("    last_adjusted_cum_opacity = %g\n", last_adjusted_cum_opacity);
+            if (debug) printf ("    adjusted_lca - last_adjusted_cum_opacity = %f\n", (adjusted_cum_opacity - last_adjusted_cum_opacity));
+#else
+    // 
+    // or?
+    // cumA'[i] = (1-holdout_opacity) * cumA[i]
+    //          = cumA'[i-1] + (1-cumA'[i-1])*A'[i]
+    // so
+    // A'[i] = (cumA'[i] - cumA'[i-1]) / (1-cumA'[i-1])
+    // A'[i] = ((1-holdout_opacity) * cumA[i]) - cumA'[i-1]) / (1-cumA'[i-1])
+            float adjusted_alpha = (((1.0f-holdout_opacity) * result_opacity) - last_adjusted_cum_opacity) / (1.0f-last_adjusted_cum_opacity);
+            // last_result_opacity = result_opacity;
+#endif
+            float ascale = adjusted_alpha / alpha;
+            if (debug) printf ("    adjusted_alpha = %g\n", adjusted_alpha);
+            last_adjusted_cum_opacity = adjusted_cum_opacity;
+            if (debug) printf ("    ascale = %g\n", ascale);
+
+#endif
+
+            for (int c = 0, nc = dstdd.channels(); c < nc; ++c) {
+                if (adjustchan[c]) {
+                    float v = dstdd.deep_value (dstpixel, c, d);
+                    dstdd.set_deep_value (dstpixel, c, d, v*ascale);
                 }
             }
+
+            ++d;
         }
     }
     return true;
@@ -460,13 +595,86 @@ ImageBufAlgo::deep_holdout (ImageBuf &dst, const ImageBuf &src,
 
 
 ImageBuf
-ImageBufAlgo::deep_holdout (const ImageBuf &src, const ImageBuf &thresh,
+ImageBufAlgo::deep_holdout (const ImageBuf &src, const ImageBuf &holdout,
                             ROI roi, int nthreads)
 {
     ImageBuf result;
-    bool ok = deep_holdout (result, src, thresh, roi, nthreads);
+    bool ok = deep_holdout (result, src, holdout, roi, nthreads);
     if (!ok && !result.has_error())
         result.error ("ImageBufAlgo::deep_holdout error");
+    return result;
+}
+
+
+
+bool
+ImageBufAlgo::deep_cull (ImageBuf &dst, const ImageBuf &src,
+                         const ImageBuf &holdout, ROI roi, int nthreads)
+{
+    if (! src.deep() || ! holdout.deep()) {
+        dst.error ("deep_cull can only be performed on deep images");
+        return false;
+    }
+    if (! IBAprep (roi, &dst, &src, &holdout, NULL, &src.spec(),
+                   IBAprep_SUPPORT_DEEP))
+        return false;
+    if (! dst.deep()) {
+        dst.error ("Cannot deep_cull into a flat image");
+        return false;
+    }
+
+    DeepData &dstdd (*dst.deepdata());
+    const DeepData &srcdd (*src.deepdata());
+    // First, reserve enough space in dst, to reduce the number of
+    // allocations we'll do later.
+    {
+        ImageBuf::ConstIterator<float> s (src, roi);
+        for (ImageBuf::Iterator<float> r (dst, roi); !r.done(); ++r, ++s) {
+            if (r.exists() && s.exists()) {
+                int dstpixel = dst.pixelindex (r.x(), r.y(), r.z(), true);
+                dstdd.set_capacity (dstpixel, s.deep_samples());
+            }
+        }
+    }
+    // Now we compute each pixel: We copy the src pixel to dst, then split
+    // any samples that span the holdout's opaque depth threshold, and then
+    // delete any samples that lie beyond the threshold.
+    const DeepData &holdoutdd (*holdout.deepdata());
+    for (ImageBuf::Iterator<float> r (dst, roi);  !r.done();  ++r) {
+        if (!r.exists())
+            continue;
+        int x = r.x(), y = r.y(), z = r.z();
+        int srcpixel = src.pixelindex (x, y, z, true);
+        int dstpixel = dst.pixelindex (x, y, z, true);
+        if (srcpixel < 0 || srcdd.samples(srcpixel) == 0)
+            continue;
+        dstdd.copy_deep_pixel (dstpixel, srcdd, srcpixel);
+        int holdoutpixel = holdout.pixelindex (x, y, z, true);
+        if (holdoutpixel < 0)
+            continue;
+        float zholdout = holdoutdd.opaque_z (holdoutpixel);
+        // Eliminate the samples that are entirely beyond the depth
+        // threshold. Do this before the split; that makes it less likely
+        // that the split will force a re-allocation.
+        dstdd.cull_behind (dstpixel, zholdout);
+        // Now split any samples that straddle the z, and do another discard
+        // if the split really occurred.
+        if (dstdd.split (dstpixel, zholdout))
+            dstdd.cull_behind (dstpixel, zholdout);
+    }
+    return true;
+}
+
+
+
+ImageBuf
+ImageBufAlgo::deep_cull (const ImageBuf &src, const ImageBuf &holdout,
+                         ROI roi, int nthreads)
+{
+    ImageBuf result;
+    bool ok = deep_cull (result, src, holdout, roi, nthreads);
+    if (!ok && !result.has_error())
+        result.error ("ImageBufAlgo::deep_cull error");
     return result;
 }
 

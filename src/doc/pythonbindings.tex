@@ -286,6 +286,16 @@ Alter the \ImageSpec's resolution and offset to match the passed \ROI.
 \end{code}
 \apiend
 
+\apiitem{ROI {\ce roi_union} (roiA, roiB) \\
+ROI {\ce roi_intersection} (roiA, roiB)}
+Return the union, or intersection, respectively, of two ROI's.
+\apiend
+
+\apiitem{ROI {\ce parse_roi} (geom, roibase=ROI(), allow_scaling=True)}
+Parse the string {\cf geom} for either a WxY+X+Y style descrition or a
+XBEGIN,XEND,YBEGIN,YEND range-style description (and both, for 3D).
+\apiend
+
 
 \section{ImageSpec}
 \label{sec:pythonimagespec}
@@ -724,6 +734,14 @@ they will contain the value of {\cf A_channel}, and {\cf Zback_channel} will
 contain the value of {\cf Z_channel} if there is no actual {\cf Zback}.
 \apiend
 
+\apiitem{int DeepData.{\ce A_channel} (c) const}
+\NEW % 1.8
+Return the channel number that is the alpha channel for channel {\cf c}.
+(For example, the alpha channel for the \qkw{R} channel will be {\cf AR_channel()}.)
+If there is no sensible alpha channel for channel {\cf c}, -1 will be
+returned.
+\apiend
+
 \apiitem{string DeepData.{\ce channelname} (c)}
 Retrieve the name of channel {\cf c}.
 \apiend
@@ -773,9 +791,23 @@ Copy a deep sample from \DeepData {\cf src} into this \DeepData.
 Copy a deep pixel from \DeepData {\cf src} into this \DeepData.
 \apiend
 
-\apiitem{bool DeepData.{\ce split} (pixel, depth)}
-Split any samples of the pixel that cross {\cf depth}. Return {\cf True} if
-any splits occurred, {\cf False} if the pixel was unmodified.
+\apiitem{bool DeepData.{\ce split_sample} (pixel, sample, zsplit)}
+Split the given sample at the depth {\cf zsplit} (if the sample does in fact
+span that depth). Return {\cf True} if a split occurred, {\cf False} if
+the sample was unmodified.
+\apiend
+
+\apiitem{int DeepData.{\ce split} (pixel, zsplit)}
+Split all samples of the pixel that span {\cf zsplit}. Return the number
+of splits that occurred.
+\apiend
+
+\apiitem{int DeepData.{\ce split_all} (pixel, src, srcpixel, do_split=True)}
+\NEW % 1.8
+Split all samples of the pixel that edges of a pixel of DeepData {\cf src}.
+Return the number of splits that occurred. If {\cf do_split} is {\cf False},
+the pixel will not be altered, but it will still return the number of splits
+that would have happened.
 \apiend
 
 \apiitem{DeepData.{\ce sort} (pixel)}
@@ -3365,18 +3397,36 @@ the first opaque sample will be discarded, otherwise they will be kept.
 \apiitem{ImageBuf ImageBufAlgo.{\ce deep_holdout} (src, holdout, roi=ROI.All, nthreads=0) \\
 bool ImageBufAlgo.{\ce deep_holdout} (dst, src, holdout, roi=ROI.All, nthreads=0)}
 \index{ImageBufAlgo!deep_holdout} \indexapi{deep_holdout} \index{deep images}
-
-Return the pixels of {\cf src}, but only copying the
-samples that are closer than the opaque frontier of image {\cf holdout}.
-That is, {\cf holdout} will serve as a depth holdout mask, but no samples
-from {\cf holdout} will actually be copied to {\cf dst}.
+Set the pixels of {\cf dst} to the samples of {\cf src}, but held out by the
+samples of the {\cf holdout} image. A ``holdout'' is an image whose alpha
+blocks what's behind it as usual, but doesn't contribute any alpha or color
+itself.
 
 \smallskip
 \noindent Examples:
 \begin{code}
     Img = ImageBuf("image.exr")
-    Mask = ImageBuf("mask.exr")
-    Thresholded = ImageBufAlgo.deep_holdout (Img, Mask)
+    Holdout = ImageBuf("holdout.exr")
+    Result = ImageBuf()
+    ImageBufAlgo.deep_holdout (Result, Img, Holdout)
+\end{code}
+\apiend
+
+\apiitem{ImageBuf ImageBufAlgo.{\ce deep_cull} (src, holdout, roi=ROI.All, nthreads=0) \\
+bool ImageBufAlgo.{\ce deep_cull} (dst, src, holdout, roi=ROI.All, nthreads=0)}
+\index{ImageBufAlgo!deep_cull} \indexapi{deep_cull} \index{deep images}
+Set the pixels of {\cf dst} to the samples of {\cf src}, but held out by the
+samples of the {\cf holdout} image. A ``holdout'' is an image whose alpha
+blocks what's behind it as usual, but doesn't contribute any alpha or color
+itself.
+
+\smallskip
+\noindent Examples:
+\begin{code}
+    Img = ImageBuf("image.exr")
+    Holdout = ImageBuf("holdout.exr")
+    Result = ImageBuf()
+    ImageBufAlgo.deep_cull (Result, Img, Holdout)
 \end{code}
 \apiend
 

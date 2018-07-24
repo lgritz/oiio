@@ -4,6 +4,13 @@ from __future__ import print_function
 import OpenImageIO as oiio
 
 
+def test_roi_from_string (geom, roibase=oiio.ROI(), allow_scaling=True) :
+    roi = oiio.parse_roi (geom, roibase, allow_scaling)
+    if roibase == oiio.ROI() :
+        print ('roi_from_string(\"'+geom+"\", ", allow_scaling, ") = ", roi)
+    else:
+        print ('roi_from_string(\"'+geom+"\", (", roibase, "),", allow_scaling, ") = ", roi)
+    return oiio.ROI()
 
 
 ######################################################################
@@ -64,6 +71,28 @@ try:
     print ("After set, roi is", oiio.get_roi(spec))
     print ("After set, roi_full is", oiio.get_roi_full(spec))
 
+    print ("")
+
+    print ("Testing ROI from string ")
+    test_roi_from_string ("640x480")
+    test_roi_from_string ("640x480x16")
+    test_roi_from_string ("640x480+10+20")
+    test_roi_from_string ("640x480-10-20")
+    test_roi_from_string ("640x480-10+20")
+    test_roi_from_string ("640x480+10-20")
+    test_roi_from_string ("640x480x16+10-20+30")
+    test_roi_from_string ("0,640,0,480")
+    test_roi_from_string ("10,650,20,500")
+    test_roi_from_string ("0,640,0,480,0,16")
+    test_roi_from_string ("10,650,20,500,30,46")
+    testroi = oiio.ROI (10, 650, 20, 500, 0, 1, 0, 4)
+    test_roi_from_string ("320x240", testroi)
+    test_roi_from_string ("+50+60", testroi)
+    test_roi_from_string ("-10-20", testroi)
+    test_roi_from_string ("320x0", testroi)
+    test_roi_from_string ("0x240", testroi)
+    test_roi_from_string ("200%", testroi)
+    test_roi_from_string ("50%x25%", testroi)
     print ("")
 
     print ("Done.")

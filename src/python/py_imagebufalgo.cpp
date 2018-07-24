@@ -370,6 +370,26 @@ IBA_deep_holdout_ret (const ImageBuf &src, const ImageBuf &holdout,
 
 
 bool
+IBA_deep_cull (ImageBuf &dst, const ImageBuf &src, const ImageBuf &holdout,
+                  ROI roi, int nthreads)
+{
+    py::gil_scoped_release gil;
+    return ImageBufAlgo::deep_cull (dst, src, holdout, roi, nthreads);
+}
+
+
+
+ImageBuf
+IBA_deep_cull_ret (const ImageBuf &src, const ImageBuf &holdout,
+                      ROI roi, int nthreads)
+{
+    py::gil_scoped_release gil;
+    return ImageBufAlgo::deep_cull (src, holdout, roi, nthreads);
+}
+
+
+
+bool
 IBA_copy (ImageBuf &dst, const ImageBuf &src, TypeDesc convert,
           ROI roi, int nthreads)
 {
@@ -2253,6 +2273,13 @@ void declare_imagebufalgo (py::module &m)
             "dst"_a, "src"_a, "holdout"_a,
             "roi"_a=ROI::All(), "nthreads"_a=0)
         .def_static("deep_holdout", IBA_deep_holdout_ret,
+            "src"_a, "holdout"_a,
+            "roi"_a=ROI::All(), "nthreads"_a=0)
+
+        .def_static("deep_cull", IBA_deep_cull,
+            "dst"_a, "src"_a, "holdout"_a,
+            "roi"_a=ROI::All(), "nthreads"_a=0)
+        .def_static("deep_cull", IBA_deep_cull_ret,
             "src"_a, "holdout"_a,
             "roi"_a=ROI::All(), "nthreads"_a=0)
 

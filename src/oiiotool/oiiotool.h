@@ -89,6 +89,7 @@ public:
     std::string printinfo_metamatch;
     std::string printinfo_nometamatch;
     std::string printinfo_format;
+    ROI printinfo_roi;
     ImageSpec input_config;           // configuration options for reading
     std::string input_channel_set;    // Optional input channel set
 
@@ -487,6 +488,7 @@ struct print_info_options {
     std::string nometamatch;
     std::string infoformat;
     size_t namefieldlength;
+    ROI roi;
 
     print_info_options ()
         : verbose(false), filenameprefix(false), sum(false), subimages(false),

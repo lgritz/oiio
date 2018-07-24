@@ -110,10 +110,27 @@ compute_sha1 (Oiiotool &ot, ImageInput *input)
 
 
 
+inline int
+pixelindex (const ImageSpec &spec, int x, int y, int z, bool check_range=false)
+{
+    x -= spec.x;  y -= spec.y;  z -= spec.z;
+    if (check_range && (x < 0 || x >= spec.width ||
+                        y < 0 || y >= spec.height ||
+                        z < 0 || z >= spec.depth))
+        return -1;
+    return (z * spec.height + y) * spec.width + x;
+}
+
+
+
 static void
 dump_data (ImageInput *input, const print_info_options &opt)
 {
     const ImageSpec &spec (input->spec());
+    ROI roi = get_roi(spec);
+    if (opt.roi.defined()) {
+        roi = roi_intersection (opt.roi, get_roi(spec));
+    }
     if (spec.deep) {
         // Special handling of deep data
         DeepData dd;
@@ -121,10 +138,11 @@ dump_data (ImageInput *input, const print_info_options &opt)
             printf ("    dump data: could not read image\n");
             return;
         }
-        int nc = spec.nchannels;
-        for (int z = 0, pixel = 0;  z < spec.depth;  ++z) {
-            for (int y = 0;  y < spec.height;  ++y) {
-                for (int x = 0;  x < spec.width;  ++x, ++pixel) {
+        for (int z = roi.zbegin;  z < roi.zend;  ++z) {
+            for (int y = roi.ybegin;  y < roi.yend;  ++y) {
+                int pixel = pixelindex (spec, roi.xbegin, y, z, true);
+                ASSERT (pixel >= 0);
+                for (int x = roi.xbegin;  x < roi.xend;  ++x, ++pixel) {
                     int nsamples = dd.samples(pixel);
                     if (nsamples == 0 && ! opt.dumpdata_showempty)
                         continue;
@@ -140,7 +158,7 @@ dump_data (ImageInput *input, const print_info_options &opt)
                     for (int s = 0;  s < nsamples;  ++s) {
                         if (s)
                             std::cout << " / ";
-                        for (int c = 0;  c < nc;  ++c) {
+                        for (int c = roi.chbegin;  c < roi.chend;  ++c) {
                             std::cout << " " << spec.channelnames[c] << "=";
                             if (dd.channeltype(c) == TypeDesc::UINT)
                                 std::cout << dd.deep_value_uint(pixel, c, s);
@@ -160,17 +178,15 @@ dump_data (ImageInput *input, const print_info_options &opt)
             return;
         }
         const float *ptr = &buf[0];
-        for (int z = 0;  z < spec.depth;  ++z) {
-            for (int y = 0;  y < spec.height;  ++y) {
-                for (int x = 0;  x < spec.width;  ++x) {
+        for (int z = roi.zbegin;  z < roi.zend;  ++z) {
+            for (int y = roi.ybegin;  y < roi.yend;  ++y) {
+                for (int x = roi.xbegin;  x < roi.xend;  ++x, ptr += spec.nchannels) {
                     if (! opt.dumpdata_showempty) {
                         bool allzero = true;
-                        for (int c = 0; c < spec.nchannels && allzero; ++c)
+                        for (int c = roi.chbegin; c < roi.chend && allzero; ++c)
                             allzero &= (ptr[c] == 0.0f);
-                        if (allzero) {
-                            ptr += spec.nchannels;
+                        if (allzero)
                             continue;
-                        }
                     }
                     if (spec.depth > 1 || spec.z != 0)
                         std::cout << Strutil::format("    Pixel (%d, %d, %d):",
@@ -178,8 +194,8 @@ dump_data (ImageInput *input, const print_info_options &opt)
                     else
                         std::cout << Strutil::format("    Pixel (%d, %d):",
                                              x+spec.x, y+spec.y);
-                    for (int c = 0;  c < spec.nchannels;  ++c, ++ptr) {
-                        std::cout << ' ' << (*ptr);
+                    for (int c = roi.chbegin;  c < roi.chend;  ++c) {
+                        std::cout << ' ' << ptr[c];
                     }
                     std::cout << "\n";
                 }

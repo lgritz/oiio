@@ -902,12 +902,33 @@ Not only {\cf clear()}, but also ensure that all allocated memory has been
 truly freed.
 \apiend
 
-\apiitem{int {\ce npixels} () const}
+\apiitem{int {\ce pixels} () const}
 Retrieve the total number of pixels.
 \apiend
 
-\apiitem{int {\ce nchannels} () const}
+\apiitem{int {\ce channels} () const}
 Retrieve the number of channels.
+\apiend
+
+\apiitem{int {\ce A_channel} () const \\
+int {\ce AR_channel} () const \\
+int {\ce AG_channel} () const \\
+int {\ce AB_channel} () const \\
+int {\ce Z_channel} () const \\
+int {\ce Zback_channel} () const}
+\NEW % 1.8
+The channel index of certain named channels, or -1 if they don't exist. For
+{\cf AR_channel}, {\cf AG_channel}, {\cf AB_channel}, if they don't exist,
+they will contain the value of {\cf A_channel}, and {\cf Zback_channel} will
+contain the value of {\cf Z_channel} if there is no actual {\cf Zback}.
+\apiend
+
+\apiitem{int {\ce alpha_channel_for} (int c) const}
+\NEW % 1.8
+Return the channel number that is the alpha channel for channel {\cf c}.
+(For example, the alpha channel for the \qkw{R} channel will be {\cf AR_channel()}.)
+If there is no sensible alpha channel for channel {\cf c}, -1 will be
+returned.
 \apiend
 
 \apiitem{string_view {\ce channelname} (int c) const}
@@ -971,9 +992,32 @@ layout. Return {\cf true} if ok, {\cf false} if the operation could not be
 performed.
 \apiend
 
-\apiitem{bool {\ce split} (int pixel, float depth)}
-Split any samples of the pixel that cross {\cf depth}. Return {\cf true} if
-any splits occurred, {\cf false} if the pixel was unmodified.
+\apiitem{bool {\ce split_sample} (int pixel, int sample, float zsplit)}
+\NEW % 1.8
+If the specified sample's depth range spans {\cf zsplit}, split it into two
+samples with depth ranges $[z,\mathrm{zsplit})$ and
+$[\mathrm{zsplit},\mathrm{zback})$ with appropriate changes to their color
+and alpha values so that their net transparency is the same as before.
+Return true if a split occurred, false if the sample was not modified.
+\apiend
+
+\apiitem{int {\ce split} (int pixel, float zsplit)}
+Split any samples of the pixel whose depth range spans {\cf zsplit}.
+Return the number of splits that occurred.
+\apiend
+
+\apiitem{int {\ce split_all} (int pixel, const DeepData \&src, int srcpixel,\\
+        \bitspc   bool do_split=true) \\
+int {\ce split_all} (int pixel, bool do_split=true)}
+\NEW % 1.8
+Split all samples in the indexed pixel by all the sample edges in {\cf
+src}'s {\cf srcpixel}, returning the number of splits (i.e., the number of
+additional samples that were added). If {\cf do_split} is false, don't
+actually perform any splits or modify the pixel, just return the number of
+splits that would have been performed.
+
+For the version that does not specify a second image/pixel, it means to
+split the pixel in this image by all its own sample edges.
 \apiend
 
 \apiitem{void {\ce sort} (int pixel)}
@@ -1000,6 +1044,12 @@ Eliminate any samples beyond an opaque sample.
 \apiitem{float {\ce opaque_z} (int pixel)}
 For the given pixel index. return the $z$ value at which the pixel reaches
 full opacity.
+\apiend
+
+\apiitem{int {\ce cull_behind} (int pixel, float depth)}
+\NEW % 1.8
+Remove all samples that lie completely behind {\cf depth}, returning the
+number of samples culled.
 \apiend
 
 

@@ -49,6 +49,13 @@ static bool roi_contains_roi (const ROI& roi, const ROI& other)
 }
 
 
+static ROI
+parse_roi_wrapper (std::string geom, const ROI& roi, bool allow_scaling=true)
+{
+    return parse_roi (geom, &roi, allow_scaling);
+}
+
+
 
 // Declare the OIIO ROI class to Python
 void declare_roi(py::module& m)
@@ -88,9 +95,6 @@ void declare_roi(py::module& m)
         // Conversion to string
         .def("__str__", [](const ROI& roi){ return Strutil::format("%s", roi); })
 
-        // roi_union, roi_intersection, get_roi(spec), get_roi_full(spec)
-        // set_roi(spec,newroi), set_roi_full(newroi)
-
         // overloaded operators
        .def(py::self == py::self)    // operator==
        .def(py::self != py::self)    // operator!=
@@ -102,6 +106,8 @@ void declare_roi(py::module& m)
     m.def("get_roi_full", &get_roi_full);
     m.def("set_roi",      &set_roi);
     m.def("set_roi_full", &set_roi_full);
+    m.def("parse_roi",    &parse_roi_wrapper,
+          "geom"_a, "roi"_a=ROI(), "allow_scaling"_a=true);
 }
 
 
