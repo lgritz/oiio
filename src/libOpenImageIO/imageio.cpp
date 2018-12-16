@@ -915,6 +915,55 @@ premult(int nchannels, int width, int height, int depth, int chbegin, int chend,
 
 
 
+void
+pvt::compute_buffer_strides(
+    const ImageSpec& spec, ROI& roi, TypeDesc buffer_format, stride_t& xstride,
+    stride_t& ystride, stride_t& zstride, imagesize_t& native_pixel_bytes,
+    imagesize_t& native_scanline_bytes, imagesize_t& native_plane_bytes,
+    imagesize_t& buffer_pixel_bytes, imagesize_t& buffer_scanline_bytes,
+    imagesize_t& buffer_plane_bytes, bool& native_data, bool& buffer_contiguous)
+{
+    // Clamp the ROI ends to what's available in the native image
+    roi.chend = clamp(roi.chend, roi.chbegin + 1, spec.nchannels);
+    // roi.xend      = clamp(roi.xend, roi.xbegin + 1, spec.x + spec.width);
+    // roi.yend      = clamp(roi.yend, roi.ybegin + 1, spec.y + spec.height);
+    // roi.zend      = clamp(roi.zend, roi.ybegin + 1, spec.z + spec.depth);
+    int nchannels = roi.nchannels();
+    // Nomenclature: native_*_size refers to the size in the file, as
+    // described by the spec. Compute the native sizes of each pixel,
+    // scanline, plane.
+    native_pixel_bytes    = spec.pixel_bytes(roi.chbegin, roi.chend, true);
+    native_scanline_bytes = clamped_mult64((imagesize_t)roi.width(),
+                                           (imagesize_t)native_pixel_bytes);
+    native_plane_bytes    = clamped_mult64((imagesize_t)roi.height(),
+                                        (imagesize_t)native_scanline_bytes);
+    // native_data is true if the user asking for data in the native format.
+    native_data
+        = (buffer_format == TypeDesc::UNKNOWN
+           || (buffer_format == spec.format && spec.channelformats.empty()));
+    // buffer_*_size is the natural size of the region when expressed in
+    // buffer_format, or in the native format if buffer_format is UNKNOWN.
+    buffer_pixel_bytes = native_data ? native_pixel_bytes
+                                     : buffer_format.size() * nchannels;
+    buffer_scanline_bytes = buffer_pixel_bytes * roi.width();
+    buffer_plane_bytes    = buffer_pixel_bytes * roi.height();
+    // Now figure out the strides. Some may be set to AutoStride.
+    if (buffer_format == TypeDesc::UNKNOWN /*native_data*/ && xstride == AutoStride)
+        xstride = native_pixel_bytes;
+    spec.auto_stride(xstride, ystride, zstride, buffer_format, nchannels,
+                     roi.width(), roi.height());
+    // The buffer is "contiguous" if the strides match the data sizes
+    // exactly, and there are no gaps.
+    buffer_contiguous = (xstride == (stride_t)buffer_pixel_bytes
+                         && ystride == (stride_t)buffer_scanline_bytes
+                         && zstride == (stride_t)buffer_plane_bytes);
+    buffer_contiguous
+        &= (ystride == xstride * roi.width()
+            && (zstride == ystride * roi.height() || roi.depth() <= 1));
+}
+
+
+
 bool
 wrap_black(int& coord, int origin, int width)
 {

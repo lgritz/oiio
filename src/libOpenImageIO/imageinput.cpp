@@ -166,7 +166,12 @@ ImageInput::read_scanline(int y, int z, TypeDesc format, void* data,
                           stride_t xstride)
 {
     lock_guard lock(m_mutex);
+    ImageSpec spec = spec_dimensions(current_subimage(), current_miplevel());
 
+#if 0
+    int chbegin = 0, chend = spec.nchannels;
+    COMPUTE_BUFFER_STRIDES_1D(spec, format, y, z, chbegin, chend);
+#else
     // native_pixel_bytes is the size of a pixel in the FILE, including
     // the per-channel format.
     stride_t native_pixel_bytes = (stride_t)m_spec.pixel_bytes(true);
@@ -188,7 +193,7 @@ ImageInput::read_scanline(int y, int z, TypeDesc format, void* data,
 
     // If user's format and strides are set up to accept the native data
     // layout, read the scanline directly into the user's buffer.
-    if (native_data && contiguous)
+    if (native && contiguous)
         return read_native_scanline(current_subimage(), current_miplevel(), y,
                                     z, data);
 
@@ -263,6 +268,12 @@ ImageInput::read_scanlines(int subimage, int miplevel, int ybegin, int yend,
     if (spec.undefined())
         return false;
 
+#if 0
+    stride_t zstride = AutoStride;
+    COMPUTE_BUFFER_STRIDES_2D(spec, format, spec.x, spec.x + spec.width,
+                              ybegin, yend, z, z + 1, chbegin, chend);
+    int nchans = chend - chbegin;
+#else
     chend                     = clamp(chend, chbegin + 1, spec.nchannels);
     int nchans                = chend - chbegin;
     yend                      = std::min(yend, spec.y + spec.height);
@@ -436,14 +447,23 @@ ImageInput::read_tile(int x, int y, int z, TypeDesc format, void* data,
         || ((z - m_spec.z) % m_spec.tile_depth) != 0)
         return false;  // coordinates are not a tile corner
 
+#if 0
+    int chbegin = 0, chend = m_spec.nchannels;
+    COMPUTE_BUFFER_STRIDES_2D(m_spec, format, x, x+m_spec.tile_width,
+                              y, y+m_spec.tile_height,
+                              z, z+m_spec.tile_depth, chbegin, chend);
+    // int nchans = chend - chbegin;
+    // bool perchanfile = m_spec.channelformats.size();
+#else
+
     // native_pixel_bytes is the size of a pixel in the FILE, including
     // the per-channel format.
     stride_t native_pixel_bytes = (stride_t)m_spec.pixel_bytes(true);
     // perchanfile is true if the file has different per-channel formats
     bool perchanfile = m_spec.channelformats.size();
-    // native_data is true if the user asking for data in the native format
-    bool native_data = (format == TypeDesc::UNKNOWN
-                        || (format == m_spec.format && !perchanfile));
+    // native is true if the user asking for data in the native format
+    bool native = (format == TypeDesc::UNKNOWN
+                   || (format == m_spec.format && !perchanfile));
     if (format == TypeDesc::UNKNOWN && xstride == AutoStride)
         xstride = native_pixel_bytes;
     m_spec.auto_stride(xstride, ystride, zstride, format, m_spec.nchannels,
@@ -456,10 +476,11 @@ ImageInput::read_tile(int x, int y, int z, TypeDesc format, void* data,
         = xstride == buffer_pixel_bytes
           && (ystride == xstride * m_spec.tile_width
               && (zstride == ystride * m_spec.tile_height || zstride == 0));
+#endif
 
     // If user's format and strides are set up to accept the native data
     // layout, read the tile directly into the user's buffer.
-    if (native_data && contiguous)
+    if (native && contiguous)
         return read_native_tile(current_subimage(), current_miplevel(), x, y, z,
                                 data);  // Simple case
 
@@ -555,6 +576,13 @@ ImageInput::read_tiles(int subimage, int miplevel, int xbegin, int xend,
     if (!spec.valid_tile_range(xbegin, xend, ybegin, yend, zbegin, zend))
         return false;
 
+#if 0
+    COMPUTE_BUFFER_STRIDES_2D(spec, format, xbegin, xend, ybegin, yend,
+                              zbegin, zend, chbegin, chend);
+    int nchans = chend - chbegin;
+    bool perchanfile = !spec.channelformats.empty();
+
+#else
     int nchans = chend - chbegin;
     // native_pixel_bytes is the size of a pixel in the FILE, including
     // the per-channel format.
@@ -562,16 +590,16 @@ ImageInput::read_tiles(int subimage, int miplevel, int xbegin, int xend,
                                                              true);
     // perchanfile is true if the file has different per-channel formats
     bool perchanfile = spec.channelformats.size();
-    // native_data is true if the user asking for data in the native format
-    bool native_data = (format == TypeDesc::UNKNOWN
-                        || (format == spec.format && !perchanfile));
+    // native is true if the user asking for data in the native format
+    bool native = (format == TypeDesc::UNKNOWN
+                   || (format == spec.format && !perchanfile));
     if (format == TypeDesc::UNKNOWN && xstride == AutoStride)
         xstride = native_pixel_bytes;
     spec.auto_stride(xstride, ystride, zstride, format, nchans, xend - xbegin,
                      yend - ybegin);
     // Do the strides indicate that the data area is contiguous?
-    bool contiguous = (native_data && xstride == native_pixel_bytes)
-                      || (!native_data
+    bool contiguous = (native && xstride == native_pixel_bytes)
+                      || (!native
                           && xstride == (stride_t)spec.pixel_bytes(false));
     contiguous
         &= (ystride == xstride * (xend - xbegin)
@@ -585,8 +613,7 @@ ImageInput::read_tiles(int subimage, int miplevel, int xbegin, int xend,
     // layout, and we're asking for a whole number of tiles (no partial
     // tiles at the edges), then read the tile directly into the user's
     // buffer.
-    if (native_data && contiguous
-        && (xend - xbegin) == nxtiles * spec.tile_width
+    if (native && contiguous && (xend - xbegin) == nxtiles * spec.tile_width
         && (yend - ybegin) == nytiles * spec.tile_height
         && (zend - zbegin) == nztiles * spec.tile_depth) {
         if (chbegin == 0 && chend == spec.nchannels)
@@ -600,17 +627,16 @@ ImageInput::read_tiles(int subimage, int miplevel, int xbegin, int xend,
 
     // No such luck.  Just punt and read tiles individually.
     bool ok            = true;
-    stride_t pixelsize = native_data ? native_pixel_bytes
-                                     : (format.size() * nchans);
+    stride_t pixelsize = native ? native_pixel_bytes : (format.size() * nchans);
     stride_t native_pixelsize = spec.pixel_bytes(true);
-    stride_t full_pixelsize   = native_data ? native_pixelsize
-                                          : (format.size() * spec.nchannels);
+    stride_t full_pixelsize   = native ? native_pixelsize
+                                     : (format.size() * spec.nchannels);
     stride_t full_tilewidthbytes   = full_pixelsize * spec.tile_width;
     stride_t full_tilewhbytes      = full_tilewidthbytes * spec.tile_height;
     stride_t full_tilebytes        = full_tilewhbytes * spec.tile_depth;
     stride_t full_native_tilebytes = spec.tile_bytes(true);
-    size_t prefix_bytes = native_data ? spec.pixel_bytes(0, chbegin, true)
-                                      : format.size() * chbegin;
+    size_t prefix_bytes            = native ? spec.pixel_bytes(0, chbegin, true)
+                                 : format.size() * chbegin;
     bool allchans = (chbegin == 0 && chend == spec.nchannels);
     std::vector<char> buf;
     for (int z = zbegin; z < zend; z += std::max(1, spec.tile_depth)) {

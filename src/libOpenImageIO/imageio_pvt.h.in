@@ -107,6 +107,63 @@ const void *convert_from_float (const float *src, void *dst,
 const void *parallel_convert_from_float (const float *src, void *dst,
                                          size_t nvals, TypeDesc format);
 
+/// Encapsulate a common idiom where we are transferring image data
+/// spanning the given roi, between a file (described by spec) and a
+/// memory buffer of type buffer_format (UNKNOWN indicating that it wants
+/// to receive the native data format direcly). The caller passes buffer
+/// strides, which as usual may be set to AutoStride meaning that we should
+/// compute them given contiguity assumptions. Our job here is to compute
+/// the number of bytes per pixel, scanline, and plane for both the native
+/// layout as well as the buffer layout, set any stride values not already
+/// set, set native_data to true if the types are the same ane no format
+/// conversions are needed (only copying), and set buffer_contiguous to true
+/// if the buffer layout if contiguous and has no gaps.  We may also alter
+/// the roi if its `end` fields went beyond the actual image size.
+void compute_buffer_strides (const ImageSpec& spec, ROI& roi,
+                             TypeDesc buffer_format, stride_t& xstride,
+                             stride_t& ystride, stride_t& zstride,
+                             imagesize_t& native_pixel_bytes,
+                             imagesize_t& native_scanline_bytes,
+                             imagesize_t& native_plane_bytes,
+                             imagesize_t& buffer_pixel_bytes,
+                             imagesize_t& buffer_scanline_bytes,
+                             imagesize_t& buffer_plane_bytes,
+                             bool& native_data, bool& buffer_contiguous);
+
+// Shortcuts for the 1D and 2D cases -- do all the extra variable
+// declarations and pipe-fitting.
+#define COMPUTE_BUFFER_STRIDES_2D(spec,format,xbegin,xend,ybegin,yend,zbegin,zend,chbegin,chend) \
+    imagesize_t native_pixel_bytes, native_scanline_bytes; \
+    imagesize_t buffer_pixel_bytes, buffer_scanline_bytes; \
+    bool native = false, contiguous = false; \
+    { \
+        ROI roi(xbegin, xend, ybegin, yend, zbegin, zend, chbegin, chend); \
+        imagesize_t native_plane_bytes, buffer_plane_bytes; \
+        compute_buffer_strides (spec, roi, format, xstride, ystride, zstride,\
+                                native_pixel_bytes, native_scanline_bytes,\
+                                native_plane_bytes, buffer_pixel_bytes,\
+                                buffer_scanline_bytes, buffer_plane_bytes,\
+                                native, contiguous);\
+        chend = roi.chend; \
+    }
+#define COMPUTE_BUFFER_STRIDES_1D(spec,format,y,z,chbegin,chend) \
+    imagesize_t native_pixel_bytes; \
+    imagesize_t buffer_pixel_bytes; \
+    stride_t ystride = AutoStride; \
+    bool native = false, contiguous = false; \
+    { \
+        ROI roi(spec.x, spec.x+spec.width, y, y+1, z, z+1, chbegin, chend); \
+        stride_t zstride = AutoStride; \
+        imagesize_t native_scanline_bytes, buffer_scanline_bytes; \
+        imagesize_t native_plane_bytes, buffer_plane_bytes; \
+        compute_buffer_strides (spec, roi, format, xstride, ystride, zstride,\
+                                native_pixel_bytes, native_scanline_bytes,\
+                                native_plane_bytes, buffer_pixel_bytes,\
+                                buffer_scanline_bytes, buffer_plane_bytes,\
+                                native, contiguous);\
+        chend = roi.chend; \
+    }
+
 /// Internal utility: Error checking on the spec -- if it contains texture-
 /// specific metadata but there are clues it's not actually a texture file
 /// written by maketx or `oiiotool -otex`, then assume these metadata are
