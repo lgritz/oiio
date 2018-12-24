@@ -5293,8 +5293,31 @@ command_line_string(int argc, char* argv[], bool sansattrib)
 
 
 
+using extension_map_t = std::map<std::string, std::string>;
+
+// Create a map of file extension -> vector of extensions
+static extension_map_t
+make_extension_map()
+{
+    extension_map_t emap;
+    std::string all_format_list;
+    OIIO::getattribute("extension_list", all_format_list);
+    auto formats = Strutil::splitsv(all_format_list, ";");
+    // Strip colon from formats with only one extension
+    for (auto f : formats) {
+        string_view formatname = Strutil::parse_identifier(f);
+        Strutil::parse_char(f, ':');
+        auto extlist     = Strutil::splitsv(f, ",");
+        emap[formatname] = Strutil::join(extlist, ",");
+    }
+    return emap;
+}
+
+
+
 static std::string
-formatted_format_list(string_view format_typename, string_view attr)
+formatted_format_list(string_view format_typename, string_view attr,
+                      extension_map_t& extension_map)
 {
     int columns = Sysutil::terminal_columns() - 2;
     std::stringstream s;
@@ -5304,9 +5327,19 @@ formatted_format_list(string_view format_typename, string_view attr)
     std::vector<string_view> formats;
     Strutil::split(format_list, formats, ",");
     std::sort(formats.begin(), formats.end());
-    format_list = Strutil::join(formats, ", ");
-    s << format_list;
-    return Strutil::wordwrap(s.str(), columns, 4);
+    bool first = true;
+    for (auto f : formats) {
+        if (!first)
+            s << ", ";
+        first = false;
+        s << f;
+        auto e = extension_map[f];
+        if (e != f)
+            s << " (" << extension_map[f] << ")";
+    }
+    // format_list = Strutil::join(formats, ", ");
+    // s << format_list;
+    return Strutil::wordwrap(s.str(), columns, 4, " ", ",");
 }
 
 
@@ -5365,8 +5398,9 @@ print_help_end(const ArgParse& ap, std::ostream& out)
     out << "\n";
     int columns = Sysutil::terminal_columns() - 2;
 
-    out << formatted_format_list("Input", "input_format_list") << "\n";
-    out << formatted_format_list("Output", "output_format_list") << "\n";
+    auto emap = make_extension_map();
+    out << formatted_format_list("Input", "input_format_list", emap) << "\n";
+    out << formatted_format_list("Output", "output_format_list", emap) << "\n";
 
     // debugging color space names
     out << "Color configuration: " << ot.colorconfig.configname() << "\n";
