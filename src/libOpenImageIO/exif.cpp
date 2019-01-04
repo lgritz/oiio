@@ -1110,7 +1110,8 @@ decode_exif(cspan<uint8_t> exif, ImageSpec& spec)
     // N.B. Just read libtiff's "tiff.h" for info on the structure
     // layout of TIFF headers and directory entries.  The TIFF spec
     // itself is also helpful in this area.
-    TIFFHeader head = *(const TIFFHeader*)exif.data();
+    TIFFHeader head;
+    memcpy(&head, (const TIFFHeader*)exif.data(), sizeof(TIFFHeader));
     if (head.tiff_magic != 0x4949 && head.tiff_magic != 0x4d4d)
         return false;
     bool host_little = littleendian();
