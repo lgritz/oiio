@@ -260,6 +260,23 @@ public:
         return (z * m_spec.height + y) * m_spec.width + x;
     }
 
+    void invalidate(ustring filename, bool force)
+    {
+        ImageCache* shared_imagecache = ImageCache::create(true);
+        ASSERT(shared_imagecache);
+#if defined(OIIO_IMAGECACHE_INVALIDATE_FORCE) /* OIIO >= 2.1 */
+        if (m_imagecache)
+            m_imagecache->invalidate(filename, force);  // *our* IC
+        if (m_imagecache != shared_imagecache)
+            shared_imagecache->invalidate(filename, force);  // the shared IC
+#else
+        if (m_imagecache)
+            m_imagecache->invalidate(filename);  // *our* IC
+        if (m_imagecache != shared_imagecache)
+            shared_imagecache->invalidate(filename);  // the shared IC
+#endif
+    }
+
 private:
     ImageBuf::IBStorage m_storage;  ///< Pixel storage class
     ustring m_name;                 ///< Filename of the image
@@ -1160,12 +1177,7 @@ ImageBuf::write(string_view _filename, TypeDesc dtype, string_view _fileformat,
     // pixels in the cache will then be likely wrong; (b) on Windows, if the
     // cache holds an open file handle for reading, we will not be able to
     // open the same file for writing.
-    ImageCache* shared_imagecache = ImageCache::create(true);
-    ASSERT(shared_imagecache);
-    ustring ufilename(filename);
-    shared_imagecache->invalidate(ufilename);  // the shared IC
-    if (imagecache() && imagecache() != shared_imagecache)
-        imagecache()->invalidate(ufilename);  // *our* IC
+    m_impl->invalidate(ustring(filename), true);
 
     auto out = ImageOutput::create(fileformat.c_str(), "" /* searchpath */);
     if (!out) {
