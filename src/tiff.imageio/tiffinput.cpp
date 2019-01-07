@@ -1452,6 +1452,7 @@ TIFFInput::read_native_scanline(int subimage, int miplevel, int y, int z,
         // libtiff has no way to read just one scanline as RGBA. So we
         // buffer the whole image.
         if (!m_rgbadata.size()) {  // first time through: allocate & read
+        std::cout << m_filename << " Using rgba interface on sub " << subimage << "\n";
             m_rgbadata.resize(m_spec.width * m_spec.height * m_spec.depth);
             bool ok = TIFFReadRGBAImageOriented(m_tif, m_spec.width,
                                                 m_spec.height, &m_rgbadata[0],
@@ -1467,6 +1468,8 @@ TIFFInput::read_native_scanline(int subimage, int miplevel, int y, int z,
                    m_spec.width * m_spec.nchannels, AutoStride);
         return true;
     }
+    else if (y==0)
+        std::cout << m_filename << " Usual interface on sub " << subimage << "\n";
 
     // For compression modes that don't support random access to scanlines
     // (which I *think* is only LZW), we need to emulate random access by

@@ -267,12 +267,14 @@ def rw_command (dir, filename, testwrite=True, use_oiiotool=False, extraargs="",
         else :
             cmd = (cmd + oiio_app("iconvert") + preargs + " " + fn
                    + " " + extraargs + " " + output_filename + redirect + ";\n")
+            cmd += "echo 'hey' " + redirect + ";\n"
         cmd = (cmd + oiio_app("idiff") + " -a " + fn
                + " -fail " + str(failthresh)
                + " -failpercent " + str(failpercent)
                + " -hardfail " + str(hardfail)
                + " -warn " + str(2*failthresh)
                + " " + idiffextraargs + " " + output_filename + redirect + ";\n")
+        cmd += "echo 'there' " + redirect + ";\n"
     return cmd
 
 

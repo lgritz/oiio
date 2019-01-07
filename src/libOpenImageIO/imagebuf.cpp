@@ -270,11 +270,16 @@ public:
         if (m_imagecache != shared_imagecache)
             shared_imagecache->invalidate(filename, force);  // the shared IC
 #else
-        if (m_imagecache)
+        if (m_imagecache) {
+            std::cout << "Invalidating " << m_name << "\n";
             m_imagecache->invalidate(filename);  // *our* IC
-        if (m_imagecache != shared_imagecache)
-            shared_imagecache->invalidate(filename);  // the shared IC
+        }
+        // if (m_imagecache != shared_imagecache)
+        //     shared_imagecache->invalidate(filename);  // the shared IC
 #endif
+        m_pixels_valid = false;
+        m_spec_valid = false;
+        free_pixels();
     }
 
 private:
@@ -371,6 +376,9 @@ ImageBufImpl::ImageBufImpl(string_view filename, int subimage, int miplevel,
         m_spec_valid = true;
     } else if (filename.length() > 0) {
         ASSERT(buffer == NULL);
+        // Invalidate the image in cache. Do so unconditionally if there's
+        // a chance that configuration hints may have changed.
+//        invalidate(m_name, config != nullptr);
         // If a filename was given, read the spec and set it up as an
         // ImageCache-backed image.  Reallocate later if an explicit read()
         // is called to force read into a local buffer.
@@ -565,6 +573,7 @@ ImageBufImpl::free_pixels()
                     m_allocated_size >> 20, IB_local_mem_current >> 20);
     m_allocated_size = 0;
     m_storage        = ImageBuf::UNINITIALIZED;
+    m_pixels_valid   = false;
 }
 
 
@@ -624,7 +633,10 @@ ImageBuf::storage() const
 void
 ImageBufImpl::clear()
 {
+    // if (m_imagecache && !m_name.empty())
+    //     m_imagecache->close(m_name);  // tell the cache to release the handle
     m_storage = ImageBuf::UNINITIALIZED;
+    // free_pixels();
     m_name.clear();
     m_fileformat.clear();
     m_nsubimages       = 0;
@@ -668,10 +680,14 @@ ImageBufImpl::reset(string_view filename, int subimage, int miplevel,
 {
     clear();
     m_name             = ustring(filename);
-    m_current_subimage = subimage;
-    m_current_miplevel = miplevel;
+    // m_current_subimage = subimage;
+    // m_current_miplevel = miplevel;
     if (imagecache)
         m_imagecache = imagecache;
+    // Invalidate the image in cache. Do so unconditionally if there's
+    // a chance that configuration hints may have changed.
+    ASSERT(0);
+//    invalidate(m_name, config != nullptr || m_configspec);
     if (config)
         m_configspec.reset(new ImageSpec(*config));
 
