@@ -1,4 +1,4 @@
-Checks:          '-*,clang-analyzer-security*'
+Checks:          '-*,clang-analyzer-security,clang-analyzer-cplusplus*,bugprone-a*,bugprone-b*,bugprone-c*,bugprone-d*'
 WarningsAsErrors: ''
 HeaderFilterRegex: '(OpenImageIO/[a-zA-Z0-9_]+\.h)|(imageio)|(oiio)|(iv/)|(_pvt\.h)'
 AnalyzeTemporaryDtors: false
