@@ -22,7 +22,7 @@
 OIIO_NAMESPACE_BEGIN
 
 
-constexpr ptrdiff_t dynamic_extent = -1;
+constexpr size_t dynamic_extent = std::numeric_limits<size_t>::max();
 
 
 /// span<T> is a non-owning, non-copying, non-allocating reference to a
@@ -53,15 +53,15 @@ constexpr ptrdiff_t dynamic_extent = -1;
 /// structure (unless you are really sure you know what you're doing).
 ///
 
-template <typename T, ptrdiff_t Extent = dynamic_extent>
+template <typename T, size_t Extent = dynamic_extent>
 class span {
     static_assert (std::is_array<T>::value == false, "can't have span of an array");
 public:
     using element_type = T;
     using value_type = typename std::remove_cv<T>::type;
-    using index_type = ptrdiff_t;
+    using index_type = size_t;
     using difference_type = ptrdiff_t;
-    using size_type = ptrdiff_t;
+    using size_type = size_t;
     using pointer = element_type*;
     using reference = element_type&;
     using iterator = element_type*;
@@ -73,8 +73,8 @@ public:
     /// Default constructor -- the span points to nothing.
     constexpr span () noexcept { }
 
-    /// Copy constructor (copies the span pointer and length, NOT the data).
-    template<class U, ptrdiff_t N>
+    /// Copy constructor
+    template<class U, size_t N>
     constexpr span (const span<U,N> &copy) noexcept
         : m_data(copy.data()), m_size(copy.size()) { }
     /// Copy constructor (copies the span pointer and length, NOT the data).
@@ -160,6 +160,7 @@ public:
     constexpr index_type size() const noexcept { return m_size; }
     constexpr index_type size_bytes() const noexcept { return m_size*sizeof(T); }
     constexpr bool empty() const noexcept { return m_size == 0; }
+    constexpr ptrdiff_t ssize() const noexcept { return static_cast<ptrdiff_t>(m_size); }
 
     constexpr pointer data() const noexcept { return m_data; }
 
@@ -200,21 +201,21 @@ using cspan = span<const T>;
 
 
 /// Compare all elements of two spans for equality
-template <class T, ptrdiff_t X, class U, ptrdiff_t Y>
+template <class T, size_t X, class U, size_t Y>
 OIIO_CONSTEXPR14 bool operator== (span<T,X> l, span<U,Y> r) {
 #if OIIO_CPLUSPLUS_VERSION >= 20
     return std::equal (l.begin(), l.end(), r.begin(), r.end());
 #else
     auto lsize = l.size();
     bool same = (lsize == r.size());
-    for (ptrdiff_t i = 0; same && i < lsize; ++i)
+    for (size_t i = 0; same && i < lsize; ++i)
         same &= (l[i] == r[i]);
     return same;
 #endif
 }
 
 /// Compare all elements of two spans for inequality
-template <class T, ptrdiff_t X, class U, ptrdiff_t Y>
+template <class T, size_t X, class U, size_t Y>
 OIIO_CONSTEXPR14 bool operator!= (span<T,X> l, span<U,Y> r) {
     return !(l == r);
 }
@@ -225,14 +226,14 @@ OIIO_CONSTEXPR14 bool operator!= (span<T,X> l, span<U,Y> r) {
 /// array with known length and optionally non-default strides through the
 /// data.  An span_strided<T> is mutable (the values in the array may
 /// be modified), whereas an span_strided<const T> is not mutable.
-template <typename T, ptrdiff_t Extent = dynamic_extent>
+template <typename T, size_t Extent = dynamic_extent>
 class span_strided {
     static_assert (std::is_array<T>::value == false,
                    "can't have span_strided of an array");
 public:
     using element_type = T;
     using value_type = typename std::remove_cv<T>::type;
-    using index_type = ptrdiff_t;
+    using index_type = size_t;
     using difference_type = ptrdiff_t;
     using stride_type = ptrdiff_t;
     using pointer = element_type*;
@@ -321,19 +322,19 @@ using cspan_strided = span_strided<const T>;
 
 
 /// Compare all elements of two spans for equality
-template <class T, ptrdiff_t X, class U, ptrdiff_t Y>
+template <class T, size_t X, class U, size_t Y>
 OIIO_CONSTEXPR14 bool operator== (span_strided<T,X> l, span_strided<U,Y> r) {
     auto lsize = l.size();
     if (lsize != r.size())
         return false;
-    for (ptrdiff_t i = 0; i < lsize; ++i)
+    for (size_t i = 0; i < lsize; ++i)
         if (l[i] != r[i])
             return false;
     return true;
 }
 
 /// Compare all elements of two spans for inequality
-template <class T, ptrdiff_t X, class U, ptrdiff_t Y>
+template <class T, size_t X, class U, size_t Y>
 OIIO_CONSTEXPR14 bool operator!= (span_strided<T,X> l, span_strided<U,Y> r) {
     return !(l == r);
 }

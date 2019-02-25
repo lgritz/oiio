@@ -2093,19 +2093,22 @@ bool OIIO_API deep_holdout (ImageBuf &dst, const ImageBuf &src,
 inline bool fill (ImageBuf &dst, const float *values,
                   ROI roi={}, int nthreads=0) {
     int nc (roi.defined() ? roi.nchannels() : dst.nchannels());
-    return fill (dst, {values, nc}, roi, nthreads);
+    return fill (dst, {values, static_cast<size_t>(nc)}, roi, nthreads);
 }
 inline bool fill (ImageBuf &dst, const float *top, const float *bottom,
                   ROI roi={}, int nthreads=0) {
     int nc (roi.defined() ? roi.nchannels() : dst.nchannels());
-    return fill (dst, {top, nc}, {bottom, nc}, roi, nthreads);
+    return fill (dst, {top, static_cast<size_t>(nc)},
+                 {bottom, static_cast<size_t>(nc)}, roi, nthreads);
 }
 inline bool fill (ImageBuf &dst, const float *topleft, const float *topright,
                   const float *bottomleft, const float *bottomright,
                   ROI roi={}, int nthreads=0) {
     int nc (roi.defined() ? roi.nchannels() : dst.nchannels());
-    return fill (dst, {topleft, nc}, {topright, nc}, {bottomleft, nc},
-                 {bottomright, nc}, roi, nthreads);
+    return fill (dst, {topleft, static_cast<size_t>(nc)},
+                 {topright, static_cast<size_t>(nc)},
+                 {bottomleft, static_cast<size_t>(nc)},
+                 {bottomright, static_cast<size_t>(nc)}, roi, nthreads);
 }
 
 inline bool checker (ImageBuf &dst, int width, int height, int depth,
@@ -2113,7 +2116,9 @@ inline bool checker (ImageBuf &dst, int width, int height, int depth,
                      int xoffset=0, int yoffset=0, int zoffset=0,
                      ROI roi={}, int nthreads=0) {
     int nc (roi.defined() ? roi.nchannels() : dst.nchannels());
-    return checker (dst, width, height, depth, {color1,nc}, {color2,nc},
+    return checker (dst, width, height, depth,
+                    {color1, static_cast<size_t>(nc)},
+                    {color2, static_cast<size_t>(nc)},
                     xoffset, yoffset, zoffset, roi, nthreads);
 }
 
@@ -2147,18 +2152,19 @@ inline bool mad (ImageBuf &dst, const ImageBuf &A, const ImageBuf &B,
 }
 inline bool mad (ImageBuf &dst, const ImageBuf &A, const float *B,
                  const float *C, ROI roi={}, int nthreads=0) {
-    return mad (dst, A, {B, A.nchannels()}, {C, A.nchannels()}, roi, nthreads);
+    return mad (dst, A, {B, static_cast<size_t>(A.nchannels())},
+                {C, static_cast<size_t>(A.nchannels())}, roi, nthreads);
 }
 
 inline bool pow (ImageBuf &dst, const ImageBuf &A, const float *B,
                  ROI roi={}, int nthreads=0) {
-    return pow (dst, A, {B, A.nchannels()}, roi, nthreads);
+    return pow (dst, A, {B, static_cast<size_t>(A.nchannels())}, roi, nthreads);
 }
 
 inline bool channel_sum (ImageBuf &dst, const ImageBuf &src,
                          const float *weights=nullptr, ROI roi={},
                          int nthreads=0) {
-    return channel_sum (dst, src, {weights, src.nchannels()},
+    return channel_sum (dst, src, {weights, static_cast<size_t>(src.nchannels())},
                         roi, nthreads);
 }
 
@@ -2168,9 +2174,9 @@ inline bool channels (ImageBuf &dst, const ImageBuf &src,
                       const std::string *newchannelnames=nullptr,
                       bool shuffle_channel_names=false, int nthreads=0) {
     return channels (dst, src, nchannels,
-                     { channelorder, channelorder?nchannels:0 },
-                     { channelvalues, channelvalues?nchannels:0 },
-                     { newchannelnames, newchannelnames?nchannels:0},
+                     { channelorder, static_cast<size_t>(channelorder?nchannels:0) },
+                     { channelvalues, static_cast<size_t>(channelvalues?nchannels:0) },
+                     { newchannelnames, static_cast<size_t>(newchannelnames?nchannels:0) },
                      shuffle_channel_names, nthreads);
 }
 
@@ -2178,15 +2184,16 @@ inline bool clamp (ImageBuf &dst, const ImageBuf &src,
                    const float *min=nullptr, const float *max=nullptr,
                    bool clampalpha01 = false,
                    ROI roi={}, int nthreads=0) {
-    return clamp (dst, src, { min, min ? src.nchannels() : 0 },
-                  { max, max ? src.nchannels() : 0 }, clampalpha01,
-                  roi, nthreads);
+    return clamp (dst, src, { min, static_cast<size_t>(min ? src.nchannels() : 0) },
+                  { max, static_cast<size_t>(max ? src.nchannels() : 0) },
+                  clampalpha01, roi, nthreads);
 }
 
 inline bool isConstantColor (const ImageBuf &src, float *color,
                              ROI roi={}, int nthreads=0) {
     int nc = roi.defined() ? std::min(roi.chend,src.nchannels()) : src.nchannels();
-    return isConstantColor (src, {color, color ? nc : 0}, roi, nthreads);
+    return isConstantColor (src, {color, static_cast<size_t>(color ? nc : 0)},
+                            roi, nthreads);
 }
 
 inline bool color_count (const ImageBuf &src, imagesize_t *count,
@@ -2194,8 +2201,8 @@ inline bool color_count (const ImageBuf &src, imagesize_t *count,
                          const float *eps=nullptr,
                          ROI roi={}, int nthreads=0) {
     return color_count (src, count, ncolors,
-                        { color, ncolors*src.nchannels() },
-                        eps ? cspan<float>(eps,src.nchannels()) : cspan<float>(),
+                        { color, static_cast<size_t>(ncolors*src.nchannels()) },
+                        eps ? cspan<float>(eps,static_cast<size_t>(src.nchannels())) : cspan<float>(),
                         roi, nthreads);
 }
 
@@ -2204,7 +2211,8 @@ inline bool color_range_check (const ImageBuf &src, imagesize_t *lowcount,
                                const float *low, const float *high,
                                ROI roi={}, int nthreads=0) {
     return color_range_check (src, lowcount, highcount, inrangecount,
-                              {low,src.nchannels()}, {high,src.nchannels()},
+                              {low,static_cast<size_t>(src.nchannels())},
+                              {high,static_cast<size_t>(src.nchannels())},
                               roi, nthreads);
 }
 
@@ -2212,7 +2220,7 @@ inline bool render_text (ImageBuf &dst, int x, int y, string_view text,
                          int fontsize, string_view fontname,
                          const float *textcolor) {
     return render_text (dst, x, y, text, fontsize, fontname,
-                        {textcolor, textcolor?dst.nchannels():0});
+                        {textcolor, static_cast<size_t>(textcolor?dst.nchannels():0)});
 }
 
 ///////////////////////////////////////////////////////////////////////
