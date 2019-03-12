@@ -69,23 +69,51 @@ dataptr(const TIFFDirEntry& td, cspan<uint8_t> data, int offset_adjustment)
 
 
 struct LabelIndex {
-    int value;
-    const char* label;
+    LabelIndex (int value=-1, const char* label=nullptr)
+        : value(value), label(label) {}
+    int value = -1;
+    const char* label = nullptr;
 };
 
 
-typedef std::string (*ExplainerFunc)(const ParamValue& p,
+
+struct StructLayoutSpec {
+    StructLayoutSpec (int offset=-1, const char* name=nullptr,
+                      TypeDesc type=TypeUnknown, int stringlen=1)
+        : offset(offset), name(name), type(type), stringlen(stringlen) {}
+    int offset;
+    const char* name;
+    TypeDesc type;
+    int stringlen;
+};
+
+
+
+struct ExplanationTableEntry;
+
+typedef std::string (*ExplainerFuncOld)(const ParamValue& p,
                                      const void* extradata);
+typedef std::string (*ExplainerFunc)(const ParamValue& p,
+                                     const ExplanationTableEntry& exp);
 
 struct ExplanationTableEntry {
-    const char* oiioname;
-    ExplainerFunc explainer;
-    const void* extradata;
+    ExplanationTableEntry (const char* oiioname, ExplainerFunc explainer,
+                           cspan<LabelIndex> labeltable={},
+                           const char* text=nullptr)
+        : oiioname(oiioname), explainer(explainer), labeltable(labeltable),
+          text(text) {}
+
+    const char* oiioname = nullptr;
+    ExplainerFunc explainer = nullptr;
+    cspan<LabelIndex> labeltable = {};
+    const char* text = nullptr;
 };
 
 
-std::string explain_justprint (const ParamValue &p, const void *extradata);
-std::string explain_labeltable (const ParamValue &p, const void *extradata);
+std::string explain_justprint (const ParamValue &p,
+                               const ExplanationTableEntry& exp);
+std::string explain_labeltable (const ParamValue &p,
+                                const ExplanationTableEntry& exp);
 
 
 
@@ -126,8 +154,10 @@ const TagMap& tiff_tagmap_ref ();
 const TagMap& exif_tagmap_ref ();
 const TagMap& gps_tagmap_ref ();
 const TagMap& canon_maker_tagmap_ref ();
+const TagMap& sony_maker_tagmap_ref ();
 
 cspan<ExplanationTableEntry> canon_explanation_table ();
+cspan<ExplanationTableEntry> sony_explanation_table ();
 
 
 void append_tiff_dir_entry (std::vector<TIFFDirEntry> &dirs,

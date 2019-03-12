@@ -241,6 +241,7 @@ OIIO_API bool decode_xmp (const std::string& xml, ImageSpec &spec);
 OIIO_API std::string encode_xmp (const ImageSpec &spec, bool minimal=false);
 
 
+
 /// Handy structure to hold information mapping TIFF/EXIF tags to their
 /// names and actions.
 struct TagInfo {
@@ -249,7 +250,7 @@ struct TagInfo {
                                 bool swapendian, int offset_adjustment);
 
     TagInfo (int tag, const char *name, TIFFDataType type,
-             int count, HandlerFunc handler = nullptr) noexcept
+             int count=1, HandlerFunc handler = nullptr) noexcept
         : tifftag(tag), name(name), tifftype(type), tiffcount(count),
           handler(handler) {}
 

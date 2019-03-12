@@ -151,7 +151,7 @@ static LabelIndex canon_exposuremode_table[] = {
 };
 
 static std::string
-explain_canon_flashbits (const ParamValue &p, const void *extradata)
+explain_canon_flashbits (const ParamValue &p, const ExplanationTableEntry& exp)
 {
     int val = p.get_int();
     if (val == 0)
@@ -603,7 +603,7 @@ static const ExplanationTableEntry canon_explanations[] = {
     { "Canon:FocusRange", explain_labeltable, canon_focusrange_table },
     { "Canon:AFPoint", explain_labeltable, canon_afpoint_table },
     { "Canon:ExposureMode", explain_labeltable, canon_exposuremode_table },
-    { "Canon:FlashBits", explain_canon_flashbits, nullptr },
+    { "Canon:FlashBits", explain_canon_flashbits },
     { "Canon:FocusContinuous", explain_labeltable, canon_focuscontinuous_table },
     { "Canon:AESetting", explain_labeltable, canon_aesetting_table },
     { "Canon:ImageStabilization", explain_labeltable, canon_imagestabilization_table },

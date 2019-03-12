@@ -10,12 +10,15 @@ Reading ../../../../../oiio-images/tahoe-gps.jpg
     XResolution: 72
     YResolution: 72
     Exif:ColorSpace: 1
+    Exif:ComponentsConfiguration: 1, 2, 3, 0
     Exif:DateTimeDigitized: "2009:02:21 08:32:04"
     Exif:DateTimeOriginal: "2009:02:21 08:32:04"
     Exif:ExifVersion: "0220"
+    Exif:FileSource: 3 (digital camera)
     Exif:FlashPixVersion: "0100"
     Exif:PixelXDimension: 2048
     Exif:PixelYDimension: 1536
+    Exif:SceneType: 1 (directly photographed)
     Exif:WhiteBalance: 0 (auto)
     Exif:YCbCrPositioning: 1
     GPS:Altitude: 0 (0 m)
@@ -26,6 +29,7 @@ Reading ../../../../../oiio-images/tahoe-gps.jpg
     GPS:Longitude: 120, 20, 6.25
     GPS:LongitudeRef: "W"
     GPS:MapDatum: "WGS-84"
+    GPS:ProcessingMethod: 65, 83, 67, 73, 73, 0, 0, 0, 72, 89, 66, 82, 73, 68, 45, 70, ... [18 x uint8]
     GPS:TimeStamp: 17, 56, 33
     GPS:VersionID: 2, 2, 0, 0
     jpeg:subsampling: "4:2:0"
@@ -41,6 +45,7 @@ tahoe-gps.jpg        : 2048 x 1536, 3 channel, uint8 jpeg
     XResolution: 72
     YResolution: 72
     Exif:ColorSpace: 1
+    Exif:ComponentsConfiguration: 1, 2, 3, 0
     Exif:ExifVersion: "0230"
     Exif:FlashPixVersion: "0100"
     Exif:PixelXDimension: 2048

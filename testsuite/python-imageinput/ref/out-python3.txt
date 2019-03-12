@@ -21,10 +21,13 @@ Opened "../../../../../oiio-images/tahoe-gps.jpg" as a jpeg
   Exif:ExifVersion = "0220"
   Exif:DateTimeOriginal = "2009:02:21 08:32:04"
   Exif:DateTimeDigitized = "2009:02:21 08:32:04"
+  Exif:ComponentsConfiguration = None
   Exif:FlashPixVersion = "0100"
   Exif:ColorSpace = 1
   Exif:PixelXDimension = 2048
   Exif:PixelYDimension = 1536
+  Exif:FileSource = 3
+  Exif:SceneType = 1
   Exif:WhiteBalance = 0
   GPS:VersionID = None
   GPS:LatitudeRef = "N"
@@ -35,6 +38,7 @@ Opened "../../../../../oiio-images/tahoe-gps.jpg" as a jpeg
   GPS:Altitude = 0.0
   GPS:TimeStamp = (17.0, 56.0, 33.0)
   GPS:MapDatum = "WGS-84"
+  GPS:ProcessingMethod = None
   GPS:DateStamp = "1915:08:08"
 
 Opened "grid.tx" as a tiff

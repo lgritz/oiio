@@ -14,6 +14,7 @@ ref/IMG_7702_small.heic :  512 x  300, 3 channel, uint8 heif
     Exif:ApertureValue: 1.69599 (f/1.8)
     Exif:BrightnessValue: 3.99501
     Exif:ColorSpace: 65535
+    Exif:ComponentsConfiguration: 1, 2, 3, 0
     Exif:DateTimeDigitized: "2019:01:21 16:10:54"
     Exif:DateTimeOriginal: "2019:01:21 16:10:54"
     Exif:ExifVersion: "0221"
@@ -32,6 +33,7 @@ ref/IMG_7702_small.heic :  512 x  300, 3 channel, uint8 heif
     Exif:PixelXDimension: 4032
     Exif:PixelYDimension: 3024
     Exif:SceneCaptureType: 0 (standard)
+    Exif:SceneType: 1 (directly photographed)
     Exif:SensingMethod: 2 (1-chip color area)
     Exif:ShutterSpeedValue: 5.03599 (1/32 s)
     Exif:SubsecTimeDigitized: "006"

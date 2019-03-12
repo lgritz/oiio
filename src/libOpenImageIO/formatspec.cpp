@@ -571,13 +571,13 @@ ImageSpec::channelindex(string_view name) const
 
 
 std::string
-pvt::explain_justprint(const ParamValue& p, const void* extradata)
+pvt::explain_justprint(const ParamValue& p, const ExplanationTableEntry& exp)
 {
-    return p.get_string() + " " + std::string((const char*)extradata);
+    return p.get_string() + " " + std::string(exp.text);
 }
 
 std::string
-pvt::explain_labeltable(const ParamValue& p, const void* extradata)
+pvt::explain_labeltable(const ParamValue& p, const ExplanationTableEntry& exp)
 {
     int val;
     auto b = p.type().basetype;
@@ -588,9 +588,9 @@ pvt::explain_labeltable(const ParamValue& p, const void* extradata)
         val = (int)**(const char**)p.data();
     else
         return std::string();
-    for (const LabelIndex* lt = (const LabelIndex*)extradata; lt->label; ++lt)
-        if (val == lt->value && lt->label)
-            return std::string(lt->label);
+    for (auto&& lt : exp.labeltable)
+        if (val == lt.value && lt.label)
+            return std::string(lt.label);
     return std::string();  // nothing
 }
 
@@ -601,7 +601,7 @@ namespace {  // make an anon namespace
 // clang-format off
 
 static std::string
-explain_shutterapex(const ParamValue& p, const void* extradata)
+explain_shutterapex(const ParamValue& p, const ExplanationTableEntry& exp)
 {
     if (p.type() == TypeDesc::FLOAT) {
         double val = pow(2.0, -(double)*(float*)p.data());
@@ -614,7 +614,7 @@ explain_shutterapex(const ParamValue& p, const void* extradata)
 }
 
 static std::string
-explain_apertureapex(const ParamValue& p, const void* extradata)
+explain_apertureapex(const ParamValue& p, const ExplanationTableEntry& exp)
 {
     if (p.type() == TypeDesc::FLOAT)
         return Strutil::sprintf("f/%2.1f", powf(2.0f, *(float*)p.data() / 2.0f));
@@ -622,7 +622,7 @@ explain_apertureapex(const ParamValue& p, const void* extradata)
 }
 
 static std::string
-explain_ExifFlash(const ParamValue& p, const void* extradata)
+explain_ExifFlash(const ParamValue& p, const ExplanationTableEntry& exp)
 {
     int val = p.get_int();
     return Strutil::sprintf("%s%s%s%s%s%s%s%s",
@@ -778,15 +778,15 @@ static ExplanationTableEntry explanation[] = {
     { "ResolutionUnit", explain_labeltable, resunit_table },
     { "Orientation", explain_labeltable, orientation_table },
     { "Exif:ExposureProgram", explain_labeltable, ExifExposureProgram_table },
-    { "Exif:ShutterSpeedValue", explain_shutterapex, NULL },
-    { "Exif:ApertureValue", explain_apertureapex, NULL },
-    { "Exif:MaxApertureValue", explain_apertureapex, NULL },
-    { "Exif:SubjectDistance", explain_justprint, "m" },
+    { "Exif:ShutterSpeedValue", explain_shutterapex },
+    { "Exif:ApertureValue", explain_apertureapex },
+    { "Exif:MaxApertureValue", explain_apertureapex },
+    { "Exif:SubjectDistance", explain_justprint, {}, "m" },
     { "Exif:MeteringMode", explain_labeltable, ExifMeteringMode_table },
     { "Exif:LightSource", explain_labeltable, ExifLightSource_table },
-    { "Exif:Flash", explain_ExifFlash, NULL },
-    { "Exif:FocalLength", explain_justprint, "mm" },
-    { "Exif:FlashEnergy", explain_justprint, "BCPS" },
+    { "Exif:Flash", explain_ExifFlash },
+    { "Exif:FocalLength", explain_justprint, {}, "mm" },
+    { "Exif:FlashEnergy", explain_justprint, {}, "BCPS" },
     { "Exif:FocalPlaneResolutionUnit", explain_labeltable, resunit_table },
     { "Exif:SensingMethod", explain_labeltable, ExifSensingMethod_table },
     { "Exif:FileSource", explain_labeltable, ExifFileSource_table },
@@ -802,7 +802,7 @@ static ExplanationTableEntry explanation[] = {
     { "Exif:SubjectDistanceRange", explain_labeltable, ExifSubjectDistanceRange_table },
     { "Exif:SensitivityType", explain_labeltable, ExifSensitivityType_table },
     { "GPS:AltitudeRef", explain_labeltable, GPSAltitudeRef_table },
-    { "GPS:Altitude", explain_justprint, "m" },
+    { "GPS:Altitude", explain_justprint, {}, "m" },
     { "GPS:Status", explain_labeltable, GPSStatus_table },
     { "GPS:MeasureMode", explain_labeltable, GPSMeasureMode_table },
     { "GPS:SpeedRef", explain_labeltable, GPSSpeedRef_table },
@@ -811,7 +811,6 @@ static ExplanationTableEntry explanation[] = {
     { "GPS:DestBearingRef", explain_labeltable, magnetic_table },
     { "GPS:DestDistanceRef", explain_labeltable, GPSDestDistanceRef_table },
     { "GPS:Differential", explain_labeltable, yesno_table },
-    { nullptr, nullptr, nullptr }
 };
 
 // clang-format on
@@ -841,8 +840,13 @@ ImageSpec::metadata_val(const ParamValue& p, bool human)
                 if (Strutil::iequals(e.oiioname, p.name()))
                     exp = &e;
         }
+        if (!exp && Strutil::istarts_with(p.name(), "Sony:")) {
+            for (const auto& e : sony_explanation_table())
+                if (Strutil::iequals(e.oiioname, p.name()))
+                    exp = &e;
+        }
         if (exp)
-            nice = exp->explainer(p, exp->extradata);
+            nice = exp->explainer(p, *exp);
         if (ptype.elementtype() == TypeRational) {
             for (int i = 0, n = (int)ptype.numelements(); i < n; ++i) {
                 if (i)
@@ -996,8 +1000,7 @@ spec_to_xml(const ImageSpec& spec, ImageSpec::SerialVerbose verbose)
             for (int e = 0; explanation[e].oiioname; ++e) {
                 if (!strcmp(explanation[e].oiioname, p.name().c_str())
                     && explanation[e].explainer) {
-                    desc = explanation[e].explainer(p,
-                                                    explanation[e].extradata);
+                    desc = explanation[e].explainer(p, explanation[e]);
                     break;
                 }
             }

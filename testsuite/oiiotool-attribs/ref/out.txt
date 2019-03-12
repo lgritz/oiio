@@ -8,6 +8,7 @@ nomake.jpg           : 2048 x 1536, 3 channel, uint8 jpeg
     XResolution: 72
     YResolution: 72
     Exif:ColorSpace: 1
+    Exif:ComponentsConfiguration: 1, 2, 3, 0
     Exif:ExifVersion: "0230"
     Exif:FlashPixVersion: "0100"
     Exif:PixelXDimension: 2048
@@ -37,6 +38,7 @@ nogps.jpg            : 2048 x 1536, 3 channel, uint8 jpeg
     XResolution: 72
     YResolution: 72
     Exif:ColorSpace: 1
+    Exif:ComponentsConfiguration: 1, 2, 3, 0
     Exif:ExifVersion: "0230"
     Exif:FlashPixVersion: "0100"
     Exif:PixelXDimension: 2048
@@ -49,6 +51,7 @@ Reading noattribs.jpg
 noattribs.jpg        : 2048 x 1536, 3 channel, uint8 jpeg
     SHA-1: 2623446988E34395C6B0A4AA4FC75107C708BF18
     channel list: R, G, B
+    Exif:ComponentsConfiguration: 1, 2, 3, 0
     Exif:ExifVersion: "0230"
     Exif:FlashPixVersion: "0100"
     jpeg:subsampling: "4:2:0"

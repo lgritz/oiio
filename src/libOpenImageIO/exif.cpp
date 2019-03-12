@@ -387,6 +387,12 @@ makernote_handler(const TagInfo& taginfo, const TIFFDirEntry& dir,
         decode_ifd((unsigned char*)buf.data() + dir.tdir_offset, buf, spec,
                    pvt::canon_maker_tagmap_ref(), offsets_seen, swapendian,
                    offset_adjustment);
+    } else if (spec.get_string_attribute("Make") == "Sony") {
+        std::vector<size_t> ifdoffsets { 0 };
+        std::set<size_t> offsets_seen;
+        decode_ifd((unsigned char*)buf.data() + dir.tdir_offset, buf, spec,
+                   pvt::sony_maker_tagmap_ref(), offsets_seen, swapendian,
+                   offset_adjustment);
     } else {
         // Maybe we just haven't parsed the Maker metadata yet?
         // Allow a second try later by just stashing the maker note offset.
@@ -675,9 +681,25 @@ add_exif_item_to_spec(ImageSpec& spec, const char* name,
         spec.attribute(name, type, d.data());
         return;
     }
+    if (dirp->tdir_type == TIFF_SSHORT) {
+        std::vector<int16_t> d((const int16_t*)dataptr,
+                               (const int16_t*)dataptr + dirp->tdir_count);
+        if (swab)
+            swap_endian(d.data(), d.size());
+        spec.attribute(name, type, d.data());
+        return;
+    }
     if (dirp->tdir_type == TIFF_LONG) {
         std::vector<uint32_t> d((const uint32_t*)dataptr,
                                 (const uint32_t*)dataptr + dirp->tdir_count);
+        if (swab)
+            swap_endian(d.data(), d.size());
+        spec.attribute(name, type, d.data());
+        return;
+    }
+    if (dirp->tdir_type == TIFF_SLONG) {
+        std::vector<int32_t> d((const int32_t*)dataptr,
+                               (const int32_t*)dataptr + dirp->tdir_count);
         if (swab)
             swap_endian(d.data(), d.size());
         spec.attribute(name, type, d.data());
@@ -732,23 +754,22 @@ add_exif_item_to_spec(ImageSpec& spec, const char* name,
         spec.attribute(name, str);
         return;
     }
-    if (dirp->tdir_type == TIFF_BYTE && dirp->tdir_count == 1) {
+    if ((dirp->tdir_type == TIFF_UNDEFINED || dirp->tdir_type == TIFF_BYTE)
+        && dirp->tdir_count == 1) {
         // Not sure how to handle "bytes" generally, but certainly for just
         // one, add it as an int.
-        unsigned char d;
-        d = *dataptr;  // byte stored in offset itself
-        spec.attribute(name, (int)d);
+        spec.attribute(name, (int)(*dataptr));
         return;
     }
-
-#if 0
     if (dirp->tdir_type == TIFF_UNDEFINED || dirp->tdir_type == TIFF_BYTE) {
         // Add it as bytes
-        const void *addr = dirp->tdir_count <= 4 ? (const void *) &dirp->tdir_offset 
-                                                 : (const void *) &buf[dirp->tdir_offset];
-        spec.attribute (name, TypeDesc(TypeDesc::UINT8, dirp->tdir_count), addr);
+        if (dirp->tdir_count == 1)
+            spec.attribute(name, (int)(*dataptr));
+        else if (dirp->tdir_count > 1)
+            spec.attribute(name, TypeDesc(TypeDesc::UINT8, dirp->tdir_count),
+                           dataptr);
+        return;
     }
-#endif
 
 #if !defined(NDEBUG) || DEBUG_EXIF_UNHANDLED
     std::cerr << "add_exif_item_to_spec: didn't know how to process " << name
@@ -990,10 +1011,20 @@ encode_exif_entry(const ParamValue& p, int tag, std::vector<TIFFDirEntry>& dirs,
                 p, dirs, data, tag, type, offset_correction, endianreq))
             return;
         break;
+    case TIFF_SSHORT:
+        if (append_tiff_dir_entry_integer<short>(p, dirs, data, tag, type,
+                                                 offset_correction, endianreq))
+            return;
+        break;
     case TIFF_LONG:
         if (append_tiff_dir_entry_integer<unsigned int>(p, dirs, data, tag,
                                                         type, offset_correction,
                                                         endianreq))
+            return;
+        break;
+    case TIFF_SLONG:
+        if (append_tiff_dir_entry_integer<int>(p, dirs, data, tag, type,
+                                               offset_correction, endianreq))
             return;
         break;
     case TIFF_BYTE:
@@ -1172,6 +1203,11 @@ decode_exif(cspan<uint8_t> exif, ImageSpec& spec)
         if (Strutil::iequals(spec.get_string_attribute("Make"), "Canon")) {
             decode_ifd((unsigned char*)exif.data() + makernote_offset, exif,
                        spec, pvt::canon_maker_tagmap_ref(), ifd_offsets_seen,
+                       swab);
+        }
+        if (Strutil::iequals(spec.get_string_attribute("Make"), "Sony")) {
+            decode_ifd((unsigned char*)exif.data() + makernote_offset, exif,
+                       spec, pvt::sony_maker_tagmap_ref(), ifd_offsets_seen,
                        swab);
         }
         // Now we can erase the attrib we used to pass the message about
