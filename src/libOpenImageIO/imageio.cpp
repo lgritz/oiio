@@ -642,6 +642,12 @@ convert_pixel_values(TypeDesc src_type, const void* src, TypeDesc dst_type,
         return true;
     }
 
+    if (src_type == TypeUInt16 && dst_type == TypeUInt8) {
+        // Special case: uint16 -> uint8
+        convert_type((const uint16_t*)src, (uint8_t*)dst, n);
+        return true;
+    }
+
     // Conversion is to a non-float type
 
     std::unique_ptr<float[]> tmp;  // In case we need a lot of temp space
@@ -698,14 +704,27 @@ convert_image(int nchannels, int width, int height, int depth, const void* src,
     ImageSpec::auto_stride(dst_xstride, dst_ystride, dst_zstride, dst_type,
                            nchannels, width, height);
     bool result = true;
-    bool contig = (src_xstride == stride_t(nchannels * src_type.size())
-                   && dst_xstride == stride_t(nchannels * dst_type.size()));
+    bool contigx = (src_xstride == stride_t(nchannels * src_type.size())
+                    && dst_xstride == stride_t(nchannels * dst_type.size()));
+    bool contigy = (src_ystride == stride_t(src_xstride*width)
+                    && dst_ystride == stride_t(dst_xstride*width));
     for (int z = 0; z < depth; ++z) {
+        if (contigx && contigy) {
+            // Each z plane is contiguous in both src and dst and we're
+            // copying all channels.  Be efficient by converting each
+            // plane as a single unit.  (Note that within convert_types,
+            // a memcpy will be used if the formats are identical.)
+            const char* f = (const char*)src + (z * src_zstride);
+            char* t = (char*)dst + (z * dst_zstride);
+            result &= convert_types(src_type, f, dst_type, t,
+                                    nchannels * width * height);
+            continue;
+        }
         for (int y = 0; y < height; ++y) {
             const char* f = (const char*)src
                             + (z * src_zstride + y * src_ystride);
             char* t = (char*)dst + (z * dst_zstride + y * dst_ystride);
-            if (contig) {
+            if (contigx) {
                 // Special case: pixels within each row are contiguous
                 // in both src and dst and we're copying all channels.
                 // Be efficient by converting each scanline as a single

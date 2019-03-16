@@ -948,6 +948,16 @@ inline void convert_type<uint16_t,float> (const uint16_t *src,
 }
 
 
+template<>
+inline void convert_type<uint16_t,uint8_t> (const uint16_t* src,
+                                            uint8_t* dst, size_t n,
+                                            uint8_t _min, uint8_t _max)
+{
+    while (n--)
+        *dst++ = (*src++) >> 8;
+}
+
+
 #ifdef _HALF_H_
 template<>
 inline void convert_type<half,float> (const half *src,
