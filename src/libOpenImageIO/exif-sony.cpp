@@ -192,6 +192,32 @@ sony_shotinfo_handler (const TagInfo& taginfo, const TIFFDirEntry& dir,
 
 
 
+static const TagInfo sony_9050_tag_table[] = {
+    { 0x9999, "XXX", TIFF_LONG }
+};
+
+static TagMap sony_9050_tag_map("Sony9050", sony_9050_tag_table);
+
+static void
+sony_9050_handler (const TagInfo& taginfo, const TIFFDirEntry& dir,
+                   cspan<uint8_t> buf, ImageSpec& spec,
+                   bool swapendian, int offset_adjustment)
+{
+    std::cerr << "> Found 9050, type=" << dir.tdir_type << ", size=" << dir.tdir_count
+        << ", offset=" << dir.tdir_offset << "\n";
+    std::cerr << "> entries=" << dir.tdir_count/sizeof(TIFFDirEntry) << "\n";
+    auto p = (unsigned char*)buf.data() + dir.tdir_offset;
+    for (int i = 0 ; i < dir.tdir_count ; ++i)
+        Strutil::fprintf(stderr, "%02x%c", p[i], ((i+1)%12) == 0 ? '\n' : ' ');
+    Strutil::fprintf(stderr, "\n");
+    std::set<size_t> ifd_offsets_seen;
+    decode_ifd((unsigned char*)buf.data() + dir.tdir_offset, buf, spec,
+               sony_9050_tag_map, ifd_offsets_seen, swapendian,
+               dir.tdir_offset+offset_adjustment, true);
+}
+
+
+
 static const TagInfo sony_maker_tag_table[] = {
 //    { 0x0010, "Sony:CameraInfo", TIFF_X },
 //    { 0x0020, "Sony:FocusInfo", TIFF_X },
@@ -248,7 +274,7 @@ static const TagInfo sony_maker_tag_table[] = {
     { 0x2031, "Sony:SerialNumber", TIFF_ASCII },
     { 0x3000, "Sony:ShotInfo", TIFF_NOTYPE, 0, sony_shotinfo_handler },
 //     { 0x900b, "Sony:Tag900b", TIFF_X },
-//     { 0x9050, "Sony:Tag9050", TIFF_X },
+     { 0x9050, "Sony:Tag9050", TIFF_NOTYPE, 0, sony_9050_handler },
 //     { 0x9400, "Sony:Tag9400", TIFF_X },
 //     { 0x9401, "Sony:Tag9401", TIFF_X },
 //     { 0x9402, "Sony:Tag9402", TIFF_X },

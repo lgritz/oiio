@@ -170,7 +170,11 @@ void append_tiff_dir_entry (std::vector<TIFFDirEntry> &dirs,
 void decode_ifd (const unsigned char *ifd, cspan<uint8_t> buf,
                  ImageSpec &spec, const TagMap& tag_map,
                  std::set<size_t>& ifd_offsets_seen, bool swab=false,
-                 int offset_adjustment=0);
+                 int offset_adjustment=0, bool debug_only=false);
+
+void decode_header_and_ifd (const unsigned char *headptr, cspan<uint8_t> buf,
+                            ImageSpec &spec, const TagMap& tag_map,
+                            int offset_adjustment=0, bool debug_only=false);
 
 void encode_canon_makernote (std::vector<char>& exifblob,
                              std::vector<TIFFDirEntry> &exifdirs,

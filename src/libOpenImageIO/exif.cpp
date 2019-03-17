@@ -257,7 +257,6 @@ tiff_dir_data(const TIFFDirEntry& td, cspan<uint8_t> data)
 
 
 
-#if DEBUG_EXIF_READ || DEBUG_EXIF_WRITE
 static bool
 print_dir_entry(std::ostream& out, const TagMap& tagmap,
                 const TIFFDirEntry& dir, cspan<uint8_t> buf,
@@ -316,6 +315,7 @@ print_dir_entry(std::ostream& out, const TagMap& tagmap,
 
 
 
+#if DEBUG_EXIF_READ || DEBUG_EXIF_WRITE
 // debugging
 static std::string
 dumpdata(cspan<uint8_t> blob, cspan<size_t> ifdoffsets, size_t start,
@@ -388,7 +388,6 @@ makernote_handler(const TagInfo& taginfo, const TIFFDirEntry& dir,
                    pvt::canon_maker_tagmap_ref(), offsets_seen, swapendian,
                    offset_adjustment);
     } else if (spec.get_string_attribute("Make") == "Sony") {
-        std::vector<size_t> ifdoffsets { 0 };
         std::set<size_t> offsets_seen;
         decode_ifd((unsigned char*)buf.data() + dir.tdir_offset, buf, spec,
                    pvt::sony_maker_tagmap_ref(), offsets_seen, swapendian,
@@ -792,14 +791,14 @@ add_exif_item_to_spec(ImageSpec& spec, const char* name,
 static void
 read_exif_tag(ImageSpec& spec, const TIFFDirEntry* dirp, cspan<uint8_t> buf,
               bool swab, int offset_adjustment,
-              std::set<size_t>& ifd_offsets_seen, const TagMap& tagmap)
+              std::set<size_t>& ifd_offsets_seen, const TagMap& tagmap,
+              bool debug_only = false)
 {
     if ((const uint8_t*)dirp < buf.data()
         || (const uint8_t*)dirp + sizeof(TIFFDirEntry)
                >= buf.data() + buf.size()) {
-#if DEBUG_EXIF_READ
-        std::cerr << "Ignoring directory outside of the buffer.\n";
-#endif
+        if (debug_only || DEBUG_EXIF_READ)
+            std::cerr << "Ignoring directory outside of the buffer.\n";
         return;
     }
 
@@ -810,6 +809,9 @@ read_exif_tag(ImageSpec& spec, const TIFFDirEntry* dirp, cspan<uint8_t> buf,
     // if necessary.
     TIFFDirEntry dir = *dirp;
     if (swab) {
+        // if (debug_only)
+        //     Strutil::printf("DBG Dir: tag=%d, type=%d, count=%d\n",
+        //                     dir.tdif_tag, dir.tdir_type, dir.tdir_count);
         swap_endian(&dir.tdir_tag);
         swap_endian(&dir.tdir_type);
         swap_endian(&dir.tdir_count);
@@ -818,10 +820,12 @@ read_exif_tag(ImageSpec& spec, const TIFFDirEntry* dirp, cspan<uint8_t> buf,
             swap_endian(&dir.tdir_offset);
     }
 
-#if DEBUG_EXIF_READ
-    std::cerr << "Read " << tagmap.mapname() << " ";
-    print_dir_entry(std::cerr, tagmap, dir, buf, offset_adjustment);
-#endif
+    if (debug_only || DEBUG_EXIF_READ) {
+        std::cerr << "Read " << tagmap.mapname() << " ";
+        print_dir_entry(std::cerr, tagmap, dir, buf, offset_adjustment);
+        if (debug_only)
+            return;
+    }
 
     if (dir.tdir_tag == TIFFTAG_EXIFIFD || dir.tdir_tag == TIFFTAG_GPSIFD) {
         // Special case: It's a pointer to a private EXIF directory.
@@ -1049,17 +1053,41 @@ encode_exif_entry(const ParamValue& p, int tag, std::vector<TIFFDirEntry>& dirs,
 void
 pvt::decode_ifd(const unsigned char* ifd, cspan<uint8_t> buf, ImageSpec& spec,
                 const TagMap& tag_map, std::set<size_t>& ifd_offsets_seen,
-                bool swab, int offset_adjustment)
+                bool swab, int offset_adjustment, bool debug_only)
 {
     // Read the directory that the header pointed to.  It should contain
     // some number of directory entries containing tags to process.
     unsigned short ndirs = *(const unsigned short*)ifd;
     if (swab)
         swap_endian(&ndirs);
-    for (int d = 0; d < ndirs; ++d)
-        read_exif_tag(spec,
-                      (const TIFFDirEntry*)(ifd + 2 + d * sizeof(TIFFDirEntry)),
-                      buf, swab, offset_adjustment, ifd_offsets_seen, tag_map);
+    const TIFFDirEntry* dirp = (const TIFFDirEntry*)(ifd + 2);
+    for (int d = 0; d < ndirs; ++d, ++dirp)
+        read_exif_tag(spec, dirp, buf, swab, offset_adjustment,
+                      ifd_offsets_seen, tag_map, debug_only);
+}
+
+
+
+void
+pvt::decode_header_and_ifd(const unsigned char* headptr, cspan<uint8_t> buf,
+                           ImageSpec& spec, const TagMap& tag_map,
+                           int offset_adjustment, bool debug_only)
+{
+    TIFFHeader head = *(const TIFFHeader*)headptr;
+    if (head.tiff_magic != 0x4949 && head.tiff_magic != 0x4d4d)
+        return;
+    bool host_little = littleendian();
+    bool file_little = (head.tiff_magic == 0x4949);
+    bool swab        = (host_little != file_little);
+    if (swab)
+        swap_endian(&head.tiff_diroff);
+
+    const unsigned char* ifd = (headptr + head.tiff_diroff);
+    // keep track of IFD offsets we've already seen to avoid infinite
+    // recursion if there are circular references.
+    std::set<size_t> ifd_offsets_seen;
+    decode_ifd(ifd, buf, spec, exif_tagmap_ref(), ifd_offsets_seen, swab,
+               offset_adjustment, debug_only);
 }
 
 
@@ -1206,6 +1234,14 @@ decode_exif(cspan<uint8_t> exif, ImageSpec& spec)
                        swab);
         }
         if (Strutil::iequals(spec.get_string_attribute("Make"), "Sony")) {
+            std::cout << "Red sony maker 1\n";
+    auto p = (unsigned char*)exif.data() + makernote_offset;
+    for (int i = 0 ; i < 16 ; ++i)
+        Strutil::fprintf(stderr, "%02x%c%c", p[i], p[i], ((i+1)%12) == 0 ? '\n' : ' ');
+    Strutil::fprintf(stderr, "\n");
+
+            if (string_view((char*)p,8) == "SONY DSC")
+                makernote_offset += 12;
             decode_ifd((unsigned char*)exif.data() + makernote_offset, exif,
                        spec, pvt::sony_maker_tagmap_ref(), ifd_offsets_seen,
                        swab);
