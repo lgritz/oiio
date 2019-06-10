@@ -264,7 +264,7 @@ namespace {  // anonymous
 static UstringTable&
 ustring_table()
 {
-    static OIIO_CACHE_ALIGN UstringTable table;
+    OIIO_NODESTROY OIIO_CACHE_ALIGN static UstringTable table;
     return table;
 }
 

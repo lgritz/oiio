@@ -425,6 +425,27 @@
 #endif
 
 
+// OIIO_NODESTROY before a static or thread-local storage object does not
+// need its exit-time destructor run. This has two possible advantages: (1)
+// it saves time at exit by skipping an expensive tear-down of a complex
+// data structure that is unnecessary because the application is about to
+// terminate; and (2) it can alleviate the "static destructor order fiasco"
+// by marking a data structure as perpetual, even as other modules are
+// shutting down. Note, though, that this should not be 100% relied upon
+// because its implementation is only available in some compilers.
+#if __has_cpp_attribute(no_destroy)
+#    define OIIO_NODESTROY [[no_destroy]]
+#elif __has_cpp_attribute(clang::no_destroy) || OIIO_CLANG_VERSION >= 80000 || OIIO_APPLE_CLANG_VERSION >= 100000
+#    define OIIO_NODESTROY [[clang::no_destroy]]
+#elif defined(__GNUC__)
+#    define OIIO_NODESTROY /* Is there a GCC equivalent? */
+#elif defined(_MSC_VER)
+#    define OIIO_NODESTROY /* Is there an MSVS equivalent? */
+#else
+#    define OIIO_NODESTROY
+#endif
+
+
 // OIIO_HOSTDEVICE is used before a function declaration to supply the
 // function decorators needed when compiling for CUDA devices.
 #ifdef __CUDACC__
