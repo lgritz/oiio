@@ -160,6 +160,7 @@ public:
     constexpr index_type size() const noexcept { return m_size; }
     constexpr index_type size_bytes() const noexcept { return m_size*sizeof(T); }
     constexpr bool empty() const noexcept { return m_size == 0; }
+    constexpr ptrdiff_t ssize() const noexcept { return ptrdiff_t(m_size); }
 
     constexpr pointer data() const noexcept { return m_data; }
 
