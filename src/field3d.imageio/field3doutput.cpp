@@ -236,8 +236,9 @@ Field3DOutput::put_parameter(const std::string& name, TypeDesc type,
 
     // Before handling general named metadata, suppress non-openexr
     // format-specific metadata.
-    if (const char* colon = strchr(name.c_str(), ':')) {
-        std::string prefix(name.c_str(), colon);
+    auto spl = Strutil::splitsv(name, ":", 2);
+    if (spl.size() > 1) {
+        string_view prefix = spl[0];
         if (!Strutil::iequals(prefix, "openexr")) {
             if (!format_prefixes_initialized) {
                 // Retrieve and split the list, only the first time

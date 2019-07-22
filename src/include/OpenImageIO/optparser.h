@@ -22,35 +22,25 @@ OIIO_NAMESPACE_BEGIN
 /// system.attribute (name, value), with appropriate type conversions.
 template<class C>
 inline bool
-optparse1(C& system, const std::string& opt)
+optparse1(C& system, string_view opt)
 {
-    std::string::size_type eq_pos = opt.find_first_of("=");
-    if (eq_pos == std::string::npos) {
-        // malformed option
-        return false;
-    }
-    std::string name(opt, 0, eq_pos);
-    // trim the name
-    while (name.size() && name[0] == ' ')
-        name.erase(0);
-    while (name.size() && name[name.size() - 1] == ' ')
-        name.erase(name.size() - 1);
-    std::string value(opt, eq_pos + 1, std::string::npos);
+    auto pieces = Strutil::splitsv(opt, "=", 2);
+    if (pieces.size() < 2)
+        return false;  // malformed option
+    string_view name = pieces[0], value = pieces[1];
+    Strutil::trim_whitespace(name);
     if (name.empty())
         return false;
-    char v = value.size() ? value[0] : ' ';
-    if ((v >= '0' && v <= '9') || v == '+' || v == '-') {  // numeric
-        if (strchr(value.c_str(), '.'))
-            return system.attribute(name, Strutil::stof(value));  // float
-        else
-            return system.attribute(name, Strutil::stoi(value));  // int
-    }
+    if (Strutil::string_is_int(value))
+        return system.attribute(name, Strutil::stoi(value));
+    if (Strutil::string_is_float(value))
+        return system.attribute(name, Strutil::stof(value));
     // otherwise treat it as a string
 
     // trim surrounding double quotes
     if (value.size() >= 2 && (value[0] == '\"' || value[0] == '\'')
         && value[value.size() - 1] == value[0])
-        value = std::string(value, 1, value.size() - 2);
+        value = value.substr(1, value.size() - 2);
 
     return system.attribute(name, value);
 }
