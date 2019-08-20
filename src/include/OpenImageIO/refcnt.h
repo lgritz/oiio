@@ -76,7 +76,9 @@ public:
     /// Move assignment from intrusive_ptr
     intrusive_ptr& operator=(intrusive_ptr&& r) noexcept
     {
-        intrusive_ptr(static_cast<intrusive_ptr&&>(r)).swap(*this);
+        reset();
+        m_ptr = r.m_ptr;
+        r.m_ptr = nullptr;
         return *this;
     }
 
@@ -184,12 +186,16 @@ protected:
 
 public:
     /// Add a reference
-    ///
-    void _incref() const { ++m_refcnt; }
+    void _incref() const { m_refcnt.fetch_add(1, std::memory_order_relaxed); }
 
     /// Delete a reference, return true if that was the last reference.
-    ///
-    bool _decref() const { return (--m_refcnt) == 0; }
+    bool _decref() const
+    {
+        return m_refcnt.fetch_sub(1, std::memory_order_release) == 1;
+    }
+
+    /// Return a const reference to the reference count. Use with caution!
+    const atomic_int& _refcnt() const { return m_refcnt; }
 
     /// Define operator= to NOT COPY reference counts!  Assigning a struct
     /// doesn't change how many other things point to it.
@@ -216,8 +222,24 @@ template<class T>
 inline void
 intrusive_ptr_release(T* x)
 {
-    if (x->_decref())
+#if (defined(__x86_64__) || defined(__i386__))
+    // Exploit the fact that (a) on x86 family, int reads are atomic, (b) if
+    // the ref count is 1, it's just US with a reference. Therefore if we do
+    // a fast non-bus-locking read and see ref count 1, we're done, no need
+    // for a true atomic decrement or other bus synchronization for the
+    // extremely common case of the last/only shared ptr being decremented.
+    if (*(int*)(&x->_refcnt()) == 1) {
+        goto free_it;
+        // Yes, we use the dreaded "goto" here in order to avoid a second
+        // inline expansion of the call to delete and implied destructor of
+        // *x. That wouuld just be wasted instruction cache space.
+    }
+#endif
+    if (x->_decref()) {
+        std::atomic_thread_fence(std::memory_order_acquire);
+    free_it:
         delete x;
+    }
 }
 
 // Note that intrusive_ptr_add_ref and intrusive_ptr_release MUST be a
