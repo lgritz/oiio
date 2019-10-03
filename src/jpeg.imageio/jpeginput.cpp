@@ -288,13 +288,13 @@ JpgInput::open(const std::string& name, ImageSpec& newspec)
         m_spec.attribute(JPEG_SUBSAMPLING_ATTR, subsampling);
 
     for (jpeg_saved_marker_ptr m = m_cinfo.marker_list; m; m = m->next) {
-        if (m->marker == (JPEG_APP0 + 1)
+        if (m->marker == (JPEG_APP0 + 1) && m->data_length > 4
             && !strcmp((const char*)m->data, "Exif")) {
             // The block starts with "Exif\0\0", so skip 6 bytes to get
             // to the start of the actual Exif data TIFF directory
             decode_exif(string_view((char*)m->data + 6, m->data_length - 6),
                         m_spec);
-        } else if (m->marker == (JPEG_APP0 + 1)
+        } else if (m->marker == (JPEG_APP0 + 1) && m->data_length > 28
                    && !strcmp((const char*)m->data,
                               "http://ns.adobe.com/xap/1.0/")) {
 #ifndef NDEBUG
@@ -302,14 +302,46 @@ JpgInput::open(const std::string& name, ImageSpec& newspec)
 #endif
             std::string xml((const char*)m->data, m->data_length);
             decode_xmp(xml, m_spec);
-        } else if (m->marker == (JPEG_APP0 + 13)
-                   && !strcmp((const char*)m->data, "Photoshop 3.0"))
+        } else if (m->marker == (JPEG_APP0 + 2) && m->data_length > 11
+            && !strcmp((const char*)m->data, "ICC_PROFILE")) {
+            // ICC profile -- skip because we handle this separately?
+            // OIIO::debugf("JPEG read found ICC PROFILE: APP%d marker, length %d (%s)\n",
+            //              m->marker-JPEG_APP0, m->data_length,
+            //              string_view((const char*)m->data,
+            //                          std::min(3U, m->data_length)));
+        } else if (m->marker == (JPEG_APP0 + 13) && m->data_length > 13
+                   && !strcmp((const char*)m->data, "Photoshop 3.0")) {
             jpeg_decode_iptc((unsigned char*)m->data);
-        else if (m->marker == JPEG_COM) {
+        } else if (m->marker == JPEG_COM) {
             if (!m_spec.find_attribute("ImageDescription", TypeDesc::STRING))
                 m_spec.attribute("ImageDescription",
                                  std::string((const char*)m->data,
                                              m->data_length));
+        } else if (m->marker == (JPEG_APP0 + 2) && m->data_length > 3 &&
+                   !strcmp((const char*)m->data, "MPF")) {
+            OIIO::debugf("JPEG found APP2 MPF marker, length %d\n",
+                         m->data_length);
+            cspan<uint8_t> mpfblob((const uint8_t*)m->data, m->data_length);
+            // handle_mpf_marker();
+            for (int i = 0; i < 16; ++i)
+                OIIO::debugf("  %2d: %02x (%c)\n", i, mpfblob[i], mpfblob[i]);
+            TIFFHeader head = *(const TIFFHeader*)mpfblob.data();
+            if (head.tiff_magic != 0x4949 && head.tiff_magic != 0x4d4d)
+                return false;
+            bool host_little = littleendian();
+            bool file_little = (head.tiff_magic == 0x4949);
+            bool swab        = (host_little != file_little);
+            if (swab)
+                swap_endian(&head.tiff_diroff);
+
+            // std::set<size_t> ifd_offsets_seen;
+            // static TagMap mpf_tagmap("MPF", mpf_tag_table);
+            // decode_ifd(ifd, mpfblob, spec, mpf_tagmap, ifd_offsets_seen, swab);
+        } else if (m->marker >= JPEG_APP0 && m->marker <= JPEG_APP0+15) {
+                OIIO::debugf("JPEG read found APP%d marker, length %d (%s)\n",
+                             m->marker-JPEG_APP0, m->data_length,
+                             string_view((const char*)m->data,
+                                         std::min(3U, m->data_length)));
         }
     }
 
@@ -359,7 +391,7 @@ JpgInput::read_icc_profile(j_decompress_ptr cinfo, ImageSpec& spec)
     memset(marker_present, 0, (MAX_SEQ_NO + 1));
 
     for (jpeg_saved_marker_ptr m = cinfo->marker_list; m; m = m->next) {
-        if (m->marker == (JPEG_APP0 + 2)
+        if (m->marker == (JPEG_APP0 + 2) && m->data_length > 11
             && !strcmp((const char*)m->data, "ICC_PROFILE")) {
             if (num_markers == 0)
                 num_markers = GETJOCTET(m->data[13]);
@@ -392,7 +424,7 @@ JpgInput::read_icc_profile(j_decompress_ptr cinfo, ImageSpec& spec)
 
     // and fill it in
     for (jpeg_saved_marker_ptr m = cinfo->marker_list; m; m = m->next) {
-        if (m->marker == (JPEG_APP0 + 2)
+        if (m->marker == (JPEG_APP0 + 2) && m->data_length > 11
             && !strcmp((const char*)m->data, "ICC_PROFILE")) {
             int seq_no = GETJOCTET(m->data[12]);
             memcpy(&icc_buf[0] + data_offset[seq_no], m->data + ICC_HEADER_SIZE,
