@@ -295,6 +295,7 @@ oiio_add_tests (gpsread
                 maketx oiiotool-maketx
                 misnamed-file
                 missingcolor
+                big64
                 texture-interp-bicubic
                 texture-blurtube
                 texture-crop texture-cropover
