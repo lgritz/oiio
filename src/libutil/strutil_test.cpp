@@ -74,12 +74,12 @@ void
 test_memformat()
 {
     OIIO_CHECK_EQUAL(Strutil::memformat(15), "15 B");
-    OIIO_CHECK_EQUAL(Strutil::memformat(15LL * 1024), "15 KB");
-    OIIO_CHECK_EQUAL(Strutil::memformat(15LL * 1024 * 1024), "15.0 MB");
-    OIIO_CHECK_EQUAL(Strutil::memformat(15LL * 1024 * 1024 * 1024), "15.0 GB");
-    OIIO_CHECK_EQUAL(Strutil::memformat(15LL * 1024 * 1024 + 200000),
+    OIIO_CHECK_EQUAL(Strutil::memformat(15ULL * 1024), "15 KB");
+    OIIO_CHECK_EQUAL(Strutil::memformat(15ULL * 1024 * 1024), "15.0 MB");
+    OIIO_CHECK_EQUAL(Strutil::memformat(15ULL * 1024 * 1024 * 1024), "15.0 GB");
+    OIIO_CHECK_EQUAL(Strutil::memformat(15ULL * 1024 * 1024 + 200000),
                      "15.2 MB");
-    OIIO_CHECK_EQUAL(Strutil::memformat(15LL * 1024 * 1024 + 200000, 3),
+    OIIO_CHECK_EQUAL(Strutil::memformat(15ULL * 1024 * 1024 + 200000, 3),
                      "15.191 MB");
 }
 

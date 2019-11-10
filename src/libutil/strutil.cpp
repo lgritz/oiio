@@ -185,13 +185,13 @@ Strutil::vformat(const char* fmt, va_list ap)
 
 
 std::string
-Strutil::memformat(long long bytes, int digits)
+Strutil::memformat(uint64_t bytes, int digits)
 {
-    const long long KB = (1 << 10);
-    const long long MB = (1 << 20);
-    const long long GB = (1 << 30);
-    const char* units  = "B";
-    double d           = (double)bytes;
+    const uint64_t KB = (1 << 10);
+    const uint64_t MB = (1 << 20);
+    const uint64_t GB = (1 << 30);
+    const char* units = "B";
+    double d          = (double)bytes;
     if (bytes >= GB) {
         units = "GB";
         d     = (double)bytes / GB;
@@ -200,10 +200,10 @@ Strutil::memformat(long long bytes, int digits)
         d     = (double)bytes / MB;
     } else if (bytes >= KB) {
         // Just KB, don't bother with decimalization
-        return format("%lld KB", (long long)bytes / KB);
+        return format("%d KB", bytes / KB);
     } else {
         // Just bytes, don't bother with decimalization
-        return format("%lld B", (long long)bytes);
+        return format("%d B", bytes);
     }
     return format("%1.*f %s", digits, d, units);
 }
