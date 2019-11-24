@@ -234,6 +234,18 @@ test_hash()
 
 
 
+bool
+xcontains(const std::string& a, const std::string& b)
+{
+    return b.empty() || a.find(b) != string_view::npos;
+}
+
+bool
+ycontains(string_view a, string_view b)
+{
+    return b.empty() || a.find(b) != string_view::npos;
+}
+
 void
 test_comparisons()
 {
@@ -314,12 +326,28 @@ test_comparisons()
     bench.indent (2);
     bench.units (Benchmarker::Unit::ns);
     {
-        std::string haystack ("dfghjklwer?tyuioxcvbnmyufasfjavs/lefjzsefrkjg");
-        // bool result
-        bench ("string::find present", [&](){ DoNotOptimize(haystack.find("myu") != std::string::npos); });
-        bench ("Strutil::contains present", [&](){ DoNotOptimize (Strutil::contains(haystack,"myu")); });
-        bench ("string::find present", [&](){ DoNotOptimize(haystack.find("ABC") != std::string::npos); });
-        bench ("Strutil::contains present", [&](){ DoNotOptimize (Strutil::contains(haystack,"ABC")); });
+        // Benchmark contains() vs find()
+        std::string haystack = Strutil::repeat("dfghjklwer?tyuioxcvbn123fasfjavs/lefjzsefrkjg", 30);
+        ustring uhaystack (Strutil::repeat("dfghjklwer?tyuioxcvbn123fasfjavs/lefjzsefrkjg", 30));
+        bench ("string::find present", [&](){ return DoNotOptimize(haystack.find("123") != std::string::npos); });
+        bench ("string::find absent", [&](){ return DoNotOptimize(haystack.find("ABC") != std::string::npos); });
+        bench ("ustring::find present", [&](){ return DoNotOptimize(uhaystack.find("123") != std::string::npos); });
+        bench ("ustring::find absent", [&](){ return DoNotOptimize(uhaystack.find("ABC") != std::string::npos); });
+        bench ("string_view::find present", [&](){ return DoNotOptimize(string_view(uhaystack).find("123") != std::string::npos); });
+        bench ("string_view::find absent", [&](){ return DoNotOptimize(string_view(uhaystack).find("ABC") != std::string::npos); });
+        bench ("Strutil::contains present", [&](){ return DoNotOptimize (Strutil::contains(haystack,"123")); });
+        bench ("Strutil::contains absent", [&](){ return DoNotOptimize (Strutil::contains(haystack,"ABC")); });
+        bench ("xcontains present", [&](){ return DoNotOptimize (xcontains(haystack,"123")); });
+        bench ("xcontains absent", [&](){ return DoNotOptimize (xcontains(haystack,"ABC")); });
+        bench ("ycontains present", [&](){ return DoNotOptimize (ycontains(haystack,"123")); });
+        bench ("ycontains absent", [&](){ return DoNotOptimize (ycontains(haystack,"ABC")); });
+        bench ("string::find present char", [&](){ return DoNotOptimize(haystack.find('1') != std::string::npos); });
+        bench ("string::find absent char", [&](){ return DoNotOptimize(haystack.find('9') != std::string::npos); });
+        bench ("Strutil::contains present char", [&](){ return DoNotOptimize (Strutil::contains(haystack,"1")); });
+        bench ("Strutil::contains absent char", [&](){ return DoNotOptimize (Strutil::contains(haystack,"9")); });
+
+        bench ("ustring::find present char", [&](){ return DoNotOptimize(uhaystack.find('1') != std::string::npos); });
+        bench ("ustring::find absent char", [&](){ return DoNotOptimize(uhaystack.find('9') != std::string::npos); });
     }
 }
 

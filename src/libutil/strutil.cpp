@@ -7,6 +7,7 @@
 #include <cstdarg>
 #include <cstdint>
 #include <cstdlib>
+#include <functional>
 #include <iostream>
 #include <limits>
 #include <locale.h>
@@ -448,7 +449,24 @@ Strutil::iends_with(string_view a, string_view b)
 bool
 Strutil::contains(string_view a, string_view b)
 {
+#if 1
+   // return b.empty() || a.find(b) != string_view::npos;
+    // using brange = std::pair<const char*, const char*>;
+    // return boost::algorithm::contains(brange(a.cbegin(), a.cend()),
+    //                                   brange(b.cbegin(), b.cend()));
+    return b.empty() || a.find(b) != string_view::npos;
+#else
+
+#if 0
     return boost::algorithm::contains(a, b);
+#else
+    // spell it out to keep boost from making temp strings
+    if (b.empty())
+        return true;  // empty is always contained
+
+    return (boost::algorithm::first_finder(b,std::equal_to<char>)(a.begin(), a.end()));
+#endif
+#endif
 }
 
 
