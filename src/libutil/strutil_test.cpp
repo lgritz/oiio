@@ -309,6 +309,18 @@ test_comparisons()
     OIIO_CHECK_ASSERT(iless("abc", "abd"));
     OIIO_CHECK_ASSERT(!iless("xbc", "abd"));
     OIIO_CHECK_ASSERT(iless("abc", "ABD"));
+
+    Benchmarker bench;
+    bench.indent (2);
+    bench.units (Benchmarker::Unit::ns);
+    {
+        std::string haystack ("dfghjklwer?tyuioxcvbnmyufasfjavs/lefjzsefrkjg");
+        // bool result
+        bench ("string::find present", [&](){ DoNotOptimize(haystack.find("myu") != std::string::npos); });
+        bench ("Strutil::contains present", [&](){ DoNotOptimize (Strutil::contains(haystack,"myu")); });
+        bench ("string::find present", [&](){ DoNotOptimize(haystack.find("ABC") != std::string::npos); });
+        bench ("Strutil::contains present", [&](){ DoNotOptimize (Strutil::contains(haystack,"ABC")); });
+    }
 }
 
 
