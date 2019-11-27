@@ -170,6 +170,24 @@ jobs:
             source src/build-scripts/gh-installdeps.bash
             source src/build-scripts/ci-build-and-test.bash
 
+  linux-noembed:
+    name: "Linux, old things and no embedded plugins"
+    runs-on: ubuntu-18.04
+    steps:
+      - uses: actions/checkout@v1
+      - name: all
+        env:
+          CXX: g++-6
+          CMAKE_CXX_STANDARD: 11
+          EMBEDPLUGINS: 0
+          USE_SIMD: 0
+          USE_OPENCOLORIO: 0
+          OPENEXR_BRANCH: v2.2.0
+        run: |
+            source src/build-scripts/ci-startup.bash
+            source src/build-scripts/gh-installdeps.bash
+            source src/build-scripts/ci-build-and-test.bash
+
   clang-format:
     name: "clang-format verification"
     runs-on: macOS-10.14
