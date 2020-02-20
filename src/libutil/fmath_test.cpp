@@ -129,6 +129,24 @@ test_int_helpers()
 
 
 
+// Test implentation for benchmarking. Do not save.
+//
+// Native OIIO::isinf wasn't vectorizing and was branchy
+// this slightly perturbed version fairs better and is branch free
+// when vectorized
+OIIO_FORCEINLINE OIIO_HOSTDEVICE int
+osl_isinf(float x)
+{
+    // Based on algorithm in OIIO missing_math.h for _MSC_VER < 1800
+    int r = 0;
+    // NOTE: using bitwise | to avoid branches
+    if (!(OIIO::isfinite(x) | OIIO::isnan(x))) {
+        r = static_cast<int>(copysignf(1.0f, x));
+    }
+    return r;
+}
+
+
 void
 test_math_functions()
 {
@@ -171,6 +189,25 @@ test_math_functions()
     OIIO_CHECK_EQUAL(sign(3.1f), 1.0f);
     OIIO_CHECK_EQUAL(sign(-3.1f), -1.0f);
     OIIO_CHECK_EQUAL(sign(0.0f), 0.0f);
+
+    fval = 1.0f;
+    clobber(fval);
+    bench("std::isinf (finite)",
+          [&]() { return DoNotOptimize(std::isinf(fval)); });
+    fval = std::numeric_limits<float>::infinity();
+    clobber(fval);
+    bench("std::isinf (infinite)",
+          [&]() { return DoNotOptimize(std::isinf(fval)); });
+    fval = 1.0f;
+    clobber(fval);
+    bench("osl_isinf (finite)",
+          [&]() { return DoNotOptimize(osl_isinf(fval)); });
+    fval = 1.0f / 0.0f;
+    clobber(fval);
+    bench("osl_isinf (infinite)",
+          [&]() { return DoNotOptimize(osl_isinf(fval)); });
+    // bench("isinf (finite)",
+    //     [&](float x) { return DoNotOptimize(floorfrac(x, &ival)); }, fval);
 
     {
         OIIO_CHECK_EQUAL(fast_neg(1.5f), -1.5f);
