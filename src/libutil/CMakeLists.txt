@@ -62,6 +62,7 @@ if (OIIO_BUILD_TESTS)
     target_link_libraries (atomic_test PRIVATE OpenImageIO_Util)
     set_target_properties (atomic_test PROPERTIES FOLDER "Unit Tests")
     add_test (unit_atomic ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/atomic_test)
+    set_tests_properties (unit_atomic PROPERTIES COST 10)
 
     add_executable (span_test span_test.cpp)
     target_link_libraries (span_test PRIVATE OpenImageIO_Util)

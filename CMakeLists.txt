@@ -291,11 +291,13 @@ add_custom_target ( CopyFiles ALL DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/testsuite
 # Basic tests that apply even to continuous integration tests:
 
 #   Tests that require oiio-images:
-oiio_add_tests (gpsread
-                oiiotool oiiotool-attribs  oiiotool-copy
+oiio_add_tests (oiiotool oiiotool-attribs oiiotool-copy
                 oiiotool-readerror oiiotool-xform
-                oiiotool-fixnan ## maketx & oiiotool-maketx depend on this
+                oiiotool-fixnan
                 maketx oiiotool-maketx
+                IMAGEDIR oiio-images
+                COST 3 )
+oiio_add_tests (gpsread
                 misnamed-file
                 missingcolor
                 dpx ico iff png psd rla sgi zfile
@@ -396,7 +398,8 @@ oiio_add_tests (gif
 oiio_add_tests (jpeg2000
     FOUNDVAR OPENJPEG_FOUND
     IMAGEDIR j2kp4files_v1_5
-    URL http://www.itu.int/net/ITU-T/sigdb/speimage/ImageForm-s.aspx?val=10100803)
+    URL http://www.itu.int/net/ITU-T/sigdb/speimage/ImageForm-s.aspx?val=10100803
+    COST 10 )
 
 oiio_add_tests (pnm
     IMAGEDIR oiio-images/pnm
@@ -405,7 +408,8 @@ oiio_add_tests (pnm
 oiio_add_tests (raw
     FOUNDVAR LIBRAW_FOUND
     IMAGEDIR oiio-images/raw
-    URL "Recent checkout of oiio-images")
+    URL "Recent checkout of oiio-images"
+    COST 20 )
 
 oiio_add_tests (targa-tgautils
     IMAGEDIR TGAUTILS
@@ -440,7 +444,6 @@ if (SPI_TESTS)
     IMAGEDIR spi-oiio-tests
     URL "noplace -- it's SPI specific tests")
 endif ()
-
 
 
 #########################################################################

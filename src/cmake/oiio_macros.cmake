@@ -135,24 +135,54 @@ endmacro ()
 
 
 
-# oiio_set_testenv() - add environment variables to a test
+# add_one_testsuite() - add environment variables to a test
 #
 # Usage:
-#   oiio_set_testenv ( testname
-#                      testsuite  - The root of all tests ${CMAKE_SOURCE_DIR}/testsuite
-#                      testsrcdir - Current test directory in ${CMAKE_SOURCE_DIR}
-#                      testdir    - Current test sandbox in ${CMAKE_BINARY_DIR}
-#                      IMAGEDIR   - Optional path to image reference/compare directory)
+#   add_one_testsuite (testname
+#            testsrcdir - Current test directory in ${CMAKE_SOURCE_DIR}
+#            [IMAGEDIR dir] - Optional path to image reference/compare directory
+#            [ENV var=val...] - optional env variables to set
+#            [COMMAND cmd...] - optional override of launch command
+#    )
 #
-macro (oiio_set_testenv testname testsuite testsrcdir testdir IMAGEDIR)
-    set_property(TEST ${testname} PROPERTY ENVIRONMENT
-                "OIIO_TESTSUITE_ROOT=${testsuite}"
-                ";OIIO_TESTSUITE_SRC=${testsrcdir}"
-                ";OIIO_TESTSUITE_CUR=${testdir}")
-    if (NOT ${IMAGEDIR} STREQUAL "")
-        set_property(TEST ${testname} APPEND PROPERTY ENVIRONMENT
-                     "OIIO_TESTSUITE_IMAGEDIR=${IMAGEDIR}")
+macro (add_one_testsuite testname testsrcdir)
+    cmake_parse_arguments (_tst "" "IMAGEDIR;COST;PROCESSORS" "ENV;COMMAND" ${ARGN})
+    set (testsuite "${CMAKE_SOURCE_DIR}/testsuite")
+    set (testdir "${CMAKE_BINARY_DIR}/testsuite/${testname}")
+    if (NOT _tst_COMMAND)
+        set (_tst_COMMAND python "${testsuite}/runtest.py" ${testdir})
+        if (MSVC_IDE)
+            list (APPEND _tst_COMMAND --devenv-config $<CONFIGURATION>
+                                      --solution-path "${CMAKE_BINARY_DIR}" )
+        endif ()
+    endif ()
+    if (NOT _tst_COST)
+        set (_tst_COST 1)
+    endif ()
+    if (NOT _tst_PROCESSORS)
+        set (_tst_PROCESSORS 1)
+    endif ()
+    list (APPEND _tst_ENV
+              OIIO_TESTSUITE_ROOT=${testsuite}
+              OIIO_TESTSUITE_SRC=${testsrcdir}
+              OIIO_TESTSUITE_CUR=${testdir}
+              # OIIO_SOURCE_DIR=${CMAKE_SOURCE_DIR}
+              # OIIO_BUILD_DIR=${CMAKE_BINARY_DIR}
+         )
+    if (_tst_IMAGEDIR)
+        list (APPEND _tst_ENV OIIO_TESTSUITE_IMAGEDIR=${_tst_IMAGEDIR})
     endif()
+    file (MAKE_DIRECTORY "${testdir}")
+    add_test ( NAME ${testname} COMMAND ${_tst_COMMAND}
+               #WORKING_DIRECTORY ${testdir}
+               )
+    set_tests_properties ( ${testname} PROPERTIES
+                           ENVIRONMENT "${_tst_ENV}"
+                           COST ${_tst_COST}
+                           PROCESSORS ${_tst_PROCESSORS} )
+    if (VERBOSE)
+        message (STATUS "TEST ${testname}: ${_tst_COMMAND}  env: ${_tst_ENV}")
+    endif ()
 endmacro ()
 
 
@@ -169,13 +199,19 @@ endmacro ()
 # the user where to find such tests.
 #
 macro (oiio_add_tests)
-    cmake_parse_arguments (_ats "" "" "URL;IMAGEDIR;LABEL;FOUNDVAR;TESTNAME" ${ARGN})
+    cmake_parse_arguments (_ats "" "URL;IMAGEDIR;TESTNAME;FOUNDVAR;LABEL;COST;PROCESSORS" "PROPS" ${ARGN})
        # Arguments: <prefix> <options> <one_value_keywords> <multi_value_keywords> args...
     set (_ats_testdir "${OIIO_TESTSUITE_IMAGEDIR}/${_ats_IMAGEDIR}")
     # If there was a FOUNDVAR param specified and that variable name is
     # not defined, mark the test as broken.
     if (_ats_FOUNDVAR AND NOT ${_ats_FOUNDVAR})
         set (_ats_LABEL "broken")
+    endif ()
+    if (_ats_COST)
+        list (APPEND _ats_PROPS COST ${_ats_COST})
+    endif ()
+    if (_ats_PROCESSORS)
+        list (APPEND _ats_PROPS PROCESSORS ${_ats_PROCESSORS})
     endif ()
     if (_ats_IMAGEDIR AND NOT EXISTS ${_ats_testdir})
         # If the directory containig reference data (images) for the test
@@ -186,51 +222,26 @@ macro (oiio_add_tests)
     else ()
         # Add the tests if all is well.
         set (_has_generator_expr TRUE)
+        set (_testsuite "${CMAKE_SOURCE_DIR}/testsuite")
         foreach (_testname ${_ats_UNPARSED_ARGUMENTS})
-            set (_testsuite "${CMAKE_SOURCE_DIR}/testsuite")
             set (_testsrcdir "${_testsuite}/${_testname}")
-            set (_testdir "${CMAKE_BINARY_DIR}/testsuite/${_testname}")
             if (_ats_TESTNAME)
                 set (_testname "${_ats_TESTNAME}")
             endif ()
             if (_ats_LABEL MATCHES "broken")
                 set (_testname "${_testname}-broken")
             endif ()
-
-            set (_runtest python "${CMAKE_SOURCE_DIR}/testsuite/runtest.py" ${_testdir})
-            if (MSVC_IDE)
-                set (_runtest ${_runtest} --devenv-config $<CONFIGURATION>
-                                          --solution-path "${CMAKE_BINARY_DIR}" )
-            endif ()
-
-            file (MAKE_DIRECTORY "${_testdir}")
-
-            add_test ( NAME ${_testname}
-                       COMMAND ${_runtest} )
-
-            oiio_set_testenv("${_testname}" "${_testsuite}"
-                             "${_testsrcdir}" "${_testdir}" "${_ats_testdir}")
+            add_one_testsuite ("${_testname}" "${_testsrcdir}"
+                               IMAGEDIR "${_ats_testdir}"
+                               ${_ats_PROPS} )
 
             # For texture tests, add a second test using batch mode as well.
             if (_testname MATCHES "texture")
-                set (_testname ${_testname}.batch)
-                set (_testdir ${_testdir}.batch)
-                set (_runtest python "${CMAKE_SOURCE_DIR}/testsuite/runtest.py" ${_testdir})
-                if (MSVC_IDE)
-                    set (_runtest ${_runtest} --devenv-config $<CONFIGURATION>
-                                          --solution-path "${CMAKE_BINARY_DIR}" )
-                endif ()
-                file (MAKE_DIRECTORY "${_testdir}")
-                add_test ( NAME "${_testname}"
-                           COMMAND env TESTTEX_BATCH=1 ${_runtest} )
-
-                oiio_set_testenv("${_testname}" "${_testsuite}"
-                                 "${_testsrcdir}" "${_testdir}.batch" "${_ats_testdir}")
+                add_one_testsuite ("${_testname}.batch" "${_testsrcdir}"
+                                   IMAGEDIR "${_ats_testdir}"
+                                   ENV TESTTEX_BATCH=1
+                                   ${_ats_PROPS} )
             endif ()
-
-            #if (VERBOSE)
-            #    message (STATUS "TEST ${_testname}: ${_runtest}")
-            #endif ()
         endforeach ()
         if (VERBOSE)
            message (STATUS "TESTS: ${_ats_UNPARSED_ARGUMENTS}")
