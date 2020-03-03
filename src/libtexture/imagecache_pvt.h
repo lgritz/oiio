@@ -40,8 +40,12 @@ namespace pvt {
 
 #define IMAGECACHE_USE_RW_MUTEX 1
 
-#define FILE_CACHE_SHARDS 64
-#define TILE_CACHE_SHARDS 128
+#ifndef OIIO_FILE_CACHE_SHARDS
+#    define OIIO_FILE_CACHE_SHARDS 64
+#endif
+#ifndef OIIO_TILE_CACHE_SHARDS
+#    define OIIO_TILE_CACHE_SHARDS 128
+#endif
 
 using boost::thread_specific_ptr;
 
@@ -434,7 +438,7 @@ typedef intrusive_ptr<ImageCacheFile> ImageCacheFileRef;
 /// Map file names to file references
 typedef unordered_map_concurrent<
     ustring, ImageCacheFileRef, ustringHash, std::equal_to<ustring>,
-    FILE_CACHE_SHARDS, tsl::robin_map<ustring, ImageCacheFileRef, ustringHash>>
+    OIIO_FILE_CACHE_SHARDS, tsl::robin_map<ustring, ImageCacheFileRef, ustringHash>>
     FilenameMap;
 typedef tsl::robin_map<ustring, ImageCacheFileRef, ustringHash> FingerprintMap;
 
@@ -671,7 +675,7 @@ typedef intrusive_ptr<ImageCacheTile> ImageCacheTileRef;
 /// main tile cache.
 typedef unordered_map_concurrent<
     TileID, ImageCacheTileRef, TileID::Hasher, std::equal_to<TileID>,
-    TILE_CACHE_SHARDS, tsl::robin_map<TileID, ImageCacheTileRef, TileID::Hasher>>
+    OIIO_TILE_CACHE_SHARDS, tsl::robin_map<TileID, ImageCacheTileRef, TileID::Hasher>>
     TileCache;
 
 

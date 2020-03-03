@@ -80,10 +80,10 @@ if (NOT OIIO_THREAD_ALLOW_DCLP)
     add_definitions ("-DOIIO_THREAD_ALLOW_DCLP=0")
 endif ()
 
-set (TEX_BATCH_SIZE "" CACHE STRING "Force TextureSystem SIMD batch size (e.g. 16)")
-if (TEX_BATCH_SIZE)
-    add_definitions ("-DOIIO_TEXTURE_SIMD_BATCH_WIDTH=${TEX_BATCH_SIZE}")
-endif ()
+# Constants controlling texture system internals
+set (OIIO_TEXTURE_SIMD_BATCH_WIDTH "16" CACHE STRING "TextureSystem SIMD batch size")
+set (OIIO_FILE_CACHE_SHARDS "64" CACHE STRING "ImageCache file cache shards")
+set (OIIO_TILE_CACHE_SHARDS "128" CACHE STRING "ImageCache tile cache shards")
 
 # Set the default namespace
 set (${PROJ_NAME}_NAMESPACE ${PROJECT_NAME} CACHE STRING
