@@ -167,7 +167,7 @@ test_read_proxy(string_view formatname, string_view extension,
 
     // Read the in-memory file using an ioproxy, with ImageInput
     Filesystem::IOMemReader inproxy(readbuf);
-    std::string memname = Strutil::sprintf("mem.%s", extension);
+    std::string memname = Strutil::sprintf("mem.%s.x", extension);
     auto in             = ImageInput::open(memname, nullptr, &inproxy);
     OIIO_CHECK_ASSERT(in && "Failed to open input with proxy");
     if (in) {
