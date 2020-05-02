@@ -355,6 +355,42 @@ Strutil::unescape_chars(string_view escaped)
 
 
 std::string
+Strutil::indent (string_view src, string_view prefix)
+{
+    auto lines = splitsv(src, "\n");
+    std::ostringstream out;
+    out.imbue(std::locale::classic());  // Force "C" locale
+    for (auto& s : lines)
+        out << prefix << s << '\n';
+    return out.str();
+}
+
+
+
+std::string
+Strutil::dedent (string_view src)
+{
+    std::string result;
+    auto lines = splitsv(src, "\n");
+    if (lines.size() == 0)
+        return result;
+    // Start with the prefix of the first line.
+    string_view prefix = parse_while(lines[0], " \t", false /*eat*/);
+    for (auto& s : lines) {
+        // If the prefix of this line is longer than our current prefix,
+        // shorten the current prefix.
+        string_view p = parse_while(s, " \t", false /*eat*/);
+        if (prefix.size() > p.size())
+            prefix = prefix.substr(0, p.size());
+    }
+    for (auto& s : lines)
+        s = s.substr(prefix.size());
+    return join(lines);
+}
+
+
+
+std::string
 Strutil::wordwrap(string_view src, int columns, int prefix, string_view sep,
                   string_view presep)
 {

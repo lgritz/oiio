@@ -208,6 +208,16 @@ test_escape_sequences()
 void
 test_wordwrap()
 {
+    {
+        std::string p = "a b c\n d e f \nh i\n";
+        OIIO_CHECK_EQUAL(Strutil::indent(p, "    "),
+                         "    a b c\n     d e f \n    h i\n");
+    }
+    {
+        std::string p = "    a b c\n  d e f \n  \th i\n";
+        OIIO_CHECK_EQUAL(Strutil::dedent(p),
+                         "  a b c\n  d e f \n\th i\n");
+    }
     std::string words
         = "Now is the time for all good men to come to the aid of their party.";
     OIIO_CHECK_EQUAL(Strutil::wordwrap(words, 24), "Now is the time for all\n"

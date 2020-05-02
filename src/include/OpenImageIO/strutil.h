@@ -299,6 +299,16 @@ std::string OIIO_API escape_chars (string_view unescaped);
 /// etc.) and collapse them into the 'real' characters.
 std::string OIIO_API unescape_chars (string_view escaped);
 
+/// Take the string `src`, which may consist of multiple lines separated by
+/// newline (`\n`) characters, and return a version in which each line is
+/// prepended by the `prefix`.
+std::string OIIO_API indent (string_view src, string_view prefix);
+
+/// Take the string `src`, which may consist of multiple lines separated by
+/// newline (`\n`) characters, and return a version in which any whitespace
+/// prefix that is common to all lines is removed from each line.
+std::string OIIO_API dedent (string_view src);
+
 /// Word-wrap string `src` to no more than `columns` width, starting with an
 /// assumed position of `prefix` on the first line and intending by `prefix`
 /// blanks before all lines other than the first.
