@@ -371,12 +371,11 @@ public:
 
 
     /// Holder for a callback that takes a span of C strings as arguments.
-    // typedef std::function<void(cspan<const char*> myargs)> Action;
-    using Action = std::function<void(cspan<const char*> myargs)>;
+    using Action = std::function<int(cspan<const char*> myargs)>;
 
     /// Holder for a callback that takes an Arg ref and a span of C strings
     /// as arguments.
-    using ArgAction = std::function<void(Arg& arg, cspan<const char*> myargs)>;
+    using ArgAction = std::function<int(Arg& arg, cspan<const char*> myargs)>;
 
 
     /// A call to `ArgParse::arg()` returns an `Arg&`. There are lots of

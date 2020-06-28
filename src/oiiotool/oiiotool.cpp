@@ -60,24 +60,24 @@ static Oiiotool ot;
 // you may need to enclose the lambda itself in parenthesis () if there it
 // contains commas that are not inside other parentheses.
 #define OIIOTOOL_OP(name, ninputs, ...)                                        \
-    static int action_##name(cspan<const char*> argv)                          \
+    static void action_##name(cspan<const char*> argv)                         \
     {                                                                          \
         if (ot.postpone_action(ninputs, action_##name, argv))                  \
             return 0;                                                          \
         OiiotoolOp op(ot, #name, argv, ninputs, __VA_ARGS__);                  \
-        return op();                                                           \
+        op();                                                                  \
     }
 
 // Canned setup for an op that uses one image on the stack.
 #define UNARY_IMAGE_OP(name, impl)                                             \
     OIIOTOOL_OP(name, 1, [](OiiotoolOp& op, span<ImageBuf*> img) {             \
-        return impl(*img[0], *img[1]);                                         \
+        impl(*img[0], *img[1]);                                                \
     })
 
 // Canned setup for an op that uses two images on the stack.
 #define BINARY_IMAGE_OP(name, impl)                                            \
     OIIOTOOL_OP(name, 2, [](OiiotoolOp& op, span<ImageBuf*> img) {             \
-        return impl(*img[0], *img[1], *img[2]);                                \
+        impl(*img[0], *img[1], *img[2]);                                       \
     })
 
 // Canned setup for an op that uses one image on the stack and one color
@@ -89,18 +89,18 @@ static Oiiotool ot;
         int nvals = Strutil::extract_from_list_string(val, op.args(1));        \
         val.resize(nvals);                                                     \
         val.resize(nchans, val.size() == 1 ? val.back() : defaultval);         \
-        return impl(*img[0], *img[1], val, ROI(), 0);                          \
+        impl(*img[0], *img[1], val, ROI(), 0);                                 \
     })
 
 // Macro to fully set up the "action" function that straightforwardly
 // calls a custom OiiotoolOp class.
 #define OP_CUSTOMCLASS(name, opclass, ninputs)                                 \
-    static int action_##name(cspan<const char*> argv)                          \
+    static void action_##name(cspan<const char*> argv)                         \
     {                                                                          \
         if (ot.postpone_action(ninputs, action_##name, argv))                  \
-            return 0;                                                          \
+            return;                                                            \
         opclass op(ot, #name, argv);                                           \
-        return op();                                                           \
+        op();                                                                  \
     }
 
 
@@ -382,37 +382,34 @@ set_threads(cspan<const char*> argv)
 
 
 // --cache
-static int
+static void
 set_cachesize(cspan<const char*> argv)
 {
     OIIO_DASSERT(argv.size() == 2);
     ot.cachesize = Strutil::stoi(argv[1]);
     ot.imagecache->attribute("max_memory_MB", float(ot.cachesize));
-    return 0;
 }
 
 
 
 // --autotile
-static int
+static void
 set_autotile(cspan<const char*> argv)
 {
     OIIO_DASSERT(argv.size() == 2);
     ot.autotile = Strutil::stoi(argv[1]);
     ot.imagecache->attribute("autotile", ot.autotile);
     ot.imagecache->attribute("autoscanline", int(ot.autotile ? 1 : 0));
-    return 0;
 }
 
 
 
 // --native
-static int
+static void
 set_native(cspan<const char*> argv)
 {
     ot.nativeread = true;
     ot.imagecache->attribute("forcefloat", 0);
-    return 0;
 }
 
 
@@ -470,12 +467,11 @@ unset_autopremult(cspan<const char*> argv)
 
 
 // --labl
-static int
+static void
 action_label(cspan<const char*> argv)
 {
     string_view labelname      = ot.express(argv[1]);
     ot.image_labels[labelname] = ot.curimg;
-    return 0;
 }
 
 
@@ -792,7 +788,7 @@ parse_channels(const ImageSpec& spec, string_view chanlist,
 
 
 // -d
-static int
+static
 set_dataformat(cspan<const char*> argv)
 {
     OIIO_DASSERT(argv.size() == 2);
@@ -801,7 +797,7 @@ set_dataformat(cspan<const char*> argv)
     Strutil::split(ot.express(argv[1]), chans, ",");
 
     if (chans.size() == 0) {
-        return 0;  // Nothing to do
+        return;  // Nothing to do
     }
 
     if (chans.size() == 1 && !strchr(chans[0].c_str(), '=')) {
@@ -814,7 +810,7 @@ set_dataformat(cspan<const char*> argv)
         if (ot.output_dataformat == TypeDesc::UNKNOWN)
             ot.errorf(command, "Unknown data format \"%s\"", chans[0]);
         ot.output_channelformats.clear();
-        return 0;  // we're done
+        return;  // we're done
     }
 
     // If we make it here, the format designator was of the form
@@ -828,19 +824,17 @@ set_dataformat(cspan<const char*> argv)
             ot.errorf(command, "Malformed format designator \"%s\"", chan);
         }
     }
-
-    return 0;
 }
 
 
 
-static int
+static
 set_string_attribute(cspan<const char*> argv)
 {
     OIIO_DASSERT(argv.size() == 3);
     if (!ot.curimg.get()) {
         ot.warning(argv[0], "no current image available to modify");
-        return 0;
+        return;
     }
 
     string_view command = ot.express(argv[0]);
@@ -848,18 +842,17 @@ set_string_attribute(cspan<const char*> argv)
     bool allsubimages   = options.get_int("allsubimages", ot.allsubimages);
     set_attribute(ot.curimg, argv[1], TypeString, argv[2], allsubimages);
     // N.B. set_attribute does expression expansion on its args
-    return 0;
 }
 
 
 
-static int
+static
 set_any_attribute(cspan<const char*> argv)
 {
     OIIO_DASSERT(argv.size() == 3);
     if (!ot.curimg.get()) {
         ot.warning(argv[0], "no current image available to modify");
-        return 0;
+        return;
     }
 
     string_view command = ot.express(argv[0]);
@@ -869,7 +862,6 @@ set_any_attribute(cspan<const char*> argv)
 
     set_attribute(ot.curimg, argv[1], type, argv[2], allsubimages);
     // N.B. set_attribute does expression expansion on its args
-    return 0;
 }
 
 
@@ -884,17 +876,17 @@ do_erase_attribute(ImageSpec& spec, string_view attribname)
 
 
 // --eraseattrib
-static int
+static void
 erase_attribute(cspan<const char*> argv)
 {
     OIIO_DASSERT(argv.size() == 2);
     if (!ot.curimg.get()) {
         ot.warning(argv[0], "no current image available to modify");
-        return 0;
+        return;
     }
     string_view pattern = ot.express(argv[1]);
-    return apply_spec_mod(*ot.curimg, do_erase_attribute, pattern,
-                          ot.allsubimages);
+    apply_spec_mod(*ot.curimg, do_erase_attribute, pattern,
+                   ot.allsubimages);
 }
 
 
@@ -1370,7 +1362,7 @@ Oiiotool::express(string_view str)
 
 
 // --iconfig
-static int
+static void
 set_input_attribute(cspan<const char*> argv)
 {
     OIIO_DASSERT(argv.size() == 3);
@@ -1384,7 +1376,7 @@ set_input_attribute(cspan<const char*> argv)
     if (!value.size()) {
         // If the value is the empty string, clear the attribute
         ot.input_config.erase_attribute(attribname);
-        return 0;
+        return;
     }
 
     ot.input_config_set = true;
@@ -1398,7 +1390,7 @@ set_input_attribute(cspan<const char*> argv)
             Strutil::parse_char(value, ',');
         }
         ot.input_config.attribute(attribname, type, &vals[0]);
-        return 0;
+        return;
     }
     if (type.basetype == TypeDesc::INT) {
         size_t n = type.numelements() * type.aggregate;
@@ -1408,7 +1400,7 @@ set_input_attribute(cspan<const char*> argv)
             Strutil::parse_char(value, ',');
         }
         ot.input_config.attribute(attribname, type, &vals[0]);
-        return 0;
+        return;
     }
     if (type.basetype == TypeDesc::STRING) {
         size_t n = type.numelements() * type.aggregate;
@@ -1424,7 +1416,7 @@ set_input_attribute(cspan<const char*> argv)
             }
         }
         ot.input_config.attribute(attribname, type, &vals[0]);
-        return 0;
+        return;
     }
 
     if (type == TypeInt
@@ -1441,7 +1433,6 @@ set_input_attribute(cspan<const char*> argv)
         // Otherwise, set it as a string attribute
         ot.input_config.attribute(attribname, value);
     }
-    return 0;
 }
 
 
@@ -1592,12 +1583,12 @@ OiioTool::set_attribute(ImageRecRef img, string_view attribname, TypeDesc type,
 
 
 // --caption
-static int
+static void
 set_caption(cspan<const char*> argv)
 {
     OIIO_DASSERT(argv.size() == 2);
     const char* newargs[3] = { argv[0], "ImageDescription", argv[1] };
-    return set_string_attribute(newargs);
+    set_string_attribute(newargs);
     // N.B. set_string_attribute does expression expansion on its args
 }
 
@@ -1625,26 +1616,24 @@ do_set_keyword(ImageSpec& spec, const std::string& keyword)
 
 
 // --keyword
-static int
+static void
 set_keyword(cspan<const char*> argv)
 {
     OIIO_DASSERT(argv.size() == 2);
     if (!ot.curimg.get()) {
         ot.warning(argv[0], "no current image available to modify");
-        return 0;
+        return;
     }
 
     std::string keyword(ot.express(argv[1]));
     if (keyword.size())
         apply_spec_mod(*ot.curimg, do_set_keyword, keyword, ot.allsubimages);
-
-    return 0;
 }
 
 
 
 // --clear-keywords
-static int
+static void
 clear_keywords(cspan<const char*> argv)
 {
     OIIO_DASSERT(argv.size() == 1);
@@ -1652,27 +1641,27 @@ clear_keywords(cspan<const char*> argv)
     newargs[0] = argv[0];
     newargs[1] = "Keywords";
     newargs[2] = "";
-    return set_string_attribute(newargs);
+    set_string_attribute(newargs);
 }
 
 
 
 // --orientation
-static int
+static void
 set_orientation(cspan<const char*> argv)
 {
     OIIO_DASSERT(argv.size() == 2);
     if (!ot.curimg.get()) {
         ot.warning(argv[0], "no current image available to modify");
-        return 0;
+        return;
     }
 
     string_view command = ot.express(argv[0]);
     auto options        = ot.extract_options(command);
     bool allsubimages   = options.get_int("allsubimages", ot.allsubimages);
 
-    return set_attribute(ot.curimg, "Orientation", TypeDesc::INT, argv[1],
-                         allsubimages);
+    set_attribute(ot.curimg, "Orientation", TypeDesc::INT, argv[1],
+                  allsubimages);
     // N.B. set_attribute does expression expansion on its args
 }
 
@@ -1704,31 +1693,30 @@ do_rotate_orientation(ImageSpec& spec, string_view cmd)
 
 
 // --orientcw --orientccw --orient180 --rotcw --rotccw --rot180
-static int
+static void
 rotate_orientation(cspan<const char*> argv)
 {
     OIIO_DASSERT(argv.size() == 1);
     string_view command = ot.express(argv[0]);
     if (!ot.curimg.get()) {
         ot.warning(command, "no current image available to modify");
-        return 0;
+        return;
     }
 
     auto options      = ot.extract_options(command);
     bool allsubimages = options.get_int("allsubimages", ot.allsubimages);
 
     apply_spec_mod(*ot.curimg, do_rotate_orientation, command, allsubimages);
-    return 0;
 }
 
 
 
 // --origin
-static int
+static void
 set_origin(cspan<const char*> argv)
 {
     if (ot.postpone_action(1, set_origin, argv))
-        return 0;
+        return;
     Timer timer(ot.enable_function_timing);
     string_view command = ot.express(argv[0]);
     string_view origin  = ot.express(argv[1]);
@@ -1766,7 +1754,6 @@ set_origin(cspan<const char*> argv)
         }
     }
     ot.function_times[command] += timer();
-    return 0;
 }
 
 
