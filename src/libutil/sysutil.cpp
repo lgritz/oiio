@@ -649,4 +649,11 @@ Sysutil::setup_crash_stacktrace(string_view filename)
 }
 
 
+
+bool
+cpu_has_neon()
+{
+    return false;
+}
+
 OIIO_NAMESPACE_END

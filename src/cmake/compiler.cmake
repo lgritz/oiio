@@ -241,7 +241,7 @@ endif ()
 # the proper compiler directives added to generate code for those ISA
 # capabilities.
 #
-set (USE_SIMD "" CACHE STRING "Use SIMD directives (0, sse2, sse3, ssse3, sse4.1, sse4.2, avx, avx2, avx512f, f16c, aes)")
+set (USE_SIMD "" CACHE STRING "Use SIMD directives (0, sse2, sse3, ssse3, sse4.1, sse4.2, avx, avx2, avx512f, f16c, aes, neon)")
 set (SIMD_COMPILE_FLAGS "")
 if (NOT USE_SIMD STREQUAL "")
     message (STATUS "Compiling with SIMD level ${USE_SIMD}")

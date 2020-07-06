@@ -55,6 +55,7 @@
 #endif
 
 #include <OpenImageIO/oiioversion.h>
+#include <OpenImageIO/export.h>
 
 // Detect which C++ standard we're using, and handy macros.
 // See https://en.cppreference.com/w/cpp/compiler_support
@@ -529,6 +530,7 @@ inline bool cpu_has_avx512er() {int i[4]; cpuid(i,7,0); return (i[1] & (1<<27)) 
 inline bool cpu_has_avx512cd() {int i[4]; cpuid(i,7,0); return (i[1] & (1<<28)) != 0; }
 inline bool cpu_has_avx512bw() {int i[4]; cpuid(i,7,0); return (i[1] & (1<<30)) != 0; }
 inline bool cpu_has_avx512vl() {int i[4]; cpuid(i,7,0); return (i[1] & (0x80000000 /*1<<31*/)) != 0; }
+OIIO_API bool cpu_has_neon();
 
 // portable aligned malloc
 void* aligned_malloc(std::size_t size, std::size_t align);

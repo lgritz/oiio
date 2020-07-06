@@ -144,7 +144,7 @@ jobs:
         arch: arm64
         dist: bionic
         compiler: gcc
-        env: WHICHGCC=7 BUILD_CMAKE=1
+        env: WHICHGCC=7 BUILD_CMAKE=1 USE_SIMD=
         addons:
           apt:
             #sources: *add-sources
