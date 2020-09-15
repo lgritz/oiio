@@ -52,6 +52,41 @@ endif ()
 install_targets (OpenImageIO_Util)
 
 
+if (Qt5_FOUND)
+    add_library (OpenImageIO_Util_Qt QtArgParse.cpp)
+    set_target_properties(OpenImageIO_Util_Qt
+                          PROPERTIES
+                             VERSION     ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}
+                             SOVERSION   ${SOVERSION}
+                             OUTPUT_NAME OpenImageIO_Util_Qt${OIIO_LIBNAME_SUFFIX}
+                             AUTOMOC     ON
+                             POSITION_INDEPENDENT_CODE ON
+                          )
+    target_link_libraries (OpenImageIO_Util_Qt
+                           PRIVATE
+                               Qt5::Core Qt5::Gui Qt5::Widgets
+                               OpenImageIO_Util
+                          )
+    install_targets (OpenImageIO_Util_Qt)
+
+    add_library (OpenImageIO_Qt QtArgParse.cpp)
+    set_target_properties(OpenImageIO_Qt
+                          PROPERTIES
+                             VERSION     ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}
+                             SOVERSION   ${SOVERSION}
+                             OUTPUT_NAME OpenImageIO_Qt${OIIO_LIBNAME_SUFFIX}
+                             AUTOMOC     ON
+                             POSITION_INDEPENDENT_CODE ON
+                          )
+    target_link_libraries (OpenImageIO_Qt
+                           PRIVATE
+                               Qt5::Core Qt5::Gui Qt5::Widgets
+                               OpenImageIO
+                          )
+    install_targets (OpenImageIO_Qt)
+endif ()
+
+
 
 if (OIIO_BUILD_TESTS)
 

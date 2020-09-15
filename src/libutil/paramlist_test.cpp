@@ -322,7 +322,8 @@ test_delegates()
 {
     std::cout << "test_delegates\n";
     ParamValueList pl;
-    pl["foo"]  = 42;
+    pl["foo"]  = 8;
+    pl["foo"]  = 42;  // test replacement
     pl["pi"]   = float(M_PI);
     pl["bar"]  = "barbarbar?";
     pl["bar2"] = std::string("barbarbar?");

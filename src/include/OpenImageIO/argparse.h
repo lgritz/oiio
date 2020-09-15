@@ -533,6 +533,57 @@ public:
         /// the argument value will be stored.
         string_view dest() const;
 
+        /// Return the help string.
+        string_view help() const;
+
+        /// Is this a hidden argument?
+        bool is_hidden() const;
+
+        /// Is this a separator argument?
+        bool is_separator() const;
+
+        /// Is this a boolean flag?
+        bool is_bool() const;
+
+        /// Set a UI hint. These are only used by the gui() method.
+        /// Recognized hints include:
+        ///
+        /// "label" :
+        ///     The GUI label for this argument option. If not supplied,
+        ///     it will use the name(). This is helpful if you want the
+        ///     GUI text label to be different or more descriptive than
+        ///     the command line argument switch name.
+        ///
+        /// "widget" :
+        ///     The type of preferred widget: "checkbox" (which is the
+        ///     already the default for boolean switches), "text",
+        ///     "filename", "slider", "spinbox".
+        ///
+        /// "max" :
+        ///     For a slider or spinbox, the maximum value.
+        ///
+        /// "min" :
+        ///     For a slider or spinbox, the minimum value.
+        ///
+        /// "step" :
+        ///     For a slider or spinbox, the step value.
+        ///
+        template<typename T> Arg& uihint(string_view name, const T& value)
+        {
+            uihints()[name] = value;
+            return *this;
+        }
+
+        /// Retrievce a UI hint.
+        AttrDelegate<const ParamValueList> uihint(string_view name) const
+        {
+            return uihints()[name];
+        }
+
+        /// Return list of all UI hints
+        ParamValueList& uihints();
+        const ParamValueList& uihints() const;
+
         /// Get a reference to the ArgParse that owns this Arg.
         ArgParse& argparse() { return m_argparse; }
 
@@ -712,11 +763,24 @@ public:
     /// @}
 
 
+    /// Construct a GUI that lets users adjust all the options of this
+    /// ArgParse.
+    ///
+    /// Making this call requires a dependency on Qt and either
+    /// libOpenImageIO_Qt (if the rest of libOpenImageIO is needed) or
+    /// libOpenImageIO_Util_Qt (if only libOpenImageIO_Util is needed).
+    ///
+    int gui(int argc, const char** argv);
+
 private:
     class Impl;
     std::shared_ptr<Impl> m_impl;  // PIMPL pattern
     Arg& argx(const char* argname, ...);
     friend class ArgOption;
+    friend class QtArgParse;
+
+    int get_narguments() const;
+    const Arg* get_argument(int i) const;
 
 public:
     // ------------------------------------------------------------------

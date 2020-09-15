@@ -100,6 +100,7 @@ private:
     std::string m_dest;          // destination parameter name
     std::string m_code;          // paramter types, eg "df"
     std::string m_help;
+    ParamValueList m_uihints;
     OptionType m_type = None;
     int m_count       = 0;               // number of parameters
     std::vector<void*> m_param;          // pointers to app data vars
@@ -605,6 +606,57 @@ ArgParse::Arg::dest() const
 
 
 
+string_view
+ArgParse::Arg::help() const
+{
+    return static_cast<const ArgOption*>(this)->help();
+}
+
+
+
+bool
+ArgParse::Arg::is_hidden() const
+{
+    return static_cast<const ArgOption*>(this)->hidden();
+}
+
+
+
+bool
+ArgParse::Arg::is_separator() const
+{
+    return static_cast<const ArgOption*>(this)->is_separator();
+}
+
+
+
+bool
+ArgParse::Arg::is_bool() const
+{
+    auto a = static_cast<const ArgOption*>(this);
+    return a->is_flag() || a->is_reverse_flag();
+}
+
+
+
+ParamValueList&
+ArgParse::Arg::uihints()
+{
+    auto a = static_cast<ArgOption*>(this);
+    return a->m_uihints;
+}
+
+
+
+const ParamValueList&
+ArgParse::Arg::uihints() const
+{
+    auto a = static_cast<const ArgOption*>(this);
+    return a->m_uihints;
+}
+
+
+
 ParamValueList&
 ArgParse::params()
 {
@@ -1046,6 +1098,22 @@ ArgParse::set_postoption_help(callback_t callback)
     m_impl->m_postoption_help = callback;
 }
 
+
+
+int
+ArgParse::get_narguments() const
+{
+    return int(m_impl->m_option.size());
+}
+
+
+const ArgParse::Arg*
+ArgParse::get_argument(int i) const
+{
+    return (i >= 0 && i < get_narguments())
+               ? static_cast<const ArgParse::Arg*>(m_impl->m_option[i].get())
+               : nullptr;
+}
 
 
 OIIO_NAMESPACE_END
