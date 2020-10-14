@@ -69,6 +69,17 @@ NullInputCreator()
 }
 
 
+
+struct TileReleaser {
+    ImageCache& ic;
+    TileReleaser(ImageCache& ic) : ic(ic) {}
+    void operator()(ImageCache::Tile* tile) { ic.release_tile(tile); }
+};
+
+using TileHolder = std::unique_ptr<ImageCache::Tile, TileReleaser>;
+
+
+
 // Test the ability to add an application buffer to make it appear as if
 // it's an image in the cache.
 void
@@ -112,6 +123,18 @@ test_app_buffer()
     ImageCache::Tile* tile = imagecache->get_tile(fooname, 0, 0, 0, 0, 0);
     OIIO_CHECK_ASSERT(tile != nullptr);
     imagecache->release_tile(tile);  // de-refcount what we got from get_tile
+
+    // Check that we can retrieve and release the tile, this time using RAAI
+    {
+        // construct a unique_ptr that will release the tile upon destruction
+        TileHolder tile(imagecache->get_tile(fooname, 0, 0, 0, 0, 0),
+                        TileReleaser(*imagecache));
+        // Example of using the pointer via get():
+        //     TypeDesc format;
+        //     void* pels = imagecache->tile_pixels(tile.get(), format);
+
+        // The tile will automatically release when it exits scope
+    }
 
     // Check that the tile's pixels appear to actually be our own buffer
     TypeDesc format;
