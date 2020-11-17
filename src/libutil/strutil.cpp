@@ -1279,7 +1279,7 @@ Strutil::strtof(const char* nptr, char** endptr) noexcept
 {
     // Can use strtod_l on platforms that support it
 #ifdef __APPLE__
-    // On OSX, strtod_l is for some reason drastically faster than strtof_l.
+    // On MacOS, strtod_l is for some reason drastically faster than strtof_l.
     return static_cast<float>(strtod_l(nptr, endptr, c_loc));
 #elif defined(__linux__) || defined(__FreeBSD__) \
     || defined(__FreeBSD_kernel__) || defined(__GLIBC__)

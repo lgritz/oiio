@@ -190,7 +190,7 @@ Sysutil::physical_memory()
     // http://www.freebsd.org/cgi/man.cgi?query=sysctl&sektion=3
     // FIXME -- Does this accept a size_t?  Or only an int?  I can't
     // seem to find an online resource that indicates that FreeBSD has a
-    // HW_MEMESIZE like Linux and OSX have, or a HW_PHYSMEM64 like
+    // HW_MEMESIZE like Linux and MacOS have, or a HW_PHYSMEM64 like
     // OpenBSD has.
     int mib[2] = { CTL_HW, HW_PHYSMEM };
     size_t physical_memory;

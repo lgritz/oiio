@@ -19,7 +19,7 @@
 ///
 /// To find out which CPU features you have:
 ///   Linux: cat /proc/cpuinfo
-///   OSX:   sysctl machdep.cpu.features
+///   MacOS: sysctl machdep.cpu.features
 ///
 /// Additional web resources:
 ///   http://www.codersnotes.com/notes/maths-lib-2016/

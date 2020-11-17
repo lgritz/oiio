@@ -69,12 +69,12 @@ ifeq (${SP_OS}, rhel7)
     SP_PLATFORM ?= linux
     SP_PROC ?= x86_64
     SP_REZ_OS ?= CentOS-7
-else ifeq (${platform}, macosx)
-    # Generic OSX machines (including LG's laptop)
+else ifeq (${platform}, macos)
+    # Generic MacOS machines (including LG's laptop)
     COMPILER ?= clang
     SPCOMP2_COMPILER ?= clang
-    SP_OS ?= macosx
-    SP_PLATFORM ?= macosx
+    SP_OS ?= macos
+    SP_PLATFORM ?= macos
     SP_PROC ?= x86_64
     SP_REZ_OS ?= MacOS
 else
@@ -296,8 +296,8 @@ ifeq (${SP_OS}, rhel7)
 
     # end rhel7
 
-## Generic OSX machines (including LG's laptop)
-else ifeq (${platform}, macosx)
+## Generic MacOS machines (including LG's laptop)
+else ifeq (${platform}, macos)
     USE_SIMD ?= sse4.2
     MY_CMAKE_FLAGS += \
         -DCMAKE_BUILD_WITH_INSTALL_RPATH=1 \
@@ -352,7 +352,7 @@ else ifeq (${platform}, macosx)
            -DCMAKE_CXX_COMPILER=${LLVM_DIRECTORY}/bin/clang++
     endif
 
-    # end generic OSX
+    # end generic MacOS
 
 else
     $(error Unknown SP_OS=${SP_OS} platform=${platform})

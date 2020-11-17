@@ -31,7 +31,7 @@ command += rw_command (OIIO_TESTSUITE_IMAGEDIR, "jello.tif")
 
 # ladoga.tif	158x118 16-bit unsigned, single band, deflate
 # NOTE -- I have no idea if we read this correctly.  Neither ImageMagick
-#    nor OSX preview display a meaningful image.
+#    nor MacOS Preview.app display a meaningful image.
 
 # off_l16.tif	333x225 8-bit CIE LogL (SGILog) office from Greg Larson
 # off_luv24.tif	333x225 8-bit CIE LogLuv (SGILog24) office from " "

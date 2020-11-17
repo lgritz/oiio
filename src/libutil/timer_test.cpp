@@ -56,7 +56,7 @@ main(int argc, char** argv)
     double eps         = 0.01;    // slop we allow in our timings
 #ifdef __APPLE__
     eps = 0.03;
-    // On some Apple OSX systems (especially >= 10.10 Yosemite), a feature
+    // On some Apple MacOS systems (especially >= 10.10 Yosemite), a feature
     // called "timer coalescing" causes sleep/wake events to merge in order
     // to produce longer idle periods for the CPU to go into a lower power
     // state. This tends to make usleep() less reliable in its timing.

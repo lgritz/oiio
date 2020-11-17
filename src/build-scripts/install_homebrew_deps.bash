@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 
-# This script, which assumes it is runnign on a Mac OSX with Homebrew
+# This script, which assumes it is runnign on a MacOS with Homebrew
 # installed, does a "brew install" in all packages reasonably needed by
 # OIIO.
 
 if [[ `uname` != "Darwin" ]] ; then
-    echo "Don't run this script unless you are on Mac OSX"
+    echo "Don't run this script unless you are on MacOS"
     exit 1
 fi
 

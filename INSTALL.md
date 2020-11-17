@@ -190,7 +190,7 @@ our CMake build, it simplifies things.)**
 
 During the make, various temporary files (object files, etc.) will
 be put in build/PLATFORM, where 'PLATFORM' will be the name of the
-platform you are building for (e.g., linux, linux64, macosx).
+platform you are building for (e.g., linux, linux64, macos).
 
 The result of the make will be a full binary distribution in
 dist/PLATFORM.

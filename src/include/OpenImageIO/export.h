@@ -24,7 +24,7 @@
 /// dilemma since the same header file is used by both the library and
 /// its clients.  Sheesh!
 ///
-/// But on Linux/OSX as well, we want to only have the DSO export the
+/// But on Linux/MacOS as well, we want to only have the DSO export the
 /// symbols we designate as the public interface.  So we link with
 /// -fvisibility=hidden to default to hiding the symbols.  See
 /// http://gcc.gnu.org/wiki/Visibility

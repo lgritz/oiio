@@ -173,7 +173,7 @@
 #  define OIIO_INTEL_COMPILER_VERSION 0
 #endif
 
-// Intel's compiler on OSX may still define __clang__ and we have need to
+// Intel's compiler on MacOS may still define __clang__ and we have need to
 // know when using a true clang compiler.
 #if !defined(__INTEL_COMPILER) && defined(__clang__)
 #  define OIIO_NON_INTEL_CLANG  __clang__

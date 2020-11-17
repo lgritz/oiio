@@ -6,7 +6,7 @@
 
 # Figure out the platform
 if [[ $TRAVIS_OS_NAME == osx || $RUNNER_OS == macOS ]] ; then
-      export ARCH=macosx
+      export ARCH=macos
 elif [[ `uname -m` == aarch64 ]] ; then
     export ARCH=aarch64
 elif [[ $TRAVIS_OS_NAME == linux || $RUNNER_OS == Linux || $CIRCLECI == true ]] ; then
@@ -80,6 +80,6 @@ env | sort
 
 if [[ `uname -s` == "Linux" ]] ; then
     head -40 /proc/cpuinfo
-elif [[ $ARCH == macosx ]] ; then
+elif [[ $ARCH == macos ]] ; then
     sysctl machdep.cpu.features
 fi
