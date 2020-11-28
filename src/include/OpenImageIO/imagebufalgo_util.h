@@ -82,7 +82,7 @@ parallel_image (ROI roi, parallel_image_options opt,
         xchunk = ychunk = std::max (int64_t(1), int64_t(std::sqrt(opt.maxthreads))/2);
     }
 
-    auto task = [&](int /*id*/, int64_t xbegin, int64_t xend,
+    auto task = [&](int64_t xbegin, int64_t xend,
                     int64_t ybegin, int64_t yend) {
         f (ROI (xbegin, xend, ybegin, yend, roi.zbegin, roi.zend,
                 roi.chbegin, roi.chend));
@@ -102,7 +102,7 @@ parallel_image (ROI roi, std::function<void(ROI)> f)
 
 // DEPRECATED(1.8) -- eventually enable the OIIO_DEPRECATION
 template <class Func>
-// OIIO_DEPRECATED("switch to new parallel_image (1.8)")
+OIIO_DEPRECATED("switch to new parallel_image (1.8)")
 void
 parallel_image (Func f, ROI roi, int nthreads=0, SplitDir splitdir=Split_Y)
 {
