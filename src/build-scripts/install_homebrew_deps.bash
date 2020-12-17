@@ -27,7 +27,7 @@ brew link --overwrite gcc
 brew unlink python@2.7 || true
 brew unlink python@3.9 || true
 brew unlink python@3.8 || true
-brew link --force python@3.8 || true
+brew link --force --overwrite python@3.8 || true
 brew upgrade --display-times cmake || true
 brew install --display-times libtiff ilmbase openexr opencolorio
 brew install --display-times libpng giflib webp jpeg-turbo openjpeg
@@ -43,11 +43,11 @@ echo "After brew installs:"
 brew list --versions
 
 # Needed on some systems
-if [[ $PYTHON_VERSION != "2.7" ]] ; then
-    pip3 install numpy
-else
-    pip install numpy
-fi
+#if [[ $PYTHON_VERSION != "2.7" ]] ; then
+#    pip3 install numpy
+#else
+#    pip install numpy
+#fi
 
 
 # Set up paths. These will only affect the caller if this script is
