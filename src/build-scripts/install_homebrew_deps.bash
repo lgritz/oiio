@@ -16,7 +16,6 @@ if [[ `which brew` == "" ]] ; then
 fi
 
 
-brew uninstall openssl
 #brew update >/dev/null
 echo ""
 echo "Before my brew installs:"
@@ -44,7 +43,12 @@ echo "After brew installs:"
 brew list --versions
 
 # Needed on some systems
-# pip install numpy || true
+if [[ $PYTHON_VERSION != "2.7" ]] ; then
+    pip3 install numpy
+else
+    pip install numpy
+fi
+
 
 # Set up paths. These will only affect the caller if this script is
 # run with 'source' rather than in a separate shell.
