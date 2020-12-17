@@ -582,34 +582,47 @@ parallel_recursive_depth(int change = 0)
 
 
 void
+paropt::resolve()
+{
+    if (m_pool == nullptr)
+        m_pool = default_thread_pool();
+    if (m_maxthreads <= 0)
+        m_maxthreads = m_pool->size() + 1;  // pool size + caller
+    if (!m_recursive && m_pool->is_worker())
+        m_maxthreads = 1;
+}
+
+
+
+void
 parallel_for_chunked_id(int64_t begin, int64_t end, int64_t chunksize,
                         std::function<void(int id, int64_t b, int64_t e)>&& task,
-                        parallel_options opt)
+                        paropt opt)
 {
     if (parallel_recursive_depth(1) > 1)
-        opt.maxthreads = 1;
+        opt.maxthreads(1);
     opt.resolve();
     chunksize = std::min(chunksize, end - begin);
     if (chunksize < 1) {           // If caller left chunk size to us...
         if (opt.singlethread()) {  // Single thread: do it all in one shot
             chunksize = end - begin;
         } else {  // Multithread: choose a good chunk size
-            int p     = std::max(1, 2 * opt.maxthreads);
-            chunksize = std::max(int64_t(opt.minitems), (end - begin) / p);
+            int p     = std::max(1, 2 * opt.maxthreads());
+            chunksize = std::max(int64_t(opt.minitems()), (end - begin) / p);
         }
     }
     // N.B. If chunksize was specified, honor it, even for the single
     // threaded case.
-    for (task_set ts(opt.pool); begin < end; begin += chunksize) {
+    for (task_set ts(opt.pool()); begin < end; begin += chunksize) {
         int64_t e = std::min(end, begin + chunksize);
-        if (e == end || opt.singlethread() || opt.pool->very_busy()) {
+        if (e == end || opt.singlethread() || opt.pool()->very_busy()) {
             // For the last (or only) subtask, or if we are using just one
             // thread, or if the pool is already oversubscribed, do it
             // ourselves and avoid messing with the queue or handing off
             // between threads.
             task(-1, begin, e);
         } else {
-            ts.push(opt.pool->push(task, begin, e));
+            ts.push(opt.pool()->push(task, begin, e));
         }
     }
     parallel_recursive_depth(-1);
@@ -620,7 +633,7 @@ parallel_for_chunked_id(int64_t begin, int64_t end, int64_t chunksize,
 void
 parallel_for_chunked(int64_t begin, int64_t end, int64_t chunksize,
                      std::function<void(int64_t b, int64_t e)>&& task,
-                     parallel_options opt)
+                     paropt opt)
 {
     auto wrapper = [&](int /*id*/, int64_t b, int64_t e) { task(b, e); };
     parallel_for_chunked_id(begin, end, chunksize, wrapper, opt);
@@ -632,7 +645,7 @@ parallel_for_chunked(int64_t begin, int64_t end, int64_t chunksize,
 void
 parallel_for_chunked(int64_t begin, int64_t end, int64_t chunksize,
                      std::function<void(int id, int64_t b, int64_t e)>&& task,
-                     parallel_options opt)
+                     paropt opt)
 {
     parallel_for_chunked_id(begin, end, chunksize, std::move(task), opt);
 }
@@ -642,7 +655,7 @@ parallel_for_chunked(int64_t begin, int64_t end, int64_t chunksize,
 void
 parallel_for (int64_t begin, int64_t end,
               std::function<void(int64_t index)>&& task,
-              parallel_options opt)
+              paropt opt)
 {
     parallel_for_chunked_id(begin, end, 0, [&task](int /*id*/, int64_t i, int64_t e) {
         for ( ; i < e; ++i)
@@ -656,7 +669,7 @@ parallel_for (int64_t begin, int64_t end,
 void
 parallel_for(int64_t begin, int64_t end,
              std::function<void(int id, int64_t index)>&& task,
-             parallel_options opt)
+             paropt opt)
 {
     parallel_for_chunked_id(begin, end, 0, [&task](int id, int64_t i, int64_t e) {
         for ( ; i < e; ++i)
@@ -671,32 +684,32 @@ parallel_for_chunked_2D_id(
     int64_t xbegin, int64_t xend, int64_t xchunksize, int64_t ybegin,
     int64_t yend, int64_t ychunksize,
     std::function<void(int id, int64_t, int64_t, int64_t, int64_t)>&& task,
-    parallel_options opt)
+    paropt opt)
 {
     if (parallel_recursive_depth(1) > 1)
-        opt.maxthreads = 1;
+        opt.maxthreads(1);
     opt.resolve();
     if (opt.singlethread()
         || (xchunksize >= (xend - xbegin) && ychunksize >= (yend - ybegin))
-        || opt.pool->very_busy()) {
+        || opt.pool()->very_busy()) {
         task(-1, xbegin, xend, ybegin, yend);
         parallel_recursive_depth(-1);
         return;
     }
     if (ychunksize < 1)
         ychunksize = std::max(int64_t(1),
-                              (yend - ybegin) / (2 * opt.maxthreads));
+                              (yend - ybegin) / (2 * opt.maxthreads()));
     if (xchunksize < 1) {
         int64_t ny = std::max(int64_t(1), (yend - ybegin) / ychunksize);
-        int64_t nx = std::max(int64_t(1), opt.maxthreads / ny);
+        int64_t nx = std::max(int64_t(1), opt.maxthreads() / ny);
         xchunksize = std::max(int64_t(1), (xend - xbegin) / nx);
     }
-    task_set ts(opt.pool);
+    task_set ts(opt.pool());
     for (auto y = ybegin; y < yend; y += ychunksize) {
         int64_t ychunkend = std::min(yend, y + ychunksize);
         for (auto x = xbegin; x < xend; x += xchunksize) {
             int64_t xchunkend = std::min(xend, x + xchunksize);
-            ts.push(opt.pool->push(task, x, xchunkend, y, ychunkend));
+            ts.push(opt.pool()->push(task, x, xchunkend, y, ychunkend));
         }
     }
     parallel_recursive_depth(-1);
@@ -710,7 +723,7 @@ parallel_for_chunked_2D (
     int64_t xbegin, int64_t xend, int64_t xchunksize, int64_t ybegin,
     int64_t yend, int64_t ychunksize,
     std::function<void(int id, int64_t, int64_t, int64_t, int64_t)>&& task,
-    parallel_options opt)
+    paropt opt)
 {
     parallel_for_chunked_2D_id(xbegin, xend, xchunksize,
                                ybegin, yend, ychunksize,
@@ -724,7 +737,7 @@ parallel_for_chunked_2D(
     int64_t xbegin, int64_t xend, int64_t xchunksize, int64_t ybegin,
     int64_t yend, int64_t ychunksize,
     std::function<void(int64_t, int64_t, int64_t, int64_t)>&& task,
-    parallel_options opt)
+    paropt opt)
 {
     auto wrapper = [&](int /*id*/, int64_t xb, int64_t xe,
                        int64_t yb, int64_t ye) { task(xb,xe,yb,ye); };
@@ -738,7 +751,7 @@ void
 parallel_for_2D (int64_t xbegin, int64_t xend,
                  int64_t ybegin, int64_t yend,
                  std::function<void(int64_t i, int64_t j)>&& task,
-                 parallel_options opt)
+                 paropt opt)
 {
     parallel_for_chunked_2D_id(xbegin, xend, 0, ybegin, yend, 0,
             [&task](int /*id*/, int64_t xb, int64_t xe, int64_t yb, int64_t ye) {

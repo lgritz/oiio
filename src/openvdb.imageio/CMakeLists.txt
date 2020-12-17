@@ -5,5 +5,5 @@
 if (OpenVDB_FOUND)
     add_oiio_plugin (openvdbinput.cpp
                      INCLUDE_DIRS ${TBB_INCLUDE_DIRS}
-                     LINK_LIBRARIES OpenVDB::OpenVDB ${TBB_tbb_LIBRARY} ${BOOST_LIBRARIES})
+                     LINK_LIBRARIES OpenVDB::OpenVDB TBB::tbb ${BOOST_LIBRARIES})
 endif()

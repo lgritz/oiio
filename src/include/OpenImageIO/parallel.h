@@ -14,6 +14,7 @@
 #include <thread>
 #include <vector>
 
+#include <OpenImageIO/function_view.h>
 #include <OpenImageIO/strutil.h>
 #include <OpenImageIO/thread.h>
 
@@ -71,6 +72,88 @@ public:
 
 
 
+#define OIIO_PARALLEL_PAROPT
+
+/// Encapsulation of options that control parallel_for() and
+/// parallel_image().
+class paropt {
+public:
+    enum class ParStrategy { Default = 0, TryTBB, OIIOpool };
+
+    paropt(int maxthreads = 0, SplitDir splitdir = Split_Y,
+           size_t minitems = 1)
+        : m_maxthreads(maxthreads)
+        , m_splitdir(splitdir)
+        , m_minitems(minitems)
+    {
+    }
+    paropt(string_view name, int maxthreads = 0,
+           SplitDir splitdir = Split_Y, size_t minitems = 1)
+        : m_maxthreads(maxthreads)
+        , m_splitdir(splitdir)
+        , m_minitems(minitems)
+        // , m_name(name)
+    {
+    }
+
+    // For back compatibility
+    paropt(const parallel_options& po)
+        : paropt(/*po.name,*/ po.maxthreads, po.splitdir, po.minitems)
+    {
+        m_recursive = po.recursive;
+        m_pool = po.pool;
+    }
+
+    // Fix up all the TBD parameters:
+    // * If no pool was specified, use the default pool.
+    // * If no max thread count was specified, use the pool size.
+    // * If the calling thread is itself in the pool and the recursive flag
+    //   was not turned on, just use one thread.
+    OIIO_API void resolve();
+
+    bool singlethread() const { return m_maxthreads == 1; }
+
+    int maxthreads() const { return m_maxthreads; }
+    paropt& maxthreads(int m) { m_maxthreads = m; return *this; }
+
+    SplitDir splitdir() const { return m_splitdir; }
+    paropt& splitdir(SplitDir s) { m_splitdir = s; return *this; }
+
+    bool recursive() const { return m_recursive; }
+    paropt& recursive(bool r) { m_recursive = r; return *this; }
+
+    int minitems() const { return m_minitems; }
+    paropt& minitems(int m) { m_minitems = m; return *this; }
+
+    thread_pool* pool() const { return m_pool; }
+    paropt& pool(thread_pool* p) { m_pool = p; return *this; }
+
+    ParStrategy strategy() const { return m_strategy; }
+    paropt& strategy(ParStrategy s) { m_strategy = s; return *this; }
+
+private:
+    int m_maxthreads    = 0;        // Max threads (0 = use all)
+    SplitDir m_splitdir = Split_Y;  // Primary split direction
+    bool m_recursive    = false;    // Allow thread pool recursion
+    size_t m_minitems   = 16384;    // Min items per task
+    thread_pool* m_pool = nullptr;  // If non-NULL, custom thread pool
+    // string_view m_name;             // For debugging
+    ParStrategy m_strategy = ParStrategy::Default;
+};
+
+
+
+// Mimic Cuda dim3 type
+struct dim3 {
+    unsigned int x, y, z;
+
+    OIIO_HOSTDEVICE constexpr dim3(unsigned int x = 1, unsigned int y = 1,
+                                   unsigned int z = 1)
+        : x(x), y(y), z(z) {}
+};
+
+
+
 /// Parallel "for" loop, chunked: for a task that takes an int64_t
 /// [begin,end) range, break it into non-overlapping sections that run in
 /// parallel:
@@ -89,7 +172,7 @@ public:
 OIIO_API void
 parallel_for_chunked(int64_t begin, int64_t end, int64_t chunksize,
                      std::function<void(int64_t, int64_t)>&& task,
-                     parallel_options opt = parallel_options(0, Split_Y, 1));
+                     paropt opt = paropt(0, Split_Y, 1));
 
 
 
@@ -108,7 +191,7 @@ parallel_for_chunked(int64_t begin, int64_t end, int64_t chunksize,
 OIIO_API void
 parallel_for (int64_t begin, int64_t end,
               std::function<void(int64_t index)>&& task,
-              parallel_options opt=parallel_options(0,Split_Y,1));
+              paropt opt = paropt(0,Split_Y,1));
 
 
 
@@ -131,7 +214,7 @@ parallel_for_chunked_2D (int64_t xbegin, int64_t xend, int64_t xchunksize,
                          int64_t ybegin, int64_t yend, int64_t ychunksize,
                          std::function<void(int64_t xbeg, int64_t xend,
                                             int64_t ybeg, int64_t yend)>&& task,
-                         parallel_options opt=0);
+                         paropt opt=0);
 
 
 
@@ -148,7 +231,7 @@ OIIO_API void
 parallel_for_2D (int64_t xbegin, int64_t xend,
                  int64_t ybegin, int64_t yend,
                  std::function<void(int64_t x, int64_t y)>&& task,
-                 parallel_options opt=0);
+                 paropt opt=0);
 
 
 
@@ -162,13 +245,13 @@ OIIO_DEPRECATED("Use tasks that don't take a thread ID (2.3)")
 OIIO_API void
 parallel_for_chunked(int64_t begin, int64_t end, int64_t chunksize,
                      std::function<void(int id, int64_t b, int64_t e)>&& task,
-                     parallel_options opt = parallel_options(0, Split_Y, 1));
+                     paropt opt = paropt(0, Split_Y, 1));
 
 OIIO_DEPRECATED("Use tasks that don't take a thread ID (2.3)")
 OIIO_API void
 parallel_for(int64_t begin, int64_t end,
              std::function<void(int id, int64_t index)>&& task,
-             parallel_options opt=parallel_options(0,Split_Y,1));
+             paropt opt = paropt(0,Split_Y,1));
 
 OIIO_DEPRECATED("Use tasks that don't take a thread ID (2.3)")
 OIIO_API void
@@ -176,14 +259,14 @@ parallel_for_chunked_2D (int64_t xbegin, int64_t xend, int64_t xchunksize,
                          int64_t ybegin, int64_t yend, int64_t ychunksize,
                          std::function<void(int id, int64_t, int64_t,
                                             int64_t, int64_t)>&& task,
-                         parallel_options opt=0);
+                         paropt opt=0);
 
 OIIO_DEPRECATED("Use tasks that don't take a thread ID (2.3)")
 inline void
 parallel_for_2D (int64_t xbegin, int64_t xend,
                  int64_t ybegin, int64_t yend,
                  std::function<void(int id, int64_t i, int64_t j)>&& task,
-                 parallel_options opt=0)
+                 paropt opt=0)
 {
     parallel_for_chunked_2D (xbegin, xend, 0, ybegin, yend, 0,
             [&task](int id, int64_t xb, int64_t xe, int64_t yb, int64_t ye) {
@@ -202,7 +285,7 @@ template<class InputIt, class UnaryFunction>
 OIIO_DEPRECATED("Don't use this (2.3)")
 UnaryFunction
 parallel_for_each (InputIt first, InputIt last, UnaryFunction f,
-                   parallel_options opt=parallel_options(0,Split_Y,1))
+                   paropt opt = paropt(0,Split_Y,1))
 {
     return std::for_each(first, last, f);
 }
