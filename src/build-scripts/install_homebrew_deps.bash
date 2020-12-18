@@ -24,10 +24,13 @@ brew list --versions
 # All cases except for clang-format target, we need the dependencies.
 brew install --display-times gcc ccache cmake ninja boost || true
 brew link --overwrite gcc
-brew unlink python@2.7 || true
-brew unlink python@3.9 || true
-brew unlink python@3.8 || true
-brew link --force --overwrite python@3.8 || true
+brew install --display-times python pybind11 || true
+brew upgrade --display-times python || true
+brew link --overwrite python
+#brew unlink python@2.7 || true
+#brew unlink python@3.9 || true
+#brew unlink python@3.8 || true
+#brew link --force --overwrite python@3.8 || true
 brew upgrade --display-times cmake || true
 brew install --display-times libtiff ilmbase openexr opencolorio
 brew install --display-times libpng giflib webp jpeg-turbo openjpeg

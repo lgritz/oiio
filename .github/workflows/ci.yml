@@ -296,7 +296,7 @@ jobs:
       - name: all
         env:
           CXX: clang++
-          PYTHON_VERSION: 3.8
+          PYTHON_VERSION: 3.9
           CMAKE_CXX_STANDARD: 14
           ENABLE_FIELD3D: OFF
         run: |
