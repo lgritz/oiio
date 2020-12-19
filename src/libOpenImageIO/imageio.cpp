@@ -38,6 +38,7 @@ atomic_int oiio_exr_threads(threads_default());
 atomic_int oiio_read_chunk(256);
 int tiff_half(0);
 int tiff_multithread(1);
+int oiio_use_tbb(0);  // Use TBB if available
 ustring plugin_searchpath(OIIO_DEFAULT_PLUGIN_SEARCHPATH);
 std::string format_list;         // comma-separated list of all formats
 std::string input_format_list;   // comma-separated list of readable formats
@@ -320,6 +321,10 @@ attribute(string_view name, TypeDesc type, const void* val)
         tiff_multithread = *(const int*)val;
         return true;
     }
+    if (name == "use_tbb" && type == TypeInt) {
+        oiio_use_tbb = *(const int*)val;
+        return true;
+    }
     if (name == "debug" && type == TypeInt) {
         oiio_print_debug = *(const int*)val;
         return true;
@@ -405,6 +410,10 @@ getattribute(string_view name, TypeDesc type, void* val)
     }
     if (name == "tiff:multithread" && type == TypeInt) {
         *(int*)val = tiff_multithread;
+        return true;
+    }
+    if (name == "use_tbb" && type == TypeInt) {
+        *(int*)val = oiio_use_tbb;
         return true;
     }
     if (name == "debug" && type == TypeInt) {

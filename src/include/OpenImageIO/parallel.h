@@ -89,16 +89,21 @@ public:
     }
     paropt(string_view name, int maxthreads = 0,
            SplitDir splitdir = Split_Y, size_t minitems = 1)
-        : m_maxthreads(maxthreads)
-        , m_splitdir(splitdir)
-        , m_minitems(minitems)
-        // , m_name(name)
+        : paropt(maxthreads, splitdir, minitems)
+    {
+        // m_name = name;
+    }
+
+    paropt(ParStrategy strat) : m_strategy(strat) { }
+
+    paropt(int maxthreads, ParStrategy strat)
+        : m_maxthreads(maxthreads), m_strategy(strat)
     {
     }
 
     // For back compatibility
     paropt(const parallel_options& po)
-        : paropt(/*po.name,*/ po.maxthreads, po.splitdir, po.minitems)
+        : paropt(po.name, po.maxthreads, po.splitdir, po.minitems)
     {
         m_recursive = po.recursive;
         m_pool = po.pool;

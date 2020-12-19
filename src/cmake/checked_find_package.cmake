@@ -20,8 +20,11 @@ set (OPTIONAL_DEPS "" CACHE STRING
 #     turned off explicitly from one of these sources.
 #   * Print a message if the package is enabled but not found. This is based
 #     on ${Pkgname}_FOUND or $PKGNAME_FOUND.
-#   * Optional DEFINITIONS <string> are passed to add_definitions if the
+#   * Optional DEFINITIONS <string>... are passed to add_definitions if the
 #     package is found.
+#   * Optional SETVARIABLES <id>... is a list of CMake variables to set to
+#     TRUE if the package is found (they will not be set or changed if the
+#     package is not found).
 #   * Optional PRINT <list> is a list of variables that will be printed
 #     if the package is found, if VERBOSE is on.
 #   * Optional DEPS <list> is a list of hard dependencies; for each one, if
@@ -53,7 +56,7 @@ macro (checked_find_package pkgname)
         # singleValueKeywords:
         "ENABLE;ISDEPOF;VERSION_MIN;VERSION_MAX;RECOMMEND_MIN;RECOMMEND_MIN_REASON"
         # multiValueKeywords:
-        "DEFINITIONS;PRINT;DEPS"
+        "DEFINITIONS;PRINT;DEPS;SETVARIABLES"
         # argsToParse:
         ${ARGN})
     string (TOLOWER ${pkgname} pkgname_lower)
@@ -121,6 +124,9 @@ macro (checked_find_package pkgname)
                 endforeach ()
             endif ()
             add_definitions (${_pkg_DEFINITIONS})
+            foreach (_v IN LISTS _pkg_SETVARIABLES)
+                set (${_v} TRUE)
+            endforeach ()
             if (_pkg_RECOMMEND_MIN)
                 if (${${pkgname}_VERSION} VERSION_LESS ${_pkg_RECOMMEND_MIN})
                     message (STATUS "${ColorYellow}Recommend ${pkgname} >= ${_pkg_RECOMMEND_MIN} ${_pkg_RECOMMEND_MIN_REASON} ${ColorReset}")

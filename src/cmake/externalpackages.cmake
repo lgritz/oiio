@@ -157,8 +157,7 @@ checked_find_package (OpenCV
 # Intel TBB
 set (TBB_USE_DEBUG_BUILD OFF)
 checked_find_package (TBB 2017
-                   DEFINITIONS  -DUSE_TBB=1
-                   ISDEPOF      OpenVDB)
+                      SETVARIABLES OIIO_TBB)
 
 checked_find_package (DCMTK VERSION_MIN 3.6.1)  # For DICOM images
 checked_find_package (FFmpeg VERSION_MIN 2.6)

@@ -24,6 +24,7 @@ target_link_libraries (OpenImageIO_Util
             # For OpenEXR <= 2.3:
             ${ILMBASE_LIBRARIES}
             ${GCC_ATOMIC_LIBRARIES}
+            $<$<TARGET_EXISTS:TBB::tbb>:TBB::tbb>
         PRIVATE
             ${SANITIZE_LIBRARIES}
             ${Boost_LIBRARIES}

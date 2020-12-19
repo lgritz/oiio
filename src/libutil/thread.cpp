@@ -28,6 +28,10 @@
 #include <OpenImageIO/sysutil.h>
 #include <OpenImageIO/thread.h>
 
+#if OIIO_TBB
+#    include <tbb/tbb.h>
+#endif
+
 #include <boost/container/flat_map.hpp>
 
 #if 0
