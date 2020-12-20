@@ -131,10 +131,12 @@ HeifInput::open(const std::string& name, ImageSpec& newspec,
 
     } catch (const heif::Error& err) {
         std::string e = err.get_message();
+        OIIO_ASSERT(0);
         errorf("%s", e.empty() ? "unknown exception" : e.c_str());
         return false;
     } catch (const std::exception& err) {
         std::string e = err.what();
+        OIIO_ASSERT(0);
         errorf("%s", e.empty() ? "unknown exception" : e.c_str());
         return false;
     }
@@ -183,10 +185,12 @@ HeifInput::seek_subimage(int subimage, int miplevel)
 
     } catch (const heif::Error& err) {
         std::string e = err.get_message();
+        OIIO_ASSERT(0);
         errorf("%s", e.empty() ? "unknown exception" : e.c_str());
         return false;
     } catch (const std::exception& err) {
         std::string e = err.what();
+        OIIO_ASSERT(0);
         errorf("%s", e.empty() ? "unknown exception" : e.c_str());
         return false;
     }
@@ -194,6 +198,7 @@ HeifInput::seek_subimage(int subimage, int miplevel)
     int bits = m_himage.get_bits_per_pixel(heif_channel_interleaved);
     m_spec = ImageSpec(m_ihandle.get_width(), m_ihandle.get_height(), bits / 8,
                        TypeUInt8);
+    OIIO_ASSERT(m_spec.width > 0);
 
     m_spec.attribute("oiio:ColorSpace", "sRGB");
 

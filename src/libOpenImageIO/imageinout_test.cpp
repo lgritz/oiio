@@ -13,6 +13,7 @@
 #include <OpenImageIO/imagebuf.h>
 #include <OpenImageIO/imagebufalgo.h>
 #include <OpenImageIO/imageio.h>
+#include <OpenImageIO/sysutil.h>
 #include <OpenImageIO/unittest.h>
 
 using namespace OIIO;
@@ -420,6 +421,10 @@ test_read_tricky_sizes()
 int
 main(int /*argc*/, char* /*argv*/[])
 {
+    // Helpful for debugging to make sure that any crashes dump a stack
+    // trace.
+    Sysutil::setup_crash_stacktrace("stdout");
+
     test_all_formats();
     test_read_tricky_sizes();
 

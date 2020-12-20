@@ -7,10 +7,26 @@
 #include <OpenImageIO/imageio.h>
 #include <OpenImageIO/tiffutils.h>
 
-#include <libheif/heif_cxx.h>
+#include <libheif/heif.h>
+// #include <libheif/heif_cxx.h>
 
 
 OIIO_PLUGIN_NAMESPACE_BEGIN
+
+
+struct ctx_deleter {
+    void operator()(heif_context* c) { heif_context_free(c); }
+};
+
+struct heif_image_deleter {
+    void operator()(heif_image* i) { heif_image_release(i); }
+};
+
+struct heif_encoder_deleter {
+    void operator()(heif_encoder* e) { heif_encoder_release(e); }
+};
+
+
 
 class HeifOutput final : public ImageOutput {
 public:
@@ -32,18 +48,32 @@ public:
 
 private:
     std::string m_filename;
-    std::unique_ptr<heif::Context> m_ctx;
-    heif::ImageHandle m_ihandle;
-    heif::Image m_himage;
-    heif::Encoder m_encoder { heif_compression_HEVC };
+    std::unique_ptr<heif_context, ctx_deleter> m_hctx;
+    std::unique_ptr<heif_image, heif_image_deleter> m_hhimage;
+    std::unique_ptr<heif_encoder, heif_encoder_deleter> m_hencoder;
+    // std::unique_ptr<heif::Context> m_ctx;
+    // heif::ImageHandle m_ihandle;
+    // heif::Image m_himage;
+    // heif::Encoder m_encoder { heif_compression_HEVC };
     std::vector<unsigned char> scratch;
     std::vector<unsigned char> m_tilebuffer;
+
+    bool checkerr(string_view label, heif_error herr) {
+        if (herr.code != heif_error_Ok) {
+            error("{} error {}.{} \"{}\"", label, int(herr.code),
+                  int(herr.subcode), herr.message);
+            return false;
+        }
+        return true;
+    }
+
 };
 
 
 
 namespace {
 
+#if 0
 class MyHeifWriter final : public heif::Context::Writer {
 public:
     MyHeifWriter(Filesystem::IOProxy* ioproxy)
@@ -66,6 +96,7 @@ public:
 private:
     Filesystem::IOProxy* m_ioproxy = nullptr;
 };
+#endif
 
 }  // namespace
 
@@ -119,28 +150,47 @@ HeifOutput::open(const std::string& name, const ImageSpec& newspec,
 
     m_spec.set_format(TypeUInt8);  // Only uint8 for now
 
-    try {
-        m_ctx.reset(new heif::Context);
-        m_himage = heif::Image();
+    // try {
+        m_hctx.reset(heif_context_alloc());
+        heif_image* himg = nullptr;
+        heif_error herr;
         static heif_chroma chromas[/*nchannels*/]
             = { heif_chroma_undefined, heif_chroma_monochrome,
                 heif_chroma_undefined, heif_chroma_interleaved_RGB,
                 heif_chroma_interleaved_RGBA };
-        m_himage.create(newspec.width, newspec.height, heif_colorspace_RGB,
-                        chromas[m_spec.nchannels]);
-        m_himage.add_plane(heif_channel_interleaved, newspec.width,
-                           newspec.height, 8 * m_spec.nchannels /*bit depth*/);
-        m_encoder = heif::Encoder(heif_compression_HEVC);
+        auto colorspace = m_spec.nchannels == 1 ? heif_colorspace_monochrome
+                                                : heif_colorspace_RGB;
+        herr = heif_image_create(m_spec.width, m_spec.height,
+                                 colorspace, chromas[m_spec.nchannels], &himg);
+        m_hhimage.reset(himg);
+        if (!checkerr("heif_image_create", herr))
+            return false;
+        // static heif_channel hchannel[/*channel*/] = {
+        //     heif_channel_R, heif_channel_G, heif_channel_B, heif_channel_Alpha
+        // };
+        herr = heif_image_add_plane(m_hhimage.get(), heif_channel_interleaved,
+                                    m_spec.width, m_spec.height,
+                                    8 * m_spec.nchannels);
+        // FIXME ^^^ this limits us to 8 bits per channel
+        if (!checkerr("heif_image_add_plane", herr))
+            return false;
 
-    } catch (const heif::Error& err) {
-        std::string e = err.get_message();
-        errorf("%s", e.empty() ? "unknown exception" : e.c_str());
-        return false;
-    } catch (const std::exception& err) {
-        std::string e = err.what();
-        errorf("%s", e.empty() ? "unknown exception" : e.c_str());
-        return false;
-    }
+        heif_encoder* enc;
+        herr = heif_context_get_encoder_for_format(m_hctx.get(),
+                                                   heif_compression_HEVC, &enc);
+        m_hencoder.reset(enc);
+        if (!checkerr("heif_context_get_encoder_for_format", herr))
+            return false;
+
+    // } catch (const heif::Error& err) {
+    //     std::string e = err.get_message();
+    //     errorf("%s", e.empty() ? "unknown exception" : e.c_str());
+    //     return false;
+    // } catch (const std::exception& err) {
+    //     std::string e = err.what();
+    //     errorf("%s", e.empty() ? "unknown exception" : e.c_str());
+    //     return false;
+    // }
 
     // If user asked for tiles -- which this format doesn't support, emulate
     // it by buffering the whole image.
@@ -158,7 +208,9 @@ HeifOutput::write_scanline(int y, int /*z*/, TypeDesc format, const void* data,
 {
     data           = to_native_scanline(format, data, xstride, scratch);
     int hystride   = 0;
-    uint8_t* hdata = m_himage.get_plane(heif_channel_interleaved, &hystride);
+    // uint8_t* hdata = m_hhimage.get_plane(heif_channel_interleaved, &hystride);
+    uint8_t* hdata = heif_image_get_plane(m_hhimage.get(),
+                                          heif_channel_interleaved, &hystride);
     hdata += hystride * (y - m_spec.y);
     memcpy(hdata, data, hystride);
     return true;
@@ -180,7 +232,7 @@ HeifOutput::write_tile(int x, int y, int z, TypeDesc format, const void* data,
 bool
 HeifOutput::close()
 {
-    if (!m_ctx) {  // already closed
+    if (!m_hctx) {  // already closed
         return true;
     }
 
@@ -190,11 +242,13 @@ HeifOutput::close()
         OIIO_ASSERT(m_tilebuffer.size());
         ok &= write_scanlines(m_spec.y, m_spec.y + m_spec.height, 0,
                               m_spec.format, &m_tilebuffer[0]);
-        std::vector<unsigned char>().swap(m_tilebuffer);
+        m_tilebuffer.clear();
+        m_tilebuffer.shrink_to_fit();
     }
 
     std::vector<char> exifblob;
-    try {
+    // try {
+#if 0
         auto compqual = m_spec.decode_compression_metadata("", 75);
         if (compqual.first == "heic") {
             if (compqual.second >= 100)
@@ -211,8 +265,8 @@ HeifOutput::close()
         std::vector<char> head { 'E', 'x', 'i', 'f', 0, 0 };
         exifblob.insert(exifblob.begin(), head.begin(), head.end());
         try {
-            m_ctx->add_exif_metadata(m_ihandle, exifblob.data(),
-                                     exifblob.size());
+            // m_ctx->add_exif_metadata(m_ihandle, exifblob.data(),
+            //                          exifblob.size());
         } catch (const heif::Error& err) {
 #ifdef DEBUG
             std::string e = err.get_message();
@@ -220,6 +274,8 @@ HeifOutput::close()
 #endif
         }
         m_ctx->set_primary_image(m_ihandle);
+#endif
+#if 0
         Filesystem::IOFile ioproxy(m_filename, Filesystem::IOProxy::Write);
         if (ioproxy.mode() != Filesystem::IOProxy::Write) {
             errorf("Could not open \"%s\"", m_filename);
@@ -228,17 +284,30 @@ HeifOutput::close()
             MyHeifWriter writer(&ioproxy);
             m_ctx->write(writer);
         }
-    } catch (const heif::Error& err) {
-        std::string e = err.get_message();
-        errorf("%s", e.empty() ? "unknown exception" : e.c_str());
-        return false;
-    } catch (const std::exception& err) {
-        std::string e = err.what();
-        errorf("%s", e.empty() ? "unknown exception" : e.c_str());
-        return false;
-    }
+#else
+        heif_error herr;
+        herr = heif_context_encode_image(m_hctx.get(), m_hhimage.get(),
+                                  m_hencoder.get(), nullptr /*enc options*/,
+                                  nullptr /* imagehandle** */);
+        if (!checkerr("heif_context_get_encoder_for_format", herr))
+            return false;
+        m_hencoder.reset();
+        herr = heif_context_write_to_file(m_hctx.get(), m_filename.c_str());
+        if (!checkerr("heif_context_write_to_file", herr))
+            return false;
+        // m_ctx->write_to_file(m_filename);
+#endif
+    // } catch (const heif::Error& err) {
+    //     std::string e = err.get_message();
+    //     errorf("%s", e.empty() ? "unknown exception" : e.c_str());
+    //     return false;
+    // } catch (const std::exception& err) {
+    //     std::string e = err.what();
+    //     errorf("%s", e.empty() ? "unknown exception" : e.c_str());
+    //     return false;
+    // }
 
-    m_ctx.reset();
+    m_hctx.reset();
     return ok;
 }
 
