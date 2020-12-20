@@ -51,6 +51,9 @@ private:
     std::unique_ptr<heif_context, ctx_deleter> m_hctx;
     std::unique_ptr<heif_image, heif_image_deleter> m_hhimage;
     std::unique_ptr<heif_encoder, heif_encoder_deleter> m_hencoder;
+    std::vector<heif_channel> m_hchannels;
+    std::vector<uint8_t*> m_hplanes;
+    std::vector<int> m_ystrides;
     // std::unique_ptr<heif::Context> m_ctx;
     // heif::ImageHandle m_ihandle;
     // heif::Image m_himage;
@@ -125,10 +128,7 @@ HeifOutput::open(const std::string& name, const ImageSpec& newspec,
     }
 
     m_filename = name;
-    // Save spec for later used
-    m_spec = newspec;
-    // heif always behaves like floating point
-    m_spec.set_format(TypeDesc::FLOAT);
+    m_spec = newspec;  // Save spec for later use
 
     // Check for things heif can't support
     if (m_spec.nchannels != 1 && m_spec.nchannels != 3
@@ -154,26 +154,39 @@ HeifOutput::open(const std::string& name, const ImageSpec& newspec,
         m_hctx.reset(heif_context_alloc());
         heif_image* himg = nullptr;
         heif_error herr;
-        static heif_chroma chromas[/*nchannels*/]
-            = { heif_chroma_undefined, heif_chroma_monochrome,
-                heif_chroma_undefined, heif_chroma_interleaved_RGB,
-                heif_chroma_interleaved_RGBA };
+        // static heif_chroma chromas[/*nchannels*/]
+        //     = { heif_chroma_undefined, heif_chroma_monochrome,
+        //         heif_chroma_undefined, heif_chroma_interleaved_RGB,
+        //         heif_chroma_interleaved_RGBA };
         auto colorspace = m_spec.nchannels == 1 ? heif_colorspace_monochrome
                                                 : heif_colorspace_RGB;
         herr = heif_image_create(m_spec.width, m_spec.height,
-                                 colorspace, chromas[m_spec.nchannels], &himg);
+                                 colorspace,
+                                 heif_chroma_444 /*chromas[m_spec.nchannels] */,
+                                 &himg);
         m_hhimage.reset(himg);
         if (!checkerr("heif_image_create", herr))
             return false;
-        // static heif_channel hchannel[/*channel*/] = {
-        //     heif_channel_R, heif_channel_G, heif_channel_B, heif_channel_Alpha
-        // };
-        herr = heif_image_add_plane(m_hhimage.get(), heif_channel_interleaved,
-                                    m_spec.width, m_spec.height,
-                                    8 * m_spec.nchannels);
-        // FIXME ^^^ this limits us to 8 bits per channel
-        if (!checkerr("heif_image_add_plane", herr))
-            return false;
+        m_hchannels.resize(m_spec.nchannels);
+        for (int c = 0; c < m_spec.nchannels; ++c) {
+            static heif_channel hchannel[/*channel*/] = {
+                heif_channel_R, heif_channel_G, heif_channel_B, heif_channel_Alpha
+            };
+            m_hchannels[c] = m_spec.nchannels == 1 ? heif_channel_Y : hchannel[c];
+        }
+        for (int c = 0; c < m_spec.nchannels; ++c) {
+            herr = heif_image_add_plane(m_hhimage.get(), m_hchannels[c],
+                                        m_spec.width, m_spec.height, 8);
+            // FIXME ^^^ this limits us to 8 bits per channel
+            if (!checkerr("heif_image_add_plane", herr))
+                return false;
+        }
+        m_hplanes.resize(m_spec.nchannels);
+        m_ystrides.resize(m_spec.nchannels);
+        for (int c = 0; c < m_spec.nchannels; ++c) {
+            m_hplanes[c] = heif_image_get_plane(m_hhimage.get(), m_hchannels[c],
+                                                &(m_ystrides[c]));
+        }
 
         heif_encoder* enc;
         herr = heif_context_get_encoder_for_format(m_hctx.get(),
@@ -206,13 +219,20 @@ bool
 HeifOutput::write_scanline(int y, int /*z*/, TypeDesc format, const void* data,
                            stride_t xstride)
 {
-    data           = to_native_scanline(format, data, xstride, scratch);
-    int hystride   = 0;
+    data = to_native_scanline(format, data, xstride, scratch);
     // uint8_t* hdata = m_hhimage.get_plane(heif_channel_interleaved, &hystride);
-    uint8_t* hdata = heif_image_get_plane(m_hhimage.get(),
-                                          heif_channel_interleaved, &hystride);
-    hdata += hystride * (y - m_spec.y);
-    memcpy(hdata, data, hystride);
+    for (int c = 0; c < m_spec.nchannels; ++c) {
+        OIIO::copy_image(1, m_spec.width, 1 /*height*/, 1 /*depth*/,
+                         data, 1 /*pixelsize*/, m_spec.pixel_bytes(),
+                         m_spec.scanline_bytes(), 0,
+                         m_hplanes[c] + m_ystrides[c] * (y - m_spec.y), 1,
+                         m_spec.width, m_spec.height);
+        // int hystride   = 0;
+        // uint8_t* hdata = heif_image_get_plane(m_hhimage.get(),
+        //                                       heif_channel_interleaved, &hystride);
+    }
+    // hdata += hystride * (y - m_spec.y);
+    // memcpy(hdata, data, hystride);
     return true;
 }
 
