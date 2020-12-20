@@ -51,6 +51,7 @@ if [[ "$PUGIXML_VERSION" != "" ]] ; then
 fi
 
 if [[ "$LIBHEIF_VERSION" != "" ]] ; then
+    source src/build-scripts/build_libde265.bash
     source src/build-scripts/build_libheif.bash
 fi
 

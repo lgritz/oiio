@@ -32,7 +32,8 @@ brew upgrade --display-times cmake || true
 brew install --display-times libtiff ilmbase openexr opencolorio
 brew install --display-times libpng giflib webp jpeg-turbo openjpeg
 brew install --display-times freetype libraw dcmtk pybind11 numpy || true
-brew install --display-times ffmpeg libheif libsquish ptex || true
+brew install --display-times ffmpeg libsquish ptex || true
+brew install --display-times libde265 libheif || true
 brew install --display-times openvdb tbb || true
 brew install --display-times opencv || true
 brew install --display-times qt

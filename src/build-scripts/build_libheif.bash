@@ -45,7 +45,7 @@ time cmake --config Release \
            ${LIBHEIF_CONFIG_OPTS} ..
 time cmake --build . --config Release --target install
 
-ls -R ${LIBHEIF_INSTALL_DIR}
+#ls -R ${LIBHEIF_INSTALL_DIR}
 popd
 
 

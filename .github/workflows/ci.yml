@@ -303,11 +303,13 @@ jobs:
           PYTHON_VERSION: 3.8
           CMAKE_CXX_STANDARD: 14
           ENABLE_FIELD3D: OFF
+          LIBHEIF_VERSION: v1.9.1
         run: |
             source src/build-scripts/ci-startup.bash
             source src/build-scripts/install_homebrew_deps.bash
             src/build-scripts/install_test_images.bash
             export PYTHONPATH=/usr/local/lib/python${PYTHON_VERSION}/site-packages:$PYTHONPATH
+            source src/build-scripts/build_libde265.bash
             source src/build-scripts/build_libheif.bash
             source src/build-scripts/ci-build-and-test.bash
         # Building libheif to work around a MacOS bug in their latest
