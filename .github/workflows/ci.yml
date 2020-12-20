@@ -208,6 +208,7 @@ jobs:
           CXX: g++-10
           CMAKE_CXX_STANDARD: 17
           USE_SIMD: avx2,f16c
+          LIBHEIF_VERSION: v1.10.0
           LIBRAW_VERSION: 0.20.2
           LIBTIFF_VERSION: v4.2.0
           OPENEXR_VERSION: v2.5.3
@@ -237,6 +238,7 @@ jobs:
           CXX: g++-10
           CMAKE_CXX_STANDARD: 17
           USE_SIMD: avx2,f16c
+          LIBHEIF_VERSION: master
           LIBRAW_VERSION: master
           LIBTIFF_VERSION: master
           OPENCOLORIO_VERSION: master
@@ -274,6 +276,7 @@ jobs:
           USE_OPENCOLORIO: 0
           USE_OPENCV: 0
           EMBEDPLUGINS: 0
+          LIBHEIF_VERSION: v1.3.0
           OPENEXR_VERSION: v2.2.1
           PYBIND11_VERSION: v2.4.2
           WEBP_VERSION: v1.0.0
@@ -305,7 +308,10 @@ jobs:
             source src/build-scripts/install_homebrew_deps.bash
             src/build-scripts/install_test_images.bash
             export PYTHONPATH=/usr/local/lib/python${PYTHON_VERSION}/site-packages:$PYTHONPATH
+            source src/build-scripts/build_libheif.bash
             source src/build-scripts/ci-build-and-test.bash
+        # Building libheif to work around a MacOS bug in their latest
+        # release that Homebrew picks up.
       - uses: actions/upload-artifact@v2
         if: failure()
         with:

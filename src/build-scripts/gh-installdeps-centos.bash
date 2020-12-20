@@ -50,6 +50,10 @@ if [[ "$PUGIXML_VERSION" != "" ]] ; then
     export MY_CMAKE_FLAGS+=" -DUSE_EXTERNAL_PUGIXML=1 "
 fi
 
+if [[ "$LIBHEIF_VERSION" != "" ]] ; then
+    source src/build-scripts/build_libheif.bash
+fi
+
 if [[ "$OPENCOLORIO_VERSION" != "" ]] ; then
     # Temporary (?) fix: GH ninja having problems, fall back to make
     CMAKE_GENERATOR="Unix Makefiles" \
