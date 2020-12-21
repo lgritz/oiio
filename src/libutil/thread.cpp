@@ -28,6 +28,8 @@
 #include <OpenImageIO/sysutil.h>
 #include <OpenImageIO/thread.h>
 
+#include "imageio_pvt.h"
+
 #if OIIO_TBB
 #    include <tbb/tbb.h>
 #endif
@@ -88,6 +90,11 @@ private:
 
 
 OIIO_NAMESPACE_BEGIN
+
+namespace pvt {
+int oiio_use_tbb(0);  // Use TBB if available
+}
+
 
 static int
 threads_default()
@@ -656,15 +663,70 @@ parallel_for_chunked(int64_t begin, int64_t end, int64_t chunksize,
 
 
 
-void
-parallel_for (int64_t begin, int64_t end,
-              std::function<void(int64_t index)>&& task,
-              paropt opt)
+template<typename Index>
+inline void
+parallel_for_impl(Index begin, Index end,
+                  const function_view<void(Index)>& task,
+                  paropt opt=paropt(0,OIIO::Split_Y,1))
 {
-    parallel_for_chunked_id(begin, end, 0, [&task](int /*id*/, int64_t i, int64_t e) {
-        for ( ; i < e; ++i)
-            task (i);
+    if (opt.maxthreads() == 1) {
+        // One thread max? Run in caller's thread.
+        for (auto i = begin; i != end; ++i)
+            task(begin);
+        return;
+    }
+#if OIIO_TBB
+    if (opt.strategy() == paropt::ParStrategy::TryTBB ||
+        (opt.strategy() == paropt::ParStrategy::Default && pvt::oiio_use_tbb)) {
+        if (opt.maxthreads()) {
+            tbb::task_arena arena(opt.maxthreads());
+            arena.execute([=]{ tbb::parallel_for(begin, end, task); });
+        } else {
+            tbb::parallel_for(begin, end, task);
+        }
+        return;
+    }
+#endif
+    parallel_for_chunked_id(int64_t(begin), int64_t(end), 0,
+                            [&task](int /*id*/, int64_t b, int64_t e) {
+        Index i(b);
+        Index end(e);
+        for ( ; i != end; ++i)
+            task(i);
     }, opt);
+}
+
+
+
+void
+parallel_for(int begin, int end,
+             const function_view<void(int)>& task, paropt opt)
+{
+    parallel_for_impl(begin, end, task, opt);
+}
+
+
+void
+parallel_for(uint32_t begin, uint32_t end,
+             const function_view<void(uint32_t)>& task, paropt opt)
+{
+    parallel_for_impl(begin, end, task, opt);
+}
+
+
+void
+parallel_for(int64_t begin, int64_t end,
+             const function_view<void(int64_t)>& task, paropt opt)
+{
+    parallel_for_impl(begin, end, task, opt);
+}
+
+
+void
+parallel_for(uint64_t begin, uint64_t end,
+             const function_view<void(uint64_t)>& task, paropt opt)
+{
+    parallel_for_impl(begin, end, task, opt);
 }
 
 

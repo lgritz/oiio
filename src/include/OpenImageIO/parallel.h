@@ -194,9 +194,20 @@ parallel_for_chunked(int64_t begin, int64_t end, int64_t chunksize,
 /// (to aid data coherence and minimize the amount of thread queue
 /// diddling). The chunk size is chosen automatically.
 OIIO_API void
-parallel_for (int64_t begin, int64_t end,
-              std::function<void(int64_t index)>&& task,
-              paropt opt = paropt(0,Split_Y,1));
+parallel_for(int32_t begin, int32_t end,
+             const function_view<void(int32_t)>& task, paropt opt = 0);
+
+OIIO_API void
+parallel_for(int64_t begin, int64_t end,
+             const function_view<void(int64_t)>& task, paropt opt = 0);
+
+OIIO_API void
+parallel_for(uint32_t begin, uint32_t end,
+             const function_view<void(uint32_t)>& task, paropt opt = 0);
+
+OIIO_API void
+parallel_for(uint64_t begin, uint64_t end,
+             const function_view<void(uint64_t)>& task, paropt opt = 0);
 
 
 

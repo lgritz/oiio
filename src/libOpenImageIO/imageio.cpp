@@ -38,7 +38,6 @@ atomic_int oiio_exr_threads(threads_default());
 atomic_int oiio_read_chunk(256);
 int tiff_half(0);
 int tiff_multithread(1);
-int oiio_use_tbb(0);  // Use TBB if available
 ustring plugin_searchpath(OIIO_DEFAULT_PLUGIN_SEARCHPATH);
 std::string format_list;         // comma-separated list of all formats
 std::string input_format_list;   // comma-separated list of readable formats
