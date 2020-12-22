@@ -510,7 +510,11 @@ endif ()
 # BUILD_SHARED_LIBS, if turned off, will disable building of .so/.dll
 # dynamic libraries and instead only build static libraries.
 #
-option (BUILD_SHARED_LIBS "Build shared libraries (set to OFF to build static libs)" ON)
+
+if (NOT ${PROJECT_NAME}_IS_SUBPROJECT)
+    # Don't set this value if we're not the top level project
+    option (BUILD_SHARED_LIBS "Build shared libraries (set to OFF to build static libs)" ON)
+endif ()
 if (NOT BUILD_SHARED_LIBS)
     add_definitions (-D${PROJ_NAME}_STATIC_DEFINE=1)
 endif ()
