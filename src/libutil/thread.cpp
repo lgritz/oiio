@@ -665,9 +665,8 @@ parallel_for_chunked(int64_t begin, int64_t end, int64_t chunksize,
 
 template<typename Index>
 inline void
-parallel_for_impl(Index begin, Index end,
-                  const function_view<void(Index)>& task,
-                  paropt opt=paropt(0,OIIO::Split_Y,1))
+parallel_for_impl(Index begin, Index end, function_view<void(Index)> task,
+                  paropt opt)
 {
     if (opt.maxthreads() == 1) {
         // One thread max? Run in caller's thread.
@@ -700,7 +699,7 @@ parallel_for_impl(Index begin, Index end,
 
 void
 parallel_for(int begin, int end,
-             const function_view<void(int)>& task, paropt opt)
+             function_view<void(int)> task, paropt opt)
 {
     parallel_for_impl(begin, end, task, opt);
 }
@@ -708,7 +707,7 @@ parallel_for(int begin, int end,
 
 void
 parallel_for(uint32_t begin, uint32_t end,
-             const function_view<void(uint32_t)>& task, paropt opt)
+             function_view<void(uint32_t)> task, paropt opt)
 {
     parallel_for_impl(begin, end, task, opt);
 }
@@ -716,7 +715,7 @@ parallel_for(uint32_t begin, uint32_t end,
 
 void
 parallel_for(int64_t begin, int64_t end,
-             const function_view<void(int64_t)>& task, paropt opt)
+             function_view<void(int64_t)> task, paropt opt)
 {
     parallel_for_impl(begin, end, task, opt);
 }
@@ -724,7 +723,7 @@ parallel_for(int64_t begin, int64_t end,
 
 void
 parallel_for(uint64_t begin, uint64_t end,
-             const function_view<void(uint64_t)>& task, paropt opt)
+             function_view<void(uint64_t)> task, paropt opt)
 {
     parallel_for_impl(begin, end, task, opt);
 }
@@ -734,8 +733,7 @@ parallel_for(uint64_t begin, uint64_t end,
 // DEPRECATED(2.3)
 void
 parallel_for(int64_t begin, int64_t end,
-             std::function<void(int id, int64_t index)>&& task,
-             paropt opt)
+             std::function<void(int id, int64_t index)>&& task, paropt opt)
 {
     parallel_for_chunked_id(begin, end, 0, [&task](int id, int64_t i, int64_t e) {
         for ( ; i < e; ++i)
