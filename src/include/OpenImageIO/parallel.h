@@ -221,24 +221,24 @@ parallel_for(uint64_t begin, uint64_t end,
 /// The chunk sizes will be chosen automatically, and are not guaranteed
 /// to all be the same size.
 OIIO_API void
-parallel_for(int32_t begin, int32_t end,
-             std::function<void(int32_t, int32_t)>&& task,
-             paropt opt = 0);
+parallel_for_range(int32_t begin, int32_t end,
+                   std::function<void(int32_t, int32_t)>&& task,
+                   paropt opt = 0);
 
 OIIO_API void
-parallel_for(int64_t begin, int64_t end,
-             std::function<void(int64_t, int64_t)>&& task,
-             paropt opt = 0);
+parallel_for_range(int64_t begin, int64_t end,
+                   std::function<void(int64_t, int64_t)>&& task,
+                   paropt opt = 0);
 
 OIIO_API void
-parallel_for(uint32_t begin, uint32_t end,
-             std::function<void(uint32_t, uint32_t)>&& task,
-             paropt opt = 0);
+parallel_for_range(uint32_t begin, uint32_t end,
+                   std::function<void(uint32_t, uint32_t)>&& task,
+                   paropt opt = 0);
 
 OIIO_API void
-parallel_for(uint64_t begin, uint64_t end,
-             std::function<void(uint64_t, uint64_t)>&& task,
-             paropt opt = 0);
+parallel_for_range(uint64_t begin, uint64_t end,
+                   std::function<void(uint64_t, uint64_t)>&& task,
+                   paropt opt = 0);
 
 
 /// Parallel "for" loop, chunked: for a task that takes a 2D [begin,end)

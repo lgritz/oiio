@@ -730,6 +730,80 @@ parallel_for(uint64_t begin, uint64_t end,
 
 
 
+template<typename Index>
+inline void
+parallel_for_range_impl(Index begin, Index end,
+                        std::function<void(Index, Index)>&& task,
+                        paropt opt)
+{
+    if (opt.maxthreads() == 1) { // One thread max? Run in caller's thread.
+        task(begin, end);
+        return;
+    }
+#if parlab_TBB
+    if (opt.strategy() == paropt::ParStrategy::TryTBB ||
+        (opt.strategy() == paropt::ParStrategy::Default &&  pvt::oiio_use_tbb)) {
+        auto wrapper = [=](const tbb::blocked_range<Index>& r) {
+            task(r.begin(), r.end());
+        };
+        // OIIO::Strutil::print("tbb\n");
+        if (opt.maxthreads()) {
+            tbb::task_arena arena(opt.maxthreads());
+            arena.execute([=]{
+                tbb::parallel_for(tbb::blocked_range<Index>(begin, end), wrapper);
+            });
+        } else {
+            tbb::parallel_for(tbb::blocked_range<Index>(begin, end), wrapper);
+        }
+        return;
+    }
+#endif
+    // OIIO::Strutil::print("oiio\n");
+    OIIO::parallel_for_chunked (int64_t(begin), int64_t(end), 0,
+        [&](int64_t b, int64_t e) {
+            task(Index(b), Index(e));
+        }, opt);
+}
+
+
+
+void
+parallel_for_range(int32_t begin, int32_t end,
+                   std::function<void(int32_t, int32_t)>&& task,
+                   paropt opt)
+{
+    parallel_for_range_impl(begin, end, std::move(task), opt);
+}
+
+
+void
+parallel_for_range(uint32_t begin, uint32_t end,
+                   std::function<void(uint32_t, uint32_t)>&& task,
+                   paropt opt)
+{
+    parallel_for_range_impl(begin, end, std::move(task), opt);
+}
+
+
+void
+parallel_for_range(int64_t begin, int64_t end,
+                   std::function<void(int64_t, int64_t)>&& task,
+                   paropt opt)
+{
+    parallel_for_range_impl(begin, end, std::move(task), opt);
+}
+
+
+void
+parallel_for_range(uint64_t begin, uint64_t end,
+                   std::function<void(uint64_t, uint64_t)>&& task,
+                   paropt opt)
+{
+    parallel_for_range_impl(begin, end, std::move(task), opt);
+}
+
+
+
 // DEPRECATED(2.3)
 void
 parallel_for(int64_t begin, int64_t end,
