@@ -671,7 +671,7 @@ parallel_for_impl(Index begin, Index end, function_view<void(Index)> task,
     if (opt.maxthreads() == 1) {
         // One thread max? Run in caller's thread.
         for (auto i = begin; i != end; ++i)
-            task(begin);
+            task(i);
         return;
     }
 #if OIIO_TBB
@@ -688,9 +688,7 @@ parallel_for_impl(Index begin, Index end, function_view<void(Index)> task,
 #endif
     parallel_for_chunked_id(int64_t(begin), int64_t(end), 0,
                             [&task](int /*id*/, int64_t b, int64_t e) {
-        Index i(b);
-        Index end(e);
-        for ( ; i != end; ++i)
+        for (Index i(b), end(e); i != end; ++i)
             task(i);
     }, opt);
 }

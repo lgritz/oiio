@@ -330,10 +330,10 @@ parallel_for_2D (int64_t xbegin, int64_t xend,
 template<class InputIt, class UnaryFunction>
 OIIO_DEPRECATED("Don't use this (2.3)")
 UnaryFunction
-parallel_for_each (InputIt first, InputIt last, UnaryFunction f,
+parallel_for_each (InputIt begin, InputIt end, UnaryFunction f,
                    paropt opt = paropt(0,Split_Y,1))
 {
-    return std::for_each(first, last, f);
+    return std::for_each(begin, end, f);
 }
 
 // DEPRECATED(1.8): This version accidentally accepted chunksizes that
