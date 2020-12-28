@@ -80,29 +80,29 @@ class paropt {
 public:
     enum class ParStrategy { Default = 0, TryTBB, OIIOpool };
 
-    paropt(int maxthreads = 0, SplitDir splitdir = Split_Y,
-           size_t minitems = 1)
+    constexpr paropt(int maxthreads = 0, SplitDir splitdir = Split_Y,
+                     size_t minitems = 1024) noexcept
         : m_maxthreads(maxthreads)
         , m_splitdir(splitdir)
         , m_minitems(minitems)
     {
     }
     paropt(string_view name, int maxthreads = 0,
-           SplitDir splitdir = Split_Y, size_t minitems = 1)
+           SplitDir splitdir = Split_Y, size_t minitems = 1024) noexcept
         : paropt(maxthreads, splitdir, minitems)
     {
         // m_name = name;
     }
 
-    paropt(ParStrategy strat) : m_strategy(strat) { }
+    constexpr paropt(ParStrategy strat) noexcept : m_strategy(strat) { }
 
-    paropt(int maxthreads, ParStrategy strat)
+    constexpr paropt(int maxthreads, ParStrategy strat) noexcept
         : m_maxthreads(maxthreads), m_strategy(strat)
     {
     }
 
     // For back compatibility
-    paropt(const parallel_options& po)
+    paropt(const parallel_options& po) noexcept
         : paropt(po.name, po.maxthreads, po.splitdir, po.minitems)
     {
         m_recursive = po.recursive;
@@ -116,25 +116,25 @@ public:
     //   was not turned on, just use one thread.
     OIIO_API void resolve();
 
-    bool singlethread() const { return m_maxthreads == 1; }
+    constexpr bool singlethread() const noexcept { return m_maxthreads == 1; }
 
-    int maxthreads() const { return m_maxthreads; }
-    paropt& maxthreads(int m) { m_maxthreads = m; return *this; }
+    constexpr int maxthreads() const noexcept { return m_maxthreads; }
+    paropt& maxthreads(int m) noexcept { m_maxthreads = m; return *this; }
 
-    SplitDir splitdir() const { return m_splitdir; }
-    paropt& splitdir(SplitDir s) { m_splitdir = s; return *this; }
+    constexpr SplitDir splitdir() const noexcept { return m_splitdir; }
+    paropt& splitdir(SplitDir s) noexcept { m_splitdir = s; return *this; }
 
-    bool recursive() const { return m_recursive; }
-    paropt& recursive(bool r) { m_recursive = r; return *this; }
+    constexpr bool recursive() const noexcept { return m_recursive; }
+    paropt& recursive(bool r) noexcept { m_recursive = r; return *this; }
 
-    int minitems() const { return m_minitems; }
-    paropt& minitems(int m) { m_minitems = m; return *this; }
+    constexpr int minitems() const noexcept { return m_minitems; }
+    paropt& minitems(int m) noexcept { m_minitems = m; return *this; }
 
-    thread_pool* pool() const { return m_pool; }
-    paropt& pool(thread_pool* p) { m_pool = p; return *this; }
+    thread_pool* pool() const noexcept { return m_pool; }
+    paropt& pool(thread_pool* p) noexcept { m_pool = p; return *this; }
 
-    ParStrategy strategy() const { return m_strategy; }
-    paropt& strategy(ParStrategy s) { m_strategy = s; return *this; }
+    constexpr ParStrategy strategy() const noexcept { return m_strategy; }
+    paropt& strategy(ParStrategy s) noexcept { m_strategy = s; return *this; }
 
 private:
     int m_maxthreads    = 0;        // Max threads (0 = use all)
