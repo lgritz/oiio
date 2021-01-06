@@ -35,12 +35,20 @@ cd ${LIBHEIF_SRC_DIR}
 echo "git checkout ${LIBHEIF_VERSION} --force"
 git checkout ${LIBHEIF_VERSION} --force
 
+pushd ${LIBHEIF_SRC_DIR}/third-party
+bash dav1d.cmd
+PKG_CONFIG_PATH=${PWD}/dist/lib/x86_64-linux-gnu/pkgconfig:${PKG_CONFIG_PATH}
+cd dav1d/build
+make
+popd
+
 mkdir -p ${LIBHEIF_BUILD_DIR}
 cd ${LIBHEIF_BUILD_DIR}
 time cmake --config Release \
            -DCMAKE_BUILD_TYPE=Release \
            -DCMAKE_INSTALL_PREFIX=${LIBHEIF_INSTALL_DIR} \
            -DWITH_EXAMPLES=OFF \
+           -DUSE_LOCAL_DAV1D=ON \
            ${LIBHEIF_CONFIG_OPTS} ..
 time cmake --build . --config Release --target install
 

@@ -38,6 +38,7 @@ brew install --display-times openvdb tbb || true
 brew install --display-times opencv || true
 brew install --display-times qt
 brew install --display-times field3d || true
+brew install --display-times meson || true
 
 echo ""
 echo "After brew installs:"
