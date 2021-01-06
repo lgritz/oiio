@@ -14,11 +14,10 @@ LIBDE265_REPO=${LIBDE265_REPO:=https://github.com/strukturag/libde265.git}
 LIBDE265_VERSION=${LIBDE265_VERSION:=v1.0.7}
 
 # Where to put libde265 repo source (default to the ext area)
-LIBDE265_SRC_DIR=${LIBDE265_SRC_DIR:=${PWD}/ext/libde265}
-# Temp build area (default to a build/ subdir under source)
+LOCAL_DEPS_DIR=${LOCAL_DEPS_DIR:=${PWD}/ext}
+LIBDE265_SRC_DIR=${LIBDE265_SRC_DIR:=${LOCAL_DEPS_DIR}/libde265}
 LIBDE265_BUILD_DIR=${LIBDE265_BUILD_DIR:=${LIBDE265_SRC_DIR}/build}
-# Install area for libde265 (default to ext/dist)
-LIBDE265_INSTALL_DIR=${LIBDE265_INSTALL_DIR:=${PWD}/ext/dist}
+LIBDE265_INSTALL_DIR=${LIBDE265_INSTALL_DIR:=${LOCAL_DEPS_DIR}/dist}
 #LIBDE265_CONFIG_OPTS=${LIBDE265_CONFIG_OPTS:=}
 
 pwd

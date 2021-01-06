@@ -14,11 +14,10 @@ LIBHEIF_REPO=${LIBHEIF_REPO:=https://github.com/strukturag/libheif.git}
 LIBHEIF_VERSION=${LIBHEIF_VERSION:=v1.9.1}
 
 # Where to put libheif repo source (default to the ext area)
-LIBHEIF_SRC_DIR=${LIBHEIF_SRC_DIR:=${PWD}/ext/libheif}
-# Temp build area (default to a build/ subdir under source)
+LOCAL_DEPS_DIR=${LOCAL_DEPS_DIR:=${PWD}/ext}
+LIBHEIF_SRC_DIR=${LIBHEIF_SRC_DIR:=${LOCAL_DEPS_DIR}/libheif}
 LIBHEIF_BUILD_DIR=${LIBHEIF_BUILD_DIR:=${LIBHEIF_SRC_DIR}/build}
-# Install area for libheif (default to ext/dist)
-LIBHEIF_INSTALL_DIR=${LIBHEIF_INSTALL_DIR:=${PWD}/ext/dist}
+LIBHEIF_INSTALL_DIR=${LIBHEIF_INSTALL_DIR:=${LOCAL_DEPS_DIR}/dist}
 #LIBHEIF_CONFIG_OPTS=${LIBHEIF_CONFIG_OPTS:=}
 
 pwd
