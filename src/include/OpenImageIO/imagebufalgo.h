@@ -19,6 +19,7 @@
 #include <OpenImageIO/fmath.h>
 #include <OpenImageIO/parallel.h>
 #include <OpenImageIO/span.h>
+#include <OpenImageIO/strongparam.h>
 
 #include <limits>
 
@@ -191,6 +192,10 @@ namespace ImageBufAlgo {
 
 // old name (DEPRECATED 1.9)
 typedef parallel_options parallel_image_options;
+
+OIIO_STRONG_PARAM_TYPE(Inverse, bool);
+OIIO_STRONG_PARAM_TYPE(UnPremult, bool);
+
 
 
 /// Create an all-black `float` image of size and channels as described by
@@ -1694,7 +1699,6 @@ bool OIIO_API colormatrixtransform (ImageBuf &dst, const ImageBuf &src,
                                     const Imath::M44f& M, bool unpremult=true,
                                     ROI roi={}, int nthreads=0);
 
-
 /// Return a copy of the pixels of `src` within the ROI, applying an
 /// OpenColorIO "look" transform to the pixel values. In-place operations
 /// (`dst` == `src`) are supported.
@@ -1705,15 +1709,15 @@ bool OIIO_API colormatrixtransform (ImageBuf &dst, const ImageBuf &src,
 ///             For the varieties of `colorconvert()` that use named color
 ///             spaces, these specify the color spaces by name.
 /// @param  unpremult
-///             If true, unpremultiply the image (divide the RGB channels by
-///             alpha if it exists and is nonzero) before color conversion,
-///             then repremult after the after the color conversion. Passing
-///             unpremult=false skips this step, which may be desirable if
-///             you know that the image is "unassociated alpha" (a.k.a.,
-///             "not pre-multiplied colors").
+///             If UnPremult(true), unpremultiply the image (divide the RGB
+///             channels by alpha if it exists and is nonzero) before color
+///             transform, then repremult after the after the transform.
+///             Passing unpremult=UnPremult(false) skips this step, which
+///             may be desirable if you know that the image is "unassociated
+///             alpha" (a.k.a., "not pre-multiplied colors").
 /// @param  inverse
-///             If `true`, it will reverse the color transformation and look
-///             application.
+///             If `Inverse(true)`, it will reverse the color transformation
+///             and look application.
 /// @param  context_key/context_value
 ///             Optional key/value to establish a context (for example, a
 ///             shot-specific transform).
@@ -1724,17 +1728,40 @@ bool OIIO_API colormatrixtransform (ImageBuf &dst, const ImageBuf &src,
 ///             environment variable will be used instead.
 ImageBuf OIIO_API ociolook (const ImageBuf &src, string_view looks,
                             string_view fromspace, string_view tospace,
-                            bool unpremult=true, bool inverse=false,
-                            string_view context_key="", string_view context_value="",
-                            ColorConfig *colorconfig=nullptr,
-                            ROI roi={}, int nthreads=0);
+                            UnPremult unpremult = UnPremult(true),
+                            Inverse inverse = Inverse(false),
+                            string_view context_key = "",
+                            string_view context_value = "",
+                            ColorConfig *colorconfig = nullptr,
+                            ROI roi={}, int nthreads = 0);
 /// Write to an existing image `dst` (allocating if it is uninitialized).
 bool OIIO_API ociolook (ImageBuf &dst, const ImageBuf &src, string_view looks,
                         string_view fromspace, string_view tospace,
-                        bool unpremult=true, bool inverse=false,
-                        string_view context_key="", string_view context_value="",
-                        ColorConfig *colorconfig=nullptr,
-                        ROI roi={}, int nthreads=0);
+                        UnPremult unpremult = UnPremult(true),
+                        Inverse inverse = Inverse(false),
+                        string_view context_key = "",
+                        string_view context_value = "",
+                        ColorConfig *colorconfig = nullptr,
+                        ROI roi={}, int nthreads = 0);
+
+
+#ifndef DOXYGEN_SHOULD_SKIP_THIS
+/// DEPRECATED(2.3) -- easily confused bools for unpremult and inverse
+OIIO_API ImageBuf ociolook(const ImageBuf &src, string_view looks,
+                           string_view fromspace, string_view tospace,
+                           bool unpremult /*=true*/, bool inverse=false,
+                           string_view context_key="", string_view context_value="",
+                           ColorConfig *colorconfig=nullptr,
+                           ROI roi={}, int nthreads=0);
+/// DEPRECATED(2.3) -- easily confused bools for unpremult and inverse
+OIIO_API bool ociolook(ImageBuf &dst, const ImageBuf &src, string_view looks,
+                       string_view fromspace, string_view tospace,
+                       bool unpremult, bool inverse=false,
+                       string_view context_key="", string_view context_value="",
+                       ColorConfig *colorconfig=nullptr,
+                       ROI roi={}, int nthreads=0);
+#endif
+
 
 
 /// Return the pixels of `src` within the ROI, applying an OpenColorIO
@@ -1797,14 +1824,15 @@ bool OIIO_API ociodisplay (ImageBuf &dst, const ImageBuf &src,
 /// @param  name
 ///             The name of the file containing the transform information.
 /// @param  unpremult
-///             If true, unpremultiply the image (divide the RGB channels by
-///             alpha if it exists and is nonzero) before color conversion,
-///             then repremult after the after the color conversion. Passing
-///             unpremult=false skips this step, which may be desirable if
-///             you know that the image is "unassociated alpha" (a.k.a.,
-///             "not pre-multiplied colors").
+///             If UnPremult(true), unpremultiply the image (divide the RGB
+///             channels by alpha if it exists and is nonzero) before color
+///             transform, then repremult after the after the transform.
+///             Passing unpremult=UnPremult(false) skips this step, which
+///             may be desirable if you know that the image is "unassociated
+///             alpha" (a.k.a., "not pre-multiplied colors").
 /// @param  inverse
-///             If `true`, it will reverse the color transformation.
+///             If `Inverse(true)`, it will reverse the color transformation
+///             and look application.
 /// @param  colorconfig
 ///             An optional `ColorConfig*` specifying an OpenColorIO
 ///             configuration. If not supplied, the default OpenColorIO
@@ -1812,15 +1840,32 @@ bool OIIO_API ociodisplay (ImageBuf &dst, const ImageBuf &src,
 ///             environment variable will be used instead.
 ImageBuf OIIO_API ociofiletransform (const ImageBuf &src,
                                      string_view name,
-                                     bool unpremult=true, bool inverse=false,
+                                     UnPremult unpremult = UnPremult(true),
+                                     Inverse inverse = Inverse(false),
                                      ColorConfig *colorconfig=nullptr,
                                      ROI roi={}, int nthreads=0);
 /// Write to an existing image `dst` (allocating if it is uninitialized).
 bool OIIO_API ociofiletransform (ImageBuf &dst, const ImageBuf &src,
                                  string_view name,
-                                 bool unpremult=true, bool inverse=false,
+                                 UnPremult unpremult = UnPremult(true),
+                                 Inverse inverse = Inverse(false),
                                  ColorConfig *colorconfig=nullptr,
                                  ROI roi={}, int nthreads=0);
+
+#ifndef DOXYGEN_SHOULD_SKIP_THIS
+/// DEPRECATED(2.3) -- easily confused bools for unpremult and inverse
+OIIO_API ImageBuf ociofiletransform (const ImageBuf &src,
+                                     string_view name,
+                                     bool unpremult, bool inverse=false,
+                                     ColorConfig *colorconfig=nullptr,
+                                     ROI roi={}, int nthreads=0);
+/// DEPRECATED(2.3) -- easily confused bools for unpremult and inverse
+OIIO_API bool ociofiletransform (ImageBuf &dst, const ImageBuf &src,
+                                 string_view name,
+                                 bool unpremult, bool inverse=false,
+                                 ColorConfig *colorconfig=nullptr,
+                                 ROI roi={}, int nthreads=0);
+#endif
 
 
 /// @defgroup premult (Premultiply or un-premultiply color by alpha)

@@ -1669,8 +1669,8 @@ ImageBufAlgo::colorconvert(const ImageBuf& src, const ColorProcessor* processor,
 
 bool
 ImageBufAlgo::ociolook(ImageBuf& dst, const ImageBuf& src, string_view looks,
-                       string_view from, string_view to, bool unpremult,
-                       bool inverse, string_view key, string_view value,
+                       string_view from, string_view to, UnPremult unpremult,
+                       Inverse inverse, string_view key, string_view value,
                        ColorConfig* colorconfig, ROI roi, int nthreads)
 {
     pvt::LoggedTimer logtime("IBA::ociolook");
@@ -1713,7 +1713,7 @@ ImageBufAlgo::ociolook(ImageBuf& dst, const ImageBuf& src, string_view looks,
 
 ImageBuf
 ImageBufAlgo::ociolook(const ImageBuf& src, string_view looks, string_view from,
-                       string_view to, bool unpremult, bool inverse,
+                       string_view to, UnPremult unpremult, Inverse inverse,
                        string_view key, string_view value,
                        ColorConfig* colorconfig, ROI roi, int nthreads)
 {
@@ -1723,6 +1723,34 @@ ImageBufAlgo::ociolook(const ImageBuf& src, string_view looks, string_view from,
     if (!ok && !result.has_error())
         result.errorfmt("ImageBufAlgo::ociolook() error");
     return result;
+}
+
+
+
+/// DEPRECATED(2.3) -- easily confused bools for unpremult and inverse
+ImageBuf
+ImageBufAlgo::ociolook(const ImageBuf &src, string_view looks,
+                       string_view fromspace, string_view tospace,
+                       bool unpremult, bool inverse,
+                       string_view context_key, string_view context_value,
+                       ColorConfig *colorconfig, ROI roi, int nthreads)
+{
+    return ociolook(src, looks, fromspace, tospace, UnPremult(unpremult),
+                    Inverse(inverse), context_key, context_value, colorconfig,
+                    roi, nthreads);
+}
+
+/// DEPRECATED(2.3) -- easily confused bools for unpremult and inverse
+bool
+ImageBufAlgo::ociolook(ImageBuf &dst, const ImageBuf &src, string_view looks,
+                       string_view fromspace, string_view tospace,
+                       bool unpremult, bool inverse,
+                       string_view context_key, string_view context_value,
+                       ColorConfig *colorconfig, ROI roi, int nthreads)
+{
+    return ociolook(dst, src, looks, fromspace, tospace, UnPremult(unpremult),
+                    Inverse(inverse), context_key, context_value, colorconfig,
+                    roi, nthreads);
 }
 
 
@@ -1787,8 +1815,9 @@ ImageBufAlgo::ociodisplay(const ImageBuf& src, string_view display,
 
 bool
 ImageBufAlgo::ociofiletransform(ImageBuf& dst, const ImageBuf& src,
-                                string_view name, bool unpremult, bool inverse,
-                                ColorConfig* colorconfig, ROI roi, int nthreads)
+                                string_view name, UnPremult(unpremult),
+                                Inverse(inverse), ColorConfig* colorconfig,
+                                ROI roi, int nthreads)
 {
     pvt::LoggedTimer logtime("IBA::ociofiletransform");
     if (name.empty()) {
@@ -1823,7 +1852,7 @@ ImageBufAlgo::ociofiletransform(ImageBuf& dst, const ImageBuf& src,
 
 ImageBuf
 ImageBufAlgo::ociofiletransform(const ImageBuf& src, string_view name,
-                                bool unpremult, bool inverse,
+                                UnPremult(unpremult), Inverse(inverse),
                                 ColorConfig* colorconfig, ROI roi, int nthreads)
 {
     ImageBuf result;
@@ -1832,6 +1861,31 @@ ImageBufAlgo::ociofiletransform(const ImageBuf& src, string_view name,
     if (!ok && !result.has_error())
         result.errorfmt("ImageBufAlgo::ociofiletransform() error");
     return result;
+}
+
+
+
+/// DEPRECATED(2.3) -- easily confused bools for unpremult and inverse
+ImageBuf
+ImageBufAlgo::ociofiletransform(const ImageBuf &src, string_view name,
+                                bool unpremult, bool inverse,
+                                ColorConfig *colorconfig,
+                                ROI roi, int nthreads)
+{
+    return ociofiletransform(src, name, UnPremult(unpremult), Inverse(inverse),
+                             colorconfig, roi, nthreads);
+}
+
+/// DEPRECATED(2.3) -- easily confused bools for unpremult and inverse
+bool
+ImageBufAlgo::ociofiletransform(ImageBuf &dst, const ImageBuf &src,
+                                string_view name,
+                                bool unpremult, bool inverse,
+                                ColorConfig *colorconfig,
+                                ROI roi, int nthreads)
+{
+    return ociofiletransform(dst, src, name, UnPremult(unpremult),
+                             Inverse(inverse), colorconfig, roi, nthreads);
 }
 
 

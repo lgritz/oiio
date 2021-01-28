@@ -107,9 +107,9 @@ private:
 /// Convenience macro for making strong parameter type Name that is Basetype
 /// underneath. What it actually does is make a new type that is derived
 /// from StrongParam<Name,Basetype>.
-#define OIIO_STRONG_PARAM_TYPE(Name, Basetype)         \
-    struct Name : public StrongParam<Name, Basetype> { \
-        using StrongParam::StrongParam;                \
+#define OIIO_STRONG_PARAM_TYPE(Name, Basetype)               \
+    struct Name : public OIIO::StrongParam<Name, Basetype> { \
+        using StrongParam::StrongParam;                      \
     }
 
 

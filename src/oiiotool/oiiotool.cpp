@@ -2148,7 +2148,8 @@ OIIOTOOL_OP(ociolook, 1, [](OiiotoolOp& op, span<ImageBuf*> img) {
         tospace = img[1]->spec().get_string_attribute("oiio:Colorspace",
                                                       "Linear");
     return ImageBufAlgo::ociolook(*img[0], *img[1], lookname, fromspace,
-                                  tospace, unpremult, inverse, contextkey,
+                                  tospace, UnPremult(unpremult),
+                                  Inverse(inverse), contextkey,
                                   contextvalue, &ot.colorconfig);
 });
 
