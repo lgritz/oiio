@@ -82,6 +82,8 @@ private:
     void get_makernotes_kodak();
     void get_makernotes_pentax();
     void get_makernotes_panasonic();
+    void get_makernotes_ricoh();
+    void get_makernotes_samsung();
     void get_makernotes_sony();
     void get_lensinfo();
     void get_shootinginfo();
@@ -773,6 +775,10 @@ RawInput::get_makernotes()
         get_makernotes_panasonic();
     else if (Strutil::istarts_with(m_make, "Pentax"))
         get_makernotes_pentax();
+    else if (Strutil::istarts_with(m_make, "Ricoh"))
+        get_makernotes_ricoh();
+    else if (Strutil::istarts_with(m_make, "Samsung"))
+        get_makernotes_samsung();
     else if (Strutil::istarts_with(m_make, "Sony"))
         get_makernotes_sony();
 }
@@ -787,6 +793,9 @@ RawInput::get_makernotes_canon()
     // MAKER (CanonColorDataVer, 0);
     // MAKER (CanonColorDataSubVer, 0);
     MAKERF(SpecularWhiteLevel);
+#if LIBRAW_VERSION >= LIBRAW_MAKE_VERSION(0, 21, 0)  /* correct version? */
+    MAKERF(NormalWhiteLevel);
+#endif
     MAKERF(ChannelBlackLevel);
     MAKERF(AverageBlackLevel);
     MAKERF(MeteringMode);
@@ -842,6 +851,20 @@ RawInput::get_makernotes_canon()
     // unsigned int mn.multishot[4]
     MAKER(AFMicroAdjMode, 0);
     MAKER(AFMicroAdjValue, 0.0f);
+#endif
+#if LIBRAW_VERSION >= LIBRAW_MAKE_VERSION(0, 20, 0)
+    MAKERF(MakernotesFlip);
+    MAKERF(RecordMode);
+    MAKERF(SRAWQuality);
+    MAKERF(wbi);
+#endif
+#if LIBRAW_VERSION >= LIBRAW_MAKE_VERSION(0, 21, 0)
+    int AutoLightingOptimizer;
+    int HighlightTonePriority;
+    short LeftOpticalBlack[4]; // use this, when present, to estimate black levels?
+    short UpperOpticalBlack[4];
+    short ActiveArea[4];
+    short ISOgain[2]; // AutoISO & BaseISO per ExifTool
 #endif
 }
 
@@ -900,13 +923,31 @@ RawInput::get_makernotes_nikon()
     MAKER(FlashColorFilter, 0);
 
     MAKER(NEFCompression, 0);
+
     MAKER(ExposureMode, -1);
+#    if LIBRAW_VERSION >= LIBRAW_MAKE_VERSION(0, 20, 0)
+    MAKERF(ExposureProgram);
+#    endif
     MAKER(nMEshots, 0);
     MAKER(MEgainOn, 0);
     MAKERF(ME_WB);
     MAKERF(AFFineTune);
     MAKERF(AFFineTuneIndex);
     MAKERF(AFFineTuneAdj);
+#    if LIBRAW_VERSION >= LIBRAW_MAKE_VERSION(0, 20, 0)
+    MAKERF(LensDataVersion);
+    MAKERF(FlashInfoVersion);
+    MAKERF(ColorBalanceVersion);
+    MAKERF(key);
+    MAKERF(NEFBitDepth);
+    MAKERF(HighSpeedCropFormat);
+    // libraw_sensor_highspeed_crop_t SensorHighSpeedCrop;
+    MAKERF(SensorWidth);
+    MAKERF(SensorHeight);
+#    endif
+#    if LIBRAW_VERSION >= LIBRAW_MAKE_VERSION(0, 21, 0)
+    MAKERF(Active_D_Lighting);
+#    endif
 #endif
 }
 
@@ -924,6 +965,10 @@ RawInput::get_makernotes_olympus()
     MAKERF(OlympusFrame); /* upper left XY, lower right XY */
     MAKERF(OlympusSensorCalibration);
 #    endif
+#    if LIBRAW_VERSION >= LIBRAW_MAKE_VERSION(0, 21, 0)
+    MAKERF(CameraType2);
+    MAKERF(ValidBits);
+#    endif
     MAKERF(FocusMode);
     MAKERF(AutoFocus);
     MAKERF(AFPoint);
@@ -931,12 +976,22 @@ RawInput::get_makernotes_olympus()
     MAKERF(AFPointSelected);
     MAKERF(AFResult);
     // MAKERF(ImageStabilization);  Removed after 0.19
+#    if LIBRAW_VERSION >= LIBRAW_MAKE_VERSION(0, 20, 0) && LIBRAW_VERSION < LIBRAW_MAKE_VERSION(0, 21, 0)
     MAKERF(ColorSpace);
-#endif
-#if LIBRAW_VERSION >= LIBRAW_MAKE_VERSION(0, 19, 0)
+#    endif
+#    if LIBRAW_VERSION >= LIBRAW_MAKE_VERSION(0, 19, 0)
     MAKERF(AFFineTune);
     if (mn.AFFineTune)
         MAKERF(AFFineTuneAdj);
+#    endif
+#    if LIBRAW_VERSION >= LIBRAW_MAKE_VERSION(0, 21, 0)
+    MAKERF(SpecialMode);
+    MAKERF(ZoomStepCount);
+    MAKERF(FocusStepCount);
+    MAKERF(FocusStepInfinity);
+    MAKERF(FocusStepNear);
+    MAKERF(FocusDistance);
+    MAKERF(AspectFrame); // left, top, width, height
 #endif
 }
 
@@ -951,6 +1006,17 @@ RawInput::get_makernotes_panasonic()
     MAKER(BlackLevelDim, 0);
     MAKERF(BlackLevel);
 #endif
+#if LIBRAW_VERSION >= LIBRAW_MAKE_VERSION(0, 20, 0)
+    MAKERF(Multishot); /* 0 is Off, 65536 is Pixel Shift */
+    MAKERF(gamma);
+    MAKERF(HighISOMultiplier[3]); /* 0->R, 1->G, 2->B */
+#endif
+#if LIBRAW_VERSION >= LIBRAW_MAKE_VERSION(0, 21, 0)
+    MAKERF(FocusStepNear);
+    MAKERF(FocusStepCount);
+    MAKERF(ZoomPosition);
+    MAKERF(LensManufacturer);
+#endif
 }
 
 
@@ -960,12 +1026,45 @@ RawInput::get_makernotes_pentax()
 {
 #if LIBRAW_VERSION >= LIBRAW_MAKE_VERSION(0, 19, 0)
     auto const& mn(m_processor->imgdata.makernotes.pentax);
-    MAKERF(FocusMode);
-    MAKERF(AFPointsInFocus);
     MAKERF(DriveMode);
+    MAKERF(FocusMode);
     MAKERF(AFPointSelected);
+    MAKERF(AFPointsInFocus);
     MAKERF(FocusPosition);
     MAKERF(AFAdjustment);
+#endif
+#if LIBRAW_VERSION >= LIBRAW_MAKE_VERSION(0, 21, 0)
+    MAKERF(AFPointSelected_Area);
+    MAKERF(AFPointsInFocus_version);
+    MAKERF(AFPointMode);
+    MAKERF(MultiExposure); /* last bit is not "1" if ME is not used */
+    MAKERF(Quality); /* 4 is raw, 7 is raw w/ pixel shift, 8 is raw w/ dynamic
+                       pixel shift */
+#endif
+}
+
+
+
+void
+RawInput::get_makernotes_ricoh()
+{
+#if LIBRAW_VERSION >= LIBRAW_MAKE_VERSION(0, 21, 0)
+    MAKERF(AFStatus);
+    MAKERF(AFAreaXPosition);
+    MAKERF(AFAreaYPosition);
+    MAKERF(AFAreaMode);
+    MAKERF(SensorWidth);
+    MAKERF(SensorHeight);
+    MAKERF(CroppedImageWidth);
+    MAKERF(CroppedImageHeight);
+    MAKERF(WideAdapter);
+    MAKERF(CropMode);
+    MAKERF(NDFilter);
+    MAKERF(AutoBracketing);
+    MAKERF(MacroMode);
+    MAKERF(FlashMode);
+    MAKERF(FlashExposureComp);
+    MAKERF(ManualFlashOutput);
 #endif
 }
 
@@ -998,23 +1097,29 @@ RawInput::get_makernotes_fuji()
 {
 #if LIBRAW_VERSION >= LIBRAW_MAKE_VERSION(0, 18, 0)
     auto const& mn(m_processor->imgdata.makernotes.fuji);
+#endif
 
-#    if LIBRAW_VERSION >= LIBRAW_MAKE_VERSION(0, 20, 0)
-    add(m_make, "ExpoMidPointShift", mn.ExpoMidPointShift);
-    add(m_make, "DynamicRange", mn.DynamicRange);
-    add(m_make, "FilmMode", mn.FilmMode);
-    add(m_make, "DynamicRangeSetting", mn.DynamicRangeSetting);
-    add(m_make, "DevelopmentDynamicRange", mn.DevelopmentDynamicRange);
-    add(m_make, "AutoDynamicRange", mn.AutoDynamicRange);
-#    else
+#if LIBRAW_VERSION >= LIBRAW_MAKE_VERSION(0, 20, 0)
+    MAKERF(ExpoMidPointShift);
+    MAKERF(DynamicRange);
+    MAKERF(FilmMode);
+    MAKERF(DynamicRangeSetting);
+    MAKERF(DevelopmentDynamicRange);
+    MAKERF(AutoDynamicRange);
+    MAKERF(DRangePriority);
+    MAKERF(DRangePriorityAuto);
+    MAKERF(DRangePriorityFixed);
+    MAKERF(BrightnessCompensation);
+#elif LIBRAW_VERSION >= LIBRAW_MAKE_VERSION(0, 18, 0)
     add(m_make, "ExpoMidPointShift", mn.FujiExpoMidPointShift);
     add(m_make, "DynamicRange", mn.FujiDynamicRange);
     add(m_make, "FilmMode", mn.FujiFilmMode);
     add(m_make, "DynamicRangeSetting", mn.FujiDynamicRangeSetting);
     add(m_make, "DevelopmentDynamicRange", mn.FujiDevelopmentDynamicRange);
     add(m_make, "AutoDynamicRange", mn.FujiAutoDynamicRange);
-#    endif
+#endif
 
+#if LIBRAW_VERSION >= LIBRAW_MAKE_VERSION(0, 18, 0)
     MAKERF(FocusMode);
     MAKERF(AFMode);
     MAKERF(FocusPixel);
@@ -1025,11 +1130,44 @@ RawInput::get_makernotes_fuji()
     MAKERF(ExrMode);
     MAKERF(Macro);
     MAKERF(Rating);
-#    if LIBRAW_VERSION < LIBRAW_MAKE_VERSION(0, 21, 0)
+#endif
+#if LIBRAW_VERSION >= LIBRAW_MAKE_VERSION(0, 20, 0)
+    MAKERF(CropMode);
+#endif
+#if LIBRAW_VERSION >= LIBRAW_MAKE_VERSION(0, 21, 0)
+    MAKERF(PrioritySettings);
+    MAKERF(FocusSettings);
+    MAKERF(AF_C_Settings);
+    MAKERF(FocusWarning);
     MAKERF(FrameRate);
     MAKERF(FrameWidth);
     MAKERF(FrameHeight);
-#    endif
+    MAKERF(SerialSignature);
+    MAKERF(SensorID);
+    MAKERF(RAFVersion);
+    MAKERF(RAFDataGeneration);
+    MAKERF(RAFDataVersion);
+    MAKERF(TSNERDTS);
+    MAKERF(DriveMode);
+    MAKERF(BlackLevel);
+    MAKERF(RAFData_ImageSizeTable);
+#endif
+}
+
+
+
+void
+RawInput::get_makernotes_ricoh()
+{
+#if LIBRAW_VERSION >= LIBRAW_MAKE_VERSION(0, 20, 0)
+    auto const& mn(m_processor->imgdata.makernotes.ricoh);
+    MAKERF(ImageSizeFull);
+    MAKERF(ImageSizeCrop);
+    MAKERF(ColorSpace);
+    MAKERF(key);
+    MAKERF(DigitalGain); /* PostAEGain, digital stretch */
+    MAKERF(DeviceType);
+    MAKERF(LensFirmware);
 #endif
 }
 
@@ -1079,6 +1217,16 @@ RawInput::get_makernotes_sony()
     add(m_make, "DateTime", mn.SonyDateTime);
     // MAKERF(TimeStamp);  Removed after 0.19, is in 'other'
     MAKER(ShotNumberSincePowerUp, 0);
+#endif
+
+#if LIBRAW_VERSION >= LIBRAW_MAKE_VERSION(0, 20, 0)
+    MAKERF(AFAreaModeSetting);
+    MAKERF(FlexibleSpotPosition);
+    MAKERF(PointSelected);
+#endif
+
+#if LIBRAW_VERSION >= LIBRAW_MAKE_VERSION(0, 21, 0)
+    MAKERF(AFAreaMode);
 #endif
 }
 
