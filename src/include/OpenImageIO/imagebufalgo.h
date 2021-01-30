@@ -969,6 +969,11 @@ bool OIIO_API clamp (ImageBuf &dst, const ImageBuf &src,
                      bool clampalpha01 = false, ROI roi={}, int nthreads=0);
 
 
+
+// Helper class used by contrast_remap to determine how out-of-input-range
+// values are handled.
+enum class CROutlier { All, Copy, Clamp };
+
 /// Return pixel values that are a contrast-remap of the corresponding
 /// values of the `src` image, transforming pixel value domain [black,
 /// white] to range [min, max], either linearly or with optional application
@@ -983,13 +988,22 @@ bool OIIO_API clamp (ImageBuf &dst, const ImageBuf &src,
 ///    2; the default is 0.5).
 /// 3. Rescale the range of that result: 0.0 -> `min` and 1.0 -> `max`.
 ///
-/// Values outside of the [black,white] range will be extrapolated to
-/// outside [min,max], so it may be prudent to apply a clamp() to the
-/// results.
-///
 /// The black, white, min, max, scontrast, sthresh parameters may each
 /// either be a single float value for all channels, or a span giving
 /// per-channel values.
+///
+/// The `outlier` parameter determines how to treat values that are outside
+/// the range `[black, white]`. It is an `enum` having any of the following
+/// values:
+///
+/// * `CROutlier::All` : The default, this performs the same
+///   computation on all input values, regardless of whether they are
+///   strictly in the `[black, white]` range originally.
+/// * `CROutlier::Copy` : Input values outside the `[black, white]` range
+///   will be to the output image without alteration by the contrast remap.
+/// * `CROutlier::Clamp` : Clamp input values to `[black, white]`, i.e.,
+///   all values less than `black` will map to `min`, and all values greater
+///   than `white` will map to `max`.
 ///
 /// You can use this function for a simple linear contrast remapping of
 /// [black, white] to [min, max] if you use the default values for sthresh.
@@ -1003,13 +1017,31 @@ OIIO_API ImageBuf contrast_remap (const ImageBuf &src,
                     cspan<float> black=0.0f, cspan<float> white=1.0f,
                     cspan<float> min=0.0f, cspan<float> max=1.0f,
                     cspan<float> scontrast=1.0f, cspan<float> sthresh=0.5f,
-                    ROI={}, int nthreads=0);
+                    CROutlier outlier = CROutlier::All,
+                    ROI roi = {}, int nthreads = 0);
 /// Write to an existing image `dst` (allocating if it is uninitialized).
 OIIO_API bool contrast_remap (ImageBuf &dst, const ImageBuf &src,
                     cspan<float> black=0.0f, cspan<float> white=1.0f,
                     cspan<float> min=0.0f, cspan<float> max=1.0f,
                     cspan<float> scontrast=1.0f, cspan<float> sthresh=0.5f,
-                    ROI={}, int nthreads=0);
+                    CROutlier outlier = CROutlier::All,
+                    ROI roi = {}, int nthreads = 0);
+
+#ifndef DOXYGEN_SHOULD_SKIP_THIS
+/// DEPRECATED(2.3): old version lacking RemapOutlier
+OIIO_API ImageBuf contrast_remap (const ImageBuf &src,
+                    cspan<float> black, cspan<float> white,
+                    cspan<float> min, cspan<float> max,
+                    cspan<float> scontrast, cspan<float> sthresh,
+                    ROI roi, int nthreads=0);
+/// DEPRECATED(2.3): old version lacking RemapOutlier
+OIIO_API bool contrast_remap (ImageBuf &dst, const ImageBuf &src,
+                    cspan<float> black, cspan<float> white,
+                    cspan<float> min, cspan<float> max,
+                    cspan<float> scontrast, cspan<float> sthresh,
+                    ROI roi, int nthreads = 0);
+#endif
+
 
 
 /// @defgroup color_map (Remap value range by spline or name)

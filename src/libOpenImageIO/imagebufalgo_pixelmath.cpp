@@ -934,8 +934,8 @@ template<class D, class S>
 static bool
 contrast_remap_(ImageBuf& dst, const ImageBuf& src, cspan<float> black,
                 cspan<float> white, cspan<float> min, cspan<float> max,
-                cspan<float> scontrast, cspan<float> sthresh, ROI roi,
-                int nthreads)
+                cspan<float> scontrast, cspan<float> sthresh,
+                ImageBufAlgo::CROutlier outlier, ROI roi, int nthreads)
 {
     bool same_black_white = (black == white);
     float* bwdiffinv      = OIIO_ALLOCA(float, roi.chend);
@@ -944,26 +944,50 @@ contrast_remap_(ImageBuf& dst, const ImageBuf& src, cspan<float> black,
     bool use_sigmoid = !allspan(scontrast, 1.0f);
     bool do_minmax   = !(allspan(min, 0.0f) && allspan(max, 1.0f));
 
-    ImageBufAlgo::parallel_image(roi, nthreads, [&](ROI roi) {
-        if (same_black_white) {
-            // Special case -- black & white are the same value, which is
-            // just a binary threshold.
+    if (same_black_white) {
+        // Special case -- black & white are the same value, which is
+        // just a binary threshold.
+        ImageBufAlgo::parallel_image(roi, nthreads, [&](ROI roi) {
             ImageBuf::ConstIterator<S> s(src, roi);
             for (ImageBuf::Iterator<D> d(dst, roi); !d.done(); ++d, ++s) {
                 for (int c = roi.chbegin; c < roi.chend; ++c)
                     d[c] = (s[c] < black[c] ? min[c] : max[c]);
             }
-            return;
-        }
+        });
+        return true;
+    }
 
+    ImageBufAlgo::parallel_image(roi, nthreads, [&](ROI roi) {
         // First do the linear stretch
         float* r = OIIO_ALLOCA(float, roi.chend);  // temp result
         ImageBuf::ConstIterator<S> s(src, roi);
-        float* y     = OIIO_ALLOCA(float, roi.chend);
-        float* denom = OIIO_ALLOCA(float, roi.chend);
+        float* y      = OIIO_ALLOCA(float, roi.chend);
+        float* denom  = OIIO_ALLOCA(float, roi.chend);
+        bool* inrange = OIIO_ALLOCA(bool, roi.chend);
         for (ImageBuf::Iterator<D> d(dst, roi); !d.done(); ++d, ++s) {
+            // Copy source to local stack pixel
             for (int c = roi.chbegin; c < roi.chend; ++c)
-                r[c] = (s[c] - black[c]) * bwdiffinv[c];
+                r[c] = s[c];
+            // Clamp input if requested
+            if (outlier == ImageBufAlgo::CROutlier::Clamp) {
+                for (int c = roi.chbegin; c < roi.chend; ++c)
+                    r[c] = OIIO::clamp(r[c], black[c], white[c]);
+                // From here on, clamp logic is same as 'all'
+            }
+            // Establish which channels are in range
+            if (outlier == ImageBufAlgo::CROutlier::Copy) {
+                for (int c = roi.chbegin; c < roi.chend; ++c)
+                    inrange[c] = (r[c] >= black[c] && r[c] <= white[c]);
+            } else {
+                // For All and Clamp modes, everything is done uniformly
+                for (int c = roi.chbegin; c < roi.chend; ++c)
+                    inrange[c] = true;
+            }
+
+            for (int c = roi.chbegin; c < roi.chend; ++c) {
+                if (inrange[c])
+                    r[c] = (r[c] - black[c]) * bwdiffinv[c];
+            }
 
             // Apply the sigmoid if needed
             // See http://www.imagemagick.org/Usage/color_mods/#sigmoidal
@@ -972,24 +996,25 @@ contrast_remap_(ImageBuf& dst, const ImageBuf& src, cspan<float> black,
                 // Sorry about the lack of clarity, we're working hard to
                 // minimize computation.
                 for (int c = roi.chbegin; c < roi.chend; ++c) {
-                    y[c]     = 1.0f / (1.0f + expf(scontrast[c] * sthresh[c]));
-                    denom[c] = 1.0f
-                                   / (1.0f
-                                      + expf(scontrast[c] * (sthresh[c] - 1.0f)))
-                               - y[c];
-                }
-                for (int c = roi.chbegin; c < roi.chend; ++c) {
-                    float x = 1.0f
-                              / (1.0f
-                                 + expf(scontrast[c] * (sthresh[c] - r[c])));
-                    r[c] = (x - y[c]) / denom[c];
+                    if (inrange[c]) {
+                        y[c]     = 1.0f / (1.0f + expf(scontrast[c] * sthresh[c]));
+                        denom[c] = 1.0f
+                                       / (1.0f
+                                          + expf(scontrast[c] * (sthresh[c] - 1.0f)))
+                                   - y[c];
+                        float x = 1.0f
+                                  / (1.0f
+                                     + expf(scontrast[c] * (sthresh[c] - r[c])));
+                        r[c] = (x - y[c]) / denom[c];
+                    }
                 }
             }
 
             // remap output range if needed
             if (do_minmax) {
                 for (int c = roi.chbegin; c < roi.chend; ++c)
-                    r[c] = lerp(min[c], max[c], r[c]);
+                    if (inrange[c])
+                        r[c] = lerp(min[c], max[c], r[c]);
             }
             for (int c = roi.chbegin; c < roi.chend; ++c)
                 d[c] = r[c];
@@ -1005,7 +1030,7 @@ ImageBufAlgo::contrast_remap(ImageBuf& dst, const ImageBuf& src,
                              cspan<float> black, cspan<float> white,
                              cspan<float> min, cspan<float> max,
                              cspan<float> scontrast, cspan<float> sthresh,
-                             ROI roi, int nthreads)
+                             CROutlier outlier, ROI roi, int nthreads)
 {
     pvt::LoggedTimer logtime("IBA::contrast_remap");
     if (!IBAprep(roi, &dst, &src))
@@ -1023,8 +1048,8 @@ ImageBufAlgo::contrast_remap(ImageBuf& dst, const ImageBuf& src,
     bool ok;
     OIIO_DISPATCH_COMMON_TYPES2(ok, "contrast_remap", contrast_remap_,
                                 dst.spec().format, src.spec().format, dst, src,
-                                black, white, min, max, scontrast, sthresh, roi,
-                                nthreads);
+                                black, white, min, max, scontrast, sthresh,
+                                outlier, roi, nthreads);
     return ok;
 }
 
@@ -1034,14 +1059,40 @@ ImageBuf
 ImageBufAlgo::contrast_remap(const ImageBuf& src, cspan<float> black,
                              cspan<float> white, cspan<float> min,
                              cspan<float> max, cspan<float> scontrast,
-                             cspan<float> sthresh, ROI roi, int nthreads)
+                             cspan<float> sthresh, CROutlier outlier,
+                             ROI roi, int nthreads)
 {
     ImageBuf result;
     bool ok = contrast_remap(result, src, black, white, min, max, scontrast,
-                             sthresh, roi, nthreads);
+                             sthresh, outlier, roi, nthreads);
     if (!ok && !result.has_error())
         result.errorfmt("ImageBufAlgo::contrast_remap error");
     return result;
+}
+
+
+
+// DEPRECATED(2.3)
+bool
+ImageBufAlgo::contrast_remap(ImageBuf& dst, const ImageBuf& src,
+                             cspan<float> black, cspan<float> white,
+                             cspan<float> min, cspan<float> max,
+                             cspan<float> scontrast, cspan<float> sthresh,
+                             ROI roi, int nthreads)
+{
+    return contrast_remap(dst, src, black, white, min, max, scontrast,
+                          sthresh, CROutlier::All, roi, nthreads);
+}
+
+// DEPRECATED(2.3)
+ImageBuf
+ImageBufAlgo::contrast_remap(const ImageBuf& src, cspan<float> black,
+                             cspan<float> white, cspan<float> min,
+                             cspan<float> max, cspan<float> scontrast,
+                             cspan<float> sthresh, ROI roi, int nthreads)
+{
+    return contrast_remap(src, black, white, min, max, scontrast,
+                          sthresh, CROutlier::All, roi, nthreads);
 }
 
 
