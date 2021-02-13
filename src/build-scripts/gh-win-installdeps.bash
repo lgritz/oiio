@@ -46,6 +46,8 @@ pip install numpy
 #
 # Currently we are not using this, but here it is for reference:
 #
+if [[ "${WIN_PRE_VCPKG}" == "" ]] ; then
+
 echo "All pre-installed VCPkg installs:"
 vcpkg list
 echo "---------------"
@@ -76,11 +78,20 @@ vcpkg install freetype:x64-windows
 # 
 # # export PATH="$PATH:$DEP_DIR/bin:$VCPKG_INSTALLATION_ROOT/installed/x64-windows/bin"
 # export PATH="$DEP_DIR/lib:$DEP_DIR/bin:$PATH:$VCPKG_INSTALLATION_ROOT/installed/x64-windows/lib"
-export CMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH;$VCPKG_INSTALLATION_ROOT/installed/x64-windows/lib"
+#export CMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH;$VCPKG_INSTALLATION_ROOT/installed/x64-windows/lib"
 # export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$VCPKG_INSTALLATION_ROOT/installed/x64-windows/lib:$DEP_DIR/lib:$DEP_DIR/bin"
 # 
+
+fi
+
 echo "All VCPkg installs:"
 vcpkg list
+
+ls $VCPKG_INSTALLATION_ROOT || true
+ls $VCPKG_INSTALLATION_ROOT/* || true
+ls $VCPKG_INSTALLATION_ROOT/installed/x64-windows-static || true
+ls $VCPKG_INSTALLATION_ROOT/installed/x64-windows || true
+export CMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH;$VCPKG_INSTALLATION_ROOT/installed/x64-windows-static"
 #
 ########################################################################
 
@@ -89,6 +100,12 @@ vcpkg list
 # Dependency method #2: Build from source ourselves
 #
 #
+
+source src/build-scripts/build_pybind11.bash
+#export pybind11_ROOT=$PWD/ext/dist
+
+
+if [[ "${WIN_PRE_VCPKG}" == "" ]] ; then
 
 src/build-scripts/build_zlib.bash
 export ZLIB_ROOT=$PWD/ext/dist
@@ -106,10 +123,6 @@ export PNG_ROOT=$PWD/ext/dist
 # src/build-scripts/build_libjpeg-turbo.bash
 # export JPEGTurbo_ROOT=$PWD/ext/dist
 
-source src/build-scripts/build_pybind11.bash
-#export pybind11_ROOT=$PWD/ext/dist
-
-
 # curl --location https://ffmpeg.zeranoe.com/builds/win64/dev/ffmpeg-4.2.1-win64-dev.zip -o ffmpeg-dev.zip
 # unzip ffmpeg-dev.zip
 # FFmpeg_ROOT=$PWD/ffmpeg-4.2.1-win64-dev
@@ -125,11 +138,13 @@ export PATH="$OPENEXR_INSTALL_DIR/bin:$OPENEXR_INSTALL_DIR/lib:$PATH"
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PATH
 # the above line is admittedly sketchy
 
+
 cp $DEP_DIR/lib/*.lib $DEP_DIR/bin
 cp $DEP_DIR/bin/*.dll $DEP_DIR/lib
 echo "DEP_DIR $DEP_DIR :"
 ls -R -l "$DEP_DIR"
 
+fi
 
 src/build-scripts/install_test_images.bash
 
