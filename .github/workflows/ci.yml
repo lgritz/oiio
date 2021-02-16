@@ -574,7 +574,7 @@ jobs:
           vcpkgDirectory: 'c:/vcpkg'
           doNotUpdateVcpkg: true
           vcpkgArguments: 'tiff freetype zlib libpng giflib'
-          vcpkgTriplet: 'x64-windows-static'
+          vcpkgTriplet: 'x64-windows'
           # vcpkgTriplet: 'x64-windows-static'
       # - name: Prepare ccache timestamp
       #   id: ccache_cache_keys
