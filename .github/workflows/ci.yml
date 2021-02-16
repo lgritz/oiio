@@ -573,7 +573,7 @@ jobs:
         with:
           vcpkgDirectory: 'c:/vcpkg'
           doNotUpdateVcpkg: true
-          vcpkgArguments: 'tiff freetype zlib libpng giflib'
+          vcpkgArguments: 'tiff freetype zlib libpng giflib openexr'
           vcpkgTriplet: 'x64-windows'
           # vcpkgTriplet: 'x64-windows-static'
       # - name: Prepare ccache timestamp
