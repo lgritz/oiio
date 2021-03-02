@@ -50,6 +50,8 @@ export COMPILER=${COMPILER:=gcc}
 export CXX=${CXX:=g++}
 export CI=true
 export USE_NINJA=${USE_NINJA:=1}
+echo "which ninja: " `which ninja`
+echo "Initial CMAKE_GENERATOR: ${CMAKE_GENERATOR}"
 export CMAKE_GENERATOR=${CMAKE_GENERATOR:=Ninja}
 export CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE:=Release}
 export CMAKE_CXX_STANDARD=${CMAKE_CXX_STANDARD:=11}
