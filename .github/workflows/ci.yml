@@ -552,13 +552,12 @@ jobs:
       CMAKE_GENERATOR: "Visual Studio 16 2019"
       OPENEXR_VERSION: v2.5.5
       CTEST_ARGS: "--timeout 120 --repeat after-timeout:5"
-      # CXX_FLAGS: /MP
+      CMAKE_C_COMPILER_LAUNCHER: ccache
+      CMAKE_CXX_COMPILER_LAUNCHER: ccache
     steps:
       - uses: actions/checkout@v2
-      # - name: Get CMake
-      #   uses: symbitic/install-cmake@master
       - name: Download ccache
-        id: ccache
+        id: downloadccache
         shell: cmake -P {0}
         run: |
           set(ccache_url "https://github.com/cristianadam/ccache/releases/download/v$ENV{CCACHE_VERSION}/${{ runner.os }}.tar.xz")
@@ -568,13 +567,14 @@ jobs:
         uses: nuget/setup-nuget@v1
       - name: Prepare ccache timestamp
         id: ccache_cache_keys
+        shell: bash
         run: |
           echo "::set-output name=date::`date -u +'%Y-%m-%dT%H:%M:%SZ'`"
       - name: ccache
         id: ccache
         uses: actions/cache@v2
         with:
-          path: /Users/runner/.ccache
+          path: /c/Users/runneradmin
           key: ${{ github.job }}-${{ steps.ccache_cache_keys.outputs.date }}
           restore-keys: |
             ${{ github.job }}-
