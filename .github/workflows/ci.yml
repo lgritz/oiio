@@ -552,6 +552,7 @@ jobs:
       CMAKE_GENERATOR: "Visual Studio 16 2019"
       OPENEXR_VERSION: v2.5.5
       CTEST_ARGS: "--timeout 120 --repeat after-timeout:5"
+      CXX_FLAGS: /MP
     steps:
       - uses: actions/checkout@v2
       - name: Setup Nuget.exe
