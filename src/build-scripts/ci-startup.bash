@@ -30,10 +30,14 @@ export PATH=/usr/local/bin/_ccache:/usr/lib/ccache:$PATH
 export USE_CCACHE=${USE_CCACHE:=1}
 export CCACHE_CPP2=
 export CCACHE_DIR=/tmp/ccache
-if [[ "${RUNNER_OS}" == "macOS" || "${RUNNER_OS}" == "Windows" ]] ; then
+if [[ "${RUNNER_OS}" == "macOS" ]] ; then
+    export CCACHE_DIR=$HOME/.ccache
+fi
+if [[ "${RUNNER_OS}" == "Windows" ]] ; then
     export CCACHE_DIR=$HOME/.ccache
 fi
 mkdir -p $CCACHE_DIR
+echo "CCACHE_DIR = $CCACHE_DIR"
 
 export OpenImageIO_ROOT=$PWD/dist/$PLATFORM
 export DYLD_LIBRARY_PATH=$OpenImageIO_ROOT/lib:$DYLD_LIBRARY_PATH

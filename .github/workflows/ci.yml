@@ -574,7 +574,7 @@ jobs:
         id: ccache
         uses: actions/cache@v2
         with:
-          path: /c/Users/runneradmin
+          path: /c/Users/runneradmin/.ccache
           key: ${{ github.job }}-${{ steps.ccache_cache_keys.outputs.date }}
           restore-keys: |
             ${{ github.job }}-
