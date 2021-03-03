@@ -555,6 +555,7 @@ jobs:
       CMAKE_C_COMPILER_LAUNCHER: ccache
       CMAKE_CXX_COMPILER_LAUNCHER: ccache
       CCACHE_VERSION: 4.2
+      VERBOSE: 1
     steps:
       - uses: actions/checkout@v2
       # - name: Download ccache

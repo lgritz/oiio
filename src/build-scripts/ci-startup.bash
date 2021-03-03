@@ -40,6 +40,7 @@ mkdir -p $CCACHE_DIR
 echo "which ccache: " `which ccache`
 echo "CCACHE_DIR = $CCACHE_DIR"
 ls $CCACHE_DIR
+ccache -s
 
 export OpenImageIO_ROOT=$PWD/dist/$PLATFORM
 export DYLD_LIBRARY_PATH=$OpenImageIO_ROOT/lib:$DYLD_LIBRARY_PATH
