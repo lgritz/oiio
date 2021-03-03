@@ -26,7 +26,7 @@ echo "Architecture is $ARCH"
 echo "Build platform name is $PLATFORM"
 
 # Environment variables we always need
-export PATH=/usr/local/bin/_ccache:/usr/lib/ccache:$PATH
+export PATH=/usr/local/bin/_ccache:/usr/lib/ccache:$PWD/bin:$PATH
 export USE_CCACHE=${USE_CCACHE:=1}
 export CCACHE_CPP2=
 export CCACHE_DIR=/tmp/ccache
@@ -37,7 +37,9 @@ if [[ "${RUNNER_OS}" == "Windows" ]] ; then
     export CCACHE_DIR=$HOME/.ccache
 fi
 mkdir -p $CCACHE_DIR
+echo "which ccache: " `which ccache`
 echo "CCACHE_DIR = $CCACHE_DIR"
+ls $CCACHE_DIR
 
 export OpenImageIO_ROOT=$PWD/dist/$PLATFORM
 export DYLD_LIBRARY_PATH=$OpenImageIO_ROOT/lib:$DYLD_LIBRARY_PATH
@@ -54,8 +56,6 @@ export COMPILER=${COMPILER:=gcc}
 export CXX=${CXX:=g++}
 export CI=true
 export USE_NINJA=${USE_NINJA:=1}
-echo "which ninja: " `which ninja`
-echo "Initial CMAKE_GENERATOR: ${CMAKE_GENERATOR}"
 export CMAKE_GENERATOR=${CMAKE_GENERATOR:=Ninja}
 export CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE:=Release}
 export CMAKE_CXX_STANDARD=${CMAKE_CXX_STANDARD:=11}

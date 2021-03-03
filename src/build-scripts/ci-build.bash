@@ -39,3 +39,7 @@ if [[ "$BUILDTARGET" == clang-format ]] ; then
         exit 1
     fi
 fi
+
+echo "which ccache: " `which ccache`
+echo "CCACHE_DIR = $CCACHE_DIR"
+ls $CCACHE_DIR

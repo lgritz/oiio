@@ -198,6 +198,7 @@ endif ()
 # not found on the system, it will simply be silently not used.
 option (USE_CCACHE "Use ccache if found" ON)
 find_program (CCACHE_FOUND ccache)
+message (STATUS "CCACHE_FOUND: ${CCACHE_FOUND}")
 # if (CCACHE_FOUND AND USE_CCACHE)
 #     if (CMAKE_COMPILER_IS_CLANG AND USE_QT AND (NOT DEFINED ENV{CCACHE_CPP2}))
 #         message (STATUS "Ignoring ccache because clang + Qt + env CCACHE_CPP2 is not set")
@@ -211,7 +212,8 @@ if (CCACHE_FOUND AND USE_CCACHE AND
     set (CMAKE_C_COMPILER_LAUNCHER ccache CACHE STRING "Compile launcher for C")
     set (CMAKE_CXX_COMPILER_LAUNCHER ccache CACHE STRING "Compile launcher for C++")
 endif ()
-
+message (STATUS "CMAKE_CXX_COMPILER_LAUNCHER ${CMAKE_CXX_COMPILER_LAUNCHER}")
+message (STATUS "CMAKE_C_COMPILER_LAUNCHER ${CMAKE_C_COMPILER_LAUNCHER}")
 
 ###########################################################################
 # Option to force use of libc++ (the LLVM project's alternate C++ standard

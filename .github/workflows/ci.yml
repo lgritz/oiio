@@ -554,15 +554,22 @@ jobs:
       CTEST_ARGS: "--timeout 120 --repeat after-timeout:5"
       CMAKE_C_COMPILER_LAUNCHER: ccache
       CMAKE_CXX_COMPILER_LAUNCHER: ccache
+      CCACHE_VERSION: 4.2
     steps:
       - uses: actions/checkout@v2
+      # - name: Download ccache
+      #   id: downloadccache
+      #   shell: cmake -P {0}
+      #   run: |
+      #     set(ccache_url "https://github.com/cristianadam/ccache/releases/download/v$ENV{CCACHE_VERSION}/${{ runner.os }}.tar.xz")
+      #     file(DOWNLOAD "${ccache_url}" ./ccache.tar.xz SHOW_PROGRESS)
+      #     execute_process(COMMAND ${CMAKE_COMMAND} -E tar xvf ./ccache.tar.xz)
       - name: Download ccache
         id: downloadccache
-        shell: cmake -P {0}
+        shell: bash
         run: |
-          set(ccache_url "https://github.com/cristianadam/ccache/releases/download/v$ENV{CCACHE_VERSION}/${{ runner.os }}.tar.xz")
-          file(DOWNLOAD "${ccache_url}" ./ccache.tar.xz SHOW_PROGRESS)
-          execute_process(COMMAND ${CMAKE_COMMAND} -E tar xvf ./ccache.tar.xz)
+          curl --location https://github.com/cristianadam/ccache/releases/download/v${CCACHE_VERSION}/${{ runner.os }}.tar.xz -o ccache.tar.xz
+          tar xvf ./ccache.tar.xz
       - name: Setup Nuget.exe
         uses: nuget/setup-nuget@v1
       - name: Prepare ccache timestamp
