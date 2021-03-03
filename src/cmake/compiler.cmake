@@ -202,6 +202,11 @@ message (STATUS "CCACHE_FOUND: ${CCACHE_FOUND}")
 if (CCACHE_FOUND AND USE_CCACHE)
     if (CMAKE_COMPILER_IS_CLANG AND USE_QT AND (NOT DEFINED ENV{CCACHE_CPP2}))
         message (STATUS "Ignoring ccache because clang + Qt + env CCACHE_CPP2 is not set")
+    elseif (MSVC)
+        # When using MSVC, the compiler_launcher seems ignored, so just hack
+        # the compiler itself.
+        set (CXX ccache ${CXX})
+        # set (CMAKE_CXX_COMPILER ccache "${CMAKE_CXX_COMPILER}")
     else ()
         # set_property (GLOBAL PROPERTY RULE_LAUNCH_COMPILE ccache)
         # set_property (GLOBAL PROPERTY RULE_LAUNCH_LINK ccache)
