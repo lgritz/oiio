@@ -265,7 +265,9 @@ test_all_formats()
         //
         // Try writing the file
         //
-        std::string filename = Strutil::sprintf("imageinout_test-%s.%s",
+        // Note: purposely construct a UTF-8 filename with a Unicode
+        // character to catch any readers/writers that can't handle it.
+        std::string filename = Strutil::sprintf("imageinöut_test-%s.%s",
                                                 formatname, extensions[0]);
         auto out             = ImageOutput::create(filename);
         if (!out) {
