@@ -162,10 +162,10 @@ checked_find_package (OpenCV
                    DEFINITIONS  -DUSE_OPENCV=1)
 
 # Intel TBB
-set (TBB_USE_DEBUG_BUILD OFF)
-checked_find_package (TBB 2017
-                   DEFINITIONS  -DUSE_TBB=1
-                   ISDEPOF      OpenVDB)
+# set (TBB_USE_DEBUG_BUILD OFF)
+# checked_find_package (TBB 2017
+#                    DEFINITIONS  -DUSE_TBB=1
+#                    ISDEPOF      OpenVDB)
 
 checked_find_package (DCMTK VERSION_MIN 3.6.1)  # For DICOM images
 checked_find_package (FFmpeg VERSION_MIN 2.6)
@@ -194,7 +194,7 @@ checked_find_package (OpenJpeg VERSION_MIN 2.0)
 
 checked_find_package (OpenVDB
                       VERSION_MIN 5.0
-                      DEPS         TBB
+                      # DEPS         TBB
                       DEFINITIONS  -DUSE_OPENVDB=1)
 
 checked_find_package (PTex)
