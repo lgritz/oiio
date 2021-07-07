@@ -115,9 +115,6 @@ jobs:
             build/*/CMake*.{txt,log}
 
   vfxplatform-2021:
-    # Test what's anticipated to be VFX Platform 2021 -- mainly, that means
-    # gcc9 and C++17. This test currently uses the latest OpenEXR release
-    # 2.5, though eventually 2021 will feature OpenEXR 3.0 when complete.
     name: "Linux VFX Platform 2021: gcc9/C++17 py3.7 boost-1.73 exr-2.5 qt-5.15"
     runs-on: ubuntu-latest
     container:
@@ -164,21 +161,17 @@ jobs:
             build/*/testsuite/*/*.*
             build/*/CMake*.{txt,log}
 
-  vfxplatform-2021-exr3:
-    # Test what's anticipated to be VFX Platform 2021 -- mainly, that means
-    # gcc9 and C++17, and also OpenEXR/Imath 3.0.
-    name: "Linux VFX Platform 2021: gcc9/C++17 py3.7 boost-1.73 exr-3.0 qt-5.15"
+  vfxplatform-2022:
+    name: "Linux VFX Platform 2022: gcc9/C++17 py3.9 boost-1.73 exr-3.0 qt-5.15"
     runs-on: ubuntu-latest
     container:
-      image: aswf/ci-osl:2021
+      image: aswf/ci-osl:2022-clang11.7
     env:
       CXX: g++
       CC: gcc
       CMAKE_CXX_STANDARD: 17
-      PYTHON_VERSION: 3.7
+      PYTHON_VERSION: 3.9
       USE_SIMD: avx2,f16c
-      OPENCOLORIO_VERSION: v2.0.0
-      OPENEXR_VERSION: v3.0.3
     steps:
       - uses: actions/checkout@v2
       - name: Prepare ccache timestamp
@@ -198,8 +191,6 @@ jobs:
             src/build-scripts/ci-startup.bash
       - name: Dependencies
         run: |
-            sudo rm -rf /usr/local/include/OpenEXR
-            sudo rm -rf /usr/local/lib64/cmake/{IlmBase,OpenEXR}
             src/build-scripts/gh-installdeps.bash
       - name: Build
         run: |
